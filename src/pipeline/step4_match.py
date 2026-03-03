@@ -50,8 +50,11 @@ def _build_match_table(
     match_table: str,
 ) -> dict:
     """Create a match table classifying records as matched/old_only/new_only."""
-    key_join = " AND ".join(f"o.{k} = n.{k}" for k in key_cols)
-    key_select = ", ".join(f"COALESCE(o.{k}, n.{k}) AS {k}" for k in key_cols)
+    # Cast keys to VARCHAR to handle type mismatches (e.g., CLM_ID: BIGINT vs VARCHAR)
+    key_join = " AND ".join(f"CAST(o.{k} AS VARCHAR) = CAST(n.{k} AS VARCHAR)" for k in key_cols)
+    key_select = ", ".join(
+        f"COALESCE(CAST(o.{k} AS VARCHAR), CAST(n.{k} AS VARCHAR)) AS {k}" for k in key_cols
+    )
     old_null_check = f"o.{key_cols[0]} IS NULL"
     new_null_check = f"n.{key_cols[0]} IS NULL"
 

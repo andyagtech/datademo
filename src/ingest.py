@@ -6,6 +6,7 @@ Creates persistent tables for beneficiary summaries and carrier claims.
 """
 
 import os
+import re
 import logging
 from pathlib import Path
 
@@ -89,6 +90,12 @@ def ingest_carrier_claims(con: duckdb.DuckDBPyConnection) -> None:
     logger.info(f"  Loaded {count:,} carrier claims records.")
 
 
+def _extract_year_from_filename(filename: str) -> int | None:
+    """Extract the year from a beneficiary filename like DE1_0_2008_Beneficiary_..."""
+    match = re.search(r"DE1_0_(\d{4})_Beneficiary", filename)
+    return int(match.group(1)) if match else None
+
+
 def ingest_new_system(con: duckdb.DuckDBPyConnection, new_data_dir: Path) -> None:
     """
     Load new-system data when available.
@@ -97,23 +104,41 @@ def ingest_new_system(con: duckdb.DuckDBPyConnection, new_data_dir: Path) -> Non
     """
     logger.info(f"Ingesting new system data from {new_data_dir}...")
 
-    for table_name, pattern in [
-        ("new_beneficiary_summary", "*Beneficiary*"),
-        ("new_carrier_claims", "*Carrier*"),
-    ]:
-        matches = sorted(new_data_dir.glob(pattern))
-        if not matches:
-            logger.warning(f"  No files matching {pattern} in {new_data_dir}")
-            continue
+    # --- Beneficiary files (need summary_year column to match old system schema) ---
+    bene_matches = sorted(new_data_dir.glob("*Beneficiary*"))
+    if bene_matches:
+        con.execute("DROP TABLE IF EXISTS new_beneficiary_summary")
+        parts = []
+        for p in bene_matches:
+            year = _extract_year_from_filename(p.name)
+            if year:
+                parts.append(
+                    f"SELECT *, {year} AS summary_year FROM read_csv_auto('{p}', header=true, all_varchar=false)"
+                )
+            else:
+                logger.warning(f"  Could not extract year from {p.name}, skipping summary_year")
+                parts.append(
+                    f"SELECT * FROM read_csv_auto('{p}', header=true, all_varchar=false)"
+                )
+        con.execute(f"CREATE TABLE new_beneficiary_summary AS ({' UNION ALL '.join(parts)})")
+        count = con.execute("SELECT COUNT(*) FROM new_beneficiary_summary").fetchone()[0]
+        logger.info(f"  Loaded {count:,} records into new_beneficiary_summary.")
+    else:
+        logger.warning(f"  No beneficiary files found in {new_data_dir}")
 
-        con.execute(f"DROP TABLE IF EXISTS {table_name}")
+    # --- Carrier claims files (no extra columns needed) ---
+    carrier_matches = sorted(new_data_dir.glob("*Carrier*"))
+    if carrier_matches:
+        con.execute("DROP TABLE IF EXISTS new_carrier_claims")
         parts = [
             f"SELECT * FROM read_csv_auto('{p}', header=true, all_varchar=false)"
-            for p in matches
+            for p in carrier_matches
         ]
-        con.execute(f"CREATE TABLE {table_name} AS ({' UNION ALL '.join(parts)})")
-        count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-        logger.info(f"  Loaded {count:,} records into {table_name}.")
+        con.execute(f"CREATE TABLE new_carrier_claims AS ({' UNION ALL '.join(parts)})")
+        count = con.execute("SELECT COUNT(*) FROM new_carrier_claims").fetchone()[0]
+        logger.info(f"  Loaded {count:,} records into new_carrier_claims.")
+    else:
+        logger.warning(f"  No carrier claims files found in {new_data_dir}")
 
 
 def run(con: duckdb.DuckDBPyConnection | None = None, new_data_dir: Path | None = None) -> duckdb.DuckDBPyConnection:
