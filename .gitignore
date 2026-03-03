@@ -3,6 +3,7 @@ data/*.csv
 data/*.zip
 data/raw/
 data/new/
+data/new_claims_system_outputs/
 data/db/
 
 # Python

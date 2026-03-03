@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Monospace for the data table */
+.diff-table {
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 12px;
+}
+
+/* Minimap canvas */
+.minimap-container {
+  position: relative;
+  cursor: pointer;
+}
+.minimap-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border: 2px solid rgba(59, 130, 246, 0.7);
+  background: rgba(59, 130, 246, 0.1);
+  pointer-events: none;
+  transition: top 0.05s ease-out;
+}
+
+/* Diff cell highlights */
+.cell-match { background-color: transparent; }
+.cell-diff { background-color: #fecaca; }
+.cell-old-only { background-color: #fef3c7; }
+.cell-new-only { background-color: #dbeafe; }
+
+/* Row highlights */
+.row-match {}
+.row-diff { border-left: 3px solid #ef4444; }
+.row-old-only { border-left: 3px solid #f59e0b; }
+.row-new-only { border-left: 3px solid #3b82f6; }
+
+/* Scrollbar styling */
+.virtual-table::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.virtual-table::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.virtual-table::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 5px;
+}
+.virtual-table::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
