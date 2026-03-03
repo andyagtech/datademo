@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline Architecture — CMS Claims Comparison</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --border: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+    --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; color: var(--accent); }
+  h2 { font-size: 1.25rem; margin: 2.5rem 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; margin: 1rem 0 0.5rem; color: var(--muted); }
+  .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.85rem; }
+  .step-section { margin-bottom: 2rem; }
+  .step-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
+  .step-title { font-size: 1.15rem; font-weight: 600; }
+  .step-desc { color: var(--muted); font-size: 0.88rem; margin-bottom: 1.25rem; max-width: 800px; line-height: 1.65; }
+  .diagram-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; overflow-x: auto; }
+  .diagram-card .mermaid { display: flex; justify-content: center; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+  .detail-box { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+  .detail-box h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin-bottom: 0.5rem; }
+  .detail-box ul { list-style: none; padding: 0; }
+  .detail-box li { font-size: 0.82rem; color: var(--muted); padding: 0.2rem 0; padding-left: 1rem; position: relative; }
+  .detail-box li::before { content: '→'; position: absolute; left: 0; color: var(--accent); }
+  code { background: var(--bg); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.8rem; font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+  .nav { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2rem; }
+  .nav a { font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); text-decoration: none; transition: all 0.15s; }
+  .nav a:hover { color: var(--accent); border-color: var(--accent); }
+  .tech-badge { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 3px; background: rgba(56,189,248,0.15); color: var(--accent); margin: 0.1rem; }
+  @media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Pipeline Architecture</h1>
+  <p class="subtitle">CMS Claims Data Comparison Pipeline — 6-step design</p>
+
+  <div class="nav">
+    <a href="#overview">Overview</a>
+    <a href="#step1">1. Receive</a>
+    <a href="#step2">2. Validate Schema</a>
+    <a href="#step3">3. Ingest & Profile</a>
+    <a href="#step4">4. Match</a>
+    <a href="#step5">5. Compare</a>
+    <a href="#step6">6. Report</a>
+    <a href="#data-flow">Data Flow</a>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- OVERVIEW                                                      -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="overview">
+    <h2>End-to-End Pipeline</h2>
+    <p class="step-desc">
+      The pipeline processes CMS Medicare claims data in six sequential steps.
+      Each step receives a <code>PipelineContext</code> object containing the DuckDB connection,
+      configuration, and accumulated results from prior steps. Each step returns a
+      <code>StepResult</code> with status, metrics, and warnings.
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart LR
+    subgraph INPUT["📁 Input"]
+        OLD["Old System CSVs\n(3 Beneficiary + 2 Carrier)"]
+        NEW["New System CSVs\n(3 Beneficiary + 2 Carrier)"]
+    end
+
+    S1["1\nReceive\n& Verify"]
+    S2["2\nSchema\nValidation"]
+    S3["3\nIngest\n& Profile"]
+    S4["4\nRecord\nMatching"]
+    S5["5\nCompare\n& Analyze"]
+    S6["6\nReport"]
+
+    subgraph OUTPUT["📊 Output"]
+        JSON["report_data.json"]
+        HTML["comparison_report.html"]
+        CSV["CSV Exports"]
+    end
+
+    INPUT --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> OUTPUT
+
+    style S1 fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style S2 fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style S3 fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style S4 fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style S5 fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style S6 fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style INPUT fill:#0f172a,stroke:#334155,color:#94a3b8
+    style OUTPUT fill:#0f172a,stroke:#4ade80,color:#94a3b8
+      </pre>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- STEP 1: RECEIVE                                               -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="step1">
+    <div class="step-header"><span class="step-num">1</span><span class="step-title">Receive & Verify</span></div>
+    <p class="step-desc">
+      Discovers CSV files on disk (or from a <code>StorageAdapter</code> for cloud sources),
+      verifies file integrity via checksums, handles zip extraction, and builds a complete
+      file inventory with sizes and metadata. Separate discovery paths for old and new systems.
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart TB
+    subgraph SOURCES["Data Sources"]
+        LOCAL["Local Filesystem\n<code>data/</code>"]
+        CLOUD["Cloud Storage\n(S3 via StorageAdapter)"]
+        NEWDIR["New System Dir\n<code>--new-data path/</code>"]
+    end
+
+    DISCOVER["File Discovery\nGlob: *Beneficiary*, *Carrier*"]
+    ZIP["Zip Extraction\n(if .zip detected)"]
+    CHECKSUM["SHA-256 Checksum\nIntegrity Verification"]
+    INVENTORY["Build Inventory\n{name, path, size_mb, checksum}"]
+
+    SOURCES --> DISCOVER
+    DISCOVER --> ZIP
+    ZIP --> CHECKSUM
+    CHECKSUM --> INVENTORY
+
+    INVENTORY --> RES["StepResult\n• old_system.inventory\n• new_system.inventory\n• file_count"]
+
+    style DISCOVER fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style ZIP fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style CHECKSUM fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style INVENTORY fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style RES fill:#0f172a,stroke:#4ade80,color:#4ade80
+      </pre>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box">
+        <h4>Key Files</h4>
+        <ul>
+          <li><code>src/pipeline/step1_receive.py</code></li>
+          <li><code>src/storage.py</code> — StorageAdapter protocol</li>
+        </ul>
+      </div>
+      <div class="detail-box">
+        <h4>Technologies</h4>
+        <span class="tech-badge">pathlib</span>
+        <span class="tech-badge">hashlib (SHA-256)</span>
+        <span class="tech-badge">zipfile</span>
+        <span class="tech-badge">StorageAdapter (S3/local)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- STEP 2: SCHEMA VALIDATION                                     -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="step2">
+    <div class="step-header"><span class="step-num">2</span><span class="step-title">Schema Validation</span></div>
+    <p class="step-desc">
+      Reads CSV headers without loading full data and validates them against expected schemas.
+      Classifies each file as beneficiary or carrier claims based on header fingerprints.
+      Detects missing columns, extra columns, and type mismatches early — before the expensive
+      ingestion step.
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart LR
+    INV["File Inventory\nfrom Step 1"] --> READ["Read CSV Headers\n(first row only)"]
+    READ --> CLASS["Classify File Type\nBeneficiary vs Carrier"]
+
+    CLASS --> BENE["Beneficiary Schema\n32 expected columns\nDESYNPUF_ID, BENE_BIRTH_DT, ..."]
+    CLASS --> CARR["Carrier Schema\n141 expected columns\nDESYNPUF_ID, CLM_ID, ..."]
+
+    BENE --> CHECK["Column Validation\n• Missing columns?\n• Extra columns?\n• Name mismatches?"]
+    CARR --> CHECK
+
+    CHECK --> RES["StepResult\n• validated_count\n• beneficiary_count\n• carrier_count\n• schema_errors[]"]
+
+    style READ fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style CLASS fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style BENE fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style CARR fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style CHECK fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style RES fill:#0f172a,stroke:#4ade80,color:#4ade80
+      </pre>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box">
+        <h4>Key Files</h4>
+        <ul>
+          <li><code>src/pipeline/step2_schema.py</code></li>
+        </ul>
+      </div>
+      <div class="detail-box">
+        <h4>Design Choice</h4>
+        <ul>
+          <li>Headers only — no full data scan</li>
+          <li>Fails fast before expensive DuckDB ingestion</li>
+          <li>Tolerates extra columns (forward-compatible)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- STEP 3: INGEST & PROFILE                                      -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="step3">
+    <div class="step-header"><span class="step-num">3</span><span class="step-title">Ingest & Profile</span></div>
+    <p class="step-desc">
+      The heaviest step. Loads all CSVs into DuckDB in-memory tables using <code>read_csv_auto</code>,
+      adds derived columns (e.g., <code>summary_year</code> from filename), then profiles every
+      column in every table — computing null rates, distinct counts, min/max/mean, and detecting
+      statistical anomalies.
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart TB
+    subgraph INGEST["Ingestion"]
+        CSV_OLD["Old System CSVs"] --> DUCK_OLD["DuckDB Tables\n• beneficiary_summary\n• carrier_claims"]
+        CSV_NEW["New System CSVs"] --> DUCK_NEW["DuckDB Tables\n• new_beneficiary_summary\n• new_carrier_claims"]
+    end
+
+    subgraph ENRICH["Enrichment"]
+        DUCK_OLD --> YEAR["Add summary_year\n(extracted from filename)"]
+        DUCK_NEW --> YEAR_N["Add summary_year\n(extracted from filename)"]
+    end
+
+    subgraph PROFILE["Profiling (per table)"]
+        COLS["For each column:\n• null_count, null_pct\n• distinct_count\n• min, max, mean\n• dtype detection"]
+        ANOMALY["Anomaly Detection\n• High null columns (>50%)\n• Zero-variance columns\n• Outlier distributions"]
+    end
+
+    ENRICH --> PROFILE
+
+    PROFILE --> RES["StepResult\n• profiles{table → TableProfile}\n• anomalies[]\n• row counts"]
+
+    style DUCK_OLD fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style DUCK_NEW fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style COLS fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style ANOMALY fill:#1e293b,stroke:#f87171,color:#e2e8f0
+    style RES fill:#0f172a,stroke:#4ade80,color:#4ade80
+      </pre>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box">
+        <h4>Key Files</h4>
+        <ul>
+          <li><code>src/pipeline/step3_ingest.py</code></li>
+          <li><code>src/ingest.py</code> — DuckDB loading logic</li>
+          <li><code>src/profile.py</code> — column-level profiling</li>
+        </ul>
+      </div>
+      <div class="detail-box">
+        <h4>Technologies</h4>
+        <span class="tech-badge">DuckDB</span>
+        <span class="tech-badge">read_csv_auto</span>
+        <span class="tech-badge">SQL aggregations</span>
+        <span class="tech-badge">In-memory analytics</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- STEP 4: RECORD MATCHING                                       -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="step4">
+    <div class="step-header"><span class="step-num">4</span><span class="step-title">Record Matching</span></div>
+    <p class="step-desc">
+      Joins old and new system tables on primary keys using <code>FULL OUTER JOIN</code>.
+      Classifies every record as <strong>matched</strong>, <strong>old-only</strong>, or
+      <strong>new-only</strong>. Also runs internal consistency validations (key integrity,
+      temporal checks, demographic checks, financial reconciliation) on the old system data.
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart TB
+    subgraph TABLES["DuckDB Tables"]
+        OLD_B["beneficiary_summary\n343,644 rows"]
+        NEW_B["new_beneficiary_summary\n343,644 rows"]
+        OLD_C["carrier_claims\n4,741,335 rows"]
+        NEW_C["new_carrier_claims\n4,746,112 rows"]
+    end
+
+    subgraph KEYS["Key Identification"]
+        K1["Beneficiary Key:\nDESYNPUF_ID + summary_year"]
+        K2["Claims Key:\nCLM_ID"]
+    end
+
+    subgraph JOIN["FULL OUTER JOIN"]
+        J1["CAST keys to VARCHAR\n(handle type mismatches)"]
+        J1 --> CLASSIFY["Classify Records\n• COALESCE(old, new) not null → matched\n• new IS NULL → old_only\n• old IS NULL → new_only"]
+    end
+
+    subgraph VALIDATE["Internal Validation"]
+        V1["Key Integrity (3 checks)"]
+        V2["Temporal Consistency"]
+        V3["Demographic Checks"]
+        V4["Financial Reconciliation"]
+    end
+
+    TABLES --> KEYS --> JOIN
+    TABLES --> VALIDATE
+
+    JOIN --> MATCH_T["_match_beneficiary\n_match_claims"]
+    CLASSIFY --> RATES["Match Rates\nBene: 99.91%\nClaims: 99.9%"]
+
+    VALIDATE --> VRES["ValidationResults\n7 passed, 4 failed"]
+
+    style OLD_B fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style NEW_B fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style OLD_C fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style NEW_C fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style CLASSIFY fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style MATCH_T fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style RATES fill:#0f172a,stroke:#4ade80,color:#4ade80
+    style VRES fill:#0f172a,stroke:#f87171,color:#f87171
+      </pre>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box">
+        <h4>Key Files</h4>
+        <ul>
+          <li><code>src/pipeline/step4_match.py</code> — join + classify</li>
+          <li><code>src/validate.py</code> — 11 validation checks</li>
+        </ul>
+      </div>
+      <div class="detail-box">
+        <h4>Design Decisions</h4>
+        <ul>
+          <li>CAST to VARCHAR prevents type mismatch errors</li>
+          <li>FULL OUTER JOIN captures all records from both sides</li>
+          <li>Match tables stored for downstream comparison</li>
+          <li>Validation runs in parallel on old system data</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- STEP 5: COMPARE & ANALYZE                                     -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="step5">
+    <div class="step-header"><span class="step-num">5</span><span class="step-title">Compare & Analyze</span></div>
+    <p class="step-desc">
+      For every matched record pair, compares each field value between old and new systems.
+      Aggregates discrepancies by column and category. Computes financial divergence totals
+      and builds a detailed discrepancy table with per-record diff information.
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart TB
+    MATCHED["Matched Records\nfrom Step 4"] --> COMPARE["Field-by-Field Comparison\nFor each column:\nold_value != new_value?"]
+
+    COMPARE --> AGG["Aggregate Discrepancies\n• By column (which fields differ?)\n• By category (demographic, financial, etc.)\n• By severity (count + percentage)"]
+
+    COMPARE --> DETAIL["Discrepancy Detail Table\n_discrepancy_detail\n343,485 rows × 37 cols"]
+
+    COMPARE --> FINREC["Financial Reconciliation\n_financial_recon\n262,017 rows × 11 cols"]
+
+    AGG --> CHECKS["46 ComparisonResults\n• check_name\n• category\n• table_pair\n• metric_value"]
+
+    subgraph METRICS["Key Metrics"]
+        M1["446 beneficiaries mismatched (0.13%)"]
+        M2["$35,624.71 total financial divergence"]
+        M3["4,777 phantom claims in new system"]
+    end
+
+    CHECKS --> METRICS
+
+    style MATCHED fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style COMPARE fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style AGG fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style DETAIL fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style FINREC fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style CHECKS fill:#0f172a,stroke:#4ade80,color:#4ade80
+      </pre>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box">
+        <h4>Key Files</h4>
+        <ul>
+          <li><code>src/pipeline/step5_compare.py</code></li>
+          <li><code>src/compare.py</code> — comparison logic</li>
+        </ul>
+      </div>
+      <div class="detail-box">
+        <h4>Output Tables</h4>
+        <ul>
+          <li><code>_discrepancy_detail</code> — row-level diffs</li>
+          <li><code>_financial_recon</code> — dollar-level reconciliation</li>
+          <li>46 <code>ComparisonResult</code> objects</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- STEP 6: REPORT                                                -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="step6">
+    <div class="step-header"><span class="step-num">6</span><span class="step-title">Report</span></div>
+    <p class="step-desc">
+      Generates the final deliverables. First builds a canonical <code>report_data.json</code>
+      (the data layer), then renders the HTML report with client-side Plotly charts from the
+      embedded JSON. Also exports raw diff tables as CSVs for external analysis.
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart TB
+    subgraph INPUTS["Inputs from Steps 1-5"]
+        PROF["TableProfiles\n(8 tables)"]
+        VAL["ValidationResults\n(11 checks)"]
+        COMP["ComparisonResults\n(46 checks)"]
+        CTX["PipelineContext\n(file inventories, match rates)"]
+        CHART_Q["Chart Data Queries\n(DuckDB → aggregations)"]
+    end
+
+    BUILD["build_report_data()\nAssemble canonical dict"]
+
+    INPUTS --> BUILD
+
+    BUILD --> JSON["report_data.json\n292 KB\n(presentation-agnostic)"]
+
+    BUILD --> RENDER["Jinja2 Template\n+ Embedded chart_data JSON"]
+
+    RENDER --> HTML["comparison_report.html\n• Data Context section\n• Executive Summary\n• 6 Plotly charts (client-side)\n• Sortable tables\n• Collapsible profiles"]
+
+    BUILD --> EXPORT["CSV Exports"]
+    EXPORT --> CSV1["_discrepancy_detail.csv"]
+    EXPORT --> CSV2["_financial_recon.csv"]
+    EXPORT --> CSV3["_match_beneficiary.csv"]
+    EXPORT --> CSV4["_match_claims.csv"]
+
+    JSON -.->|"fetch()"|REACT["React Diff Viewer\n(separate app)"]
+    JSON -.->|"Any consumer"|OTHER["CLI / PDF / API\n(future)"]
+
+    style BUILD fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style JSON fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style HTML fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style RENDER fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style REACT fill:#0f172a,stroke:#a78bfa,color:#a78bfa,stroke-dasharray: 5 5
+    style OTHER fill:#0f172a,stroke:#94a3b8,color:#94a3b8,stroke-dasharray: 5 5
+      </pre>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box">
+        <h4>Key Files</h4>
+        <ul>
+          <li><code>src/pipeline/step6_report.py</code></li>
+          <li><code>src/report.py</code> — template + rendering</li>
+        </ul>
+      </div>
+      <div class="detail-box">
+        <h4>Architecture Insight</h4>
+        <ul>
+          <li>Data and presentation are separated</li>
+          <li><code>report_data.json</code> is the canonical artifact</li>
+          <li>HTML is one presentation layer; React viewer is another</li>
+          <li>Charts render client-side from embedded JSON</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DATA FLOW                                                     -->
+  <!-- ============================================================ -->
+  <div class="step-section" id="data-flow">
+    <h2>Data Flow & Storage</h2>
+    <p class="step-desc">
+      All intermediate data lives in DuckDB in-memory tables. The pipeline context accumulates
+      results from each step. Only the final report step writes to disk (JSON, HTML, CSVs).
+    </p>
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
+flowchart TB
+    subgraph DISK["Disk (Input)"]
+        F1["data/*.csv\n(old system)"]
+        F2["data/new_claims_system_outputs/*.csv\n(new system)"]
+    end
+
+    subgraph DUCKDB["DuckDB In-Memory"]
+        T1["beneficiary_summary"]
+        T2["carrier_claims"]
+        T3["new_beneficiary_summary"]
+        T4["new_carrier_claims"]
+        T5["_match_beneficiary"]
+        T6["_match_claims"]
+        T7["_discrepancy_detail"]
+        T8["_financial_recon"]
+    end
+
+    subgraph PYTHON["Python Objects (PipelineContext)"]
+        P1["profiles: dict[str, TableProfile]"]
+        P2["validations: list[ValidationResult]"]
+        P3["comparisons: list[ComparisonResult]"]
+        P4["results: dict (step outputs)"]
+    end
+
+    subgraph OUTPUT_DISK["Disk (Output)"]
+        O1["reports/report_data.json"]
+        O2["reports/comparison_report.html"]
+        O3["reports/exports/*.csv"]
+    end
+
+    F1 --> T1 & T2
+    F2 --> T3 & T4
+    T1 & T2 & T3 & T4 --> T5 & T6
+    T5 & T6 --> T7 & T8
+    DUCKDB --> PYTHON
+    PYTHON --> OUTPUT_DISK
+
+    style T1 fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style T2 fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style T3 fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style T4 fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+    style T5 fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style T6 fill:#1e293b,stroke:#a78bfa,color:#e2e8f0
+    style T7 fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style T8 fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style O1 fill:#0f172a,stroke:#4ade80,color:#4ade80
+    style O2 fill:#0f172a,stroke:#fbbf24,color:#fbbf24
+    style O3 fill:#0f172a,stroke:#94a3b8,color:#94a3b8
+      </pre>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between;">
+    <p style="color: var(--muted); font-size: 0.8rem;">CMS Claims Comparison Pipeline — Architecture Diagrams</p>
+    <p style="color: var(--muted); font-size: 0.8rem;">
+      <span class="tech-badge">Python</span>
+      <span class="tech-badge">DuckDB</span>
+      <span class="tech-badge">Jinja2</span>
+      <span class="tech-badge">Plotly.js</span>
+      <span class="tech-badge">Mermaid.js</span>
+    </p>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    securityLevel: 'loose',
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }
+  });
+</script>
+</body>
+</html>
