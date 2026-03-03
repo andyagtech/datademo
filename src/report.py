@@ -27,7 +27,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CMS Claims Comparison Report</title>
-<script charset="utf-8" src="https://cdn.plot.ly/plotly-3.4.4.min.js" integrity="sha256-kOpBbJy9Jkj47XrhGCqj9AjMvdOE7gEg0bOtEqwh6tc=" crossorigin="anonymous"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
   :root {
     --bg: #0f172a; --surface: #1e293b; --border: #334155;
@@ -273,36 +273,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </table>
     <details>
       <summary>Issues by Check <span class="summary-meta">bar chart</span></summary>
-      <div class="details-content">{{ validation_chart }}</div>
+      <div class="details-content"><div id="chart-validation" style="width:100%;height:350px;"></div></div>
     </details>
   </div>
 
   <!-- ============================================================ -->
   <!-- 3. YEAR-OVER-YEAR TRENDS                                     -->
   <!-- ============================================================ -->
-  {% if yoy_beneficiary_chart %}
   <div class="section" id="trends">
     <h2>Year-over-Year Trends</h2>
     <div class="grid-2">
-      <div class="chart-container">{{ yoy_beneficiary_chart }}</div>
-      <div class="chart-container">{{ yoy_claims_chart }}</div>
+      <div class="chart-container"><div id="chart-yoy-bene" style="width:100%;height:350px;"></div></div>
+      <div class="chart-container"><div id="chart-yoy-claims" style="width:100%;height:350px;"></div></div>
     </div>
   </div>
-  {% endif %}
 
   <!-- ============================================================ -->
   <!-- 4. FINANCIAL ANALYSIS                                        -->
   <!-- ============================================================ -->
-  {% if financial_trends_chart %}
   <div class="section" id="financial">
     <h2>Financial Analysis</h2>
-    <div class="chart-container">{{ financial_trends_chart }}</div>
+    <div class="chart-container"><div id="chart-financial-trends" style="width:100%;height:400px;"></div></div>
     <div class="grid-2">
-      <div class="chart-container">{{ financial_dist_chart }}</div>
-      <div class="chart-container">{{ chronic_conditions_chart }}</div>
+      <div class="chart-container"><div id="chart-financial-dist" style="width:100%;height:400px;"></div></div>
+      <div class="chart-container"><div id="chart-chronic" style="width:100%;height:400px;"></div></div>
     </div>
   </div>
-  {% endif %}
 
   <!-- ============================================================ -->
   <!-- 5. SYSTEM COMPARISON (old vs new)                            -->
@@ -395,7 +391,69 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 </div>
 <script>
+var REPORT_DATA = {{ chart_data_json }};
+
 document.addEventListener('DOMContentLoaded', function() {
+  var dark = {plot_bgcolor:'#1e293b',paper_bgcolor:'#1e293b',font:{color:'#e2e8f0',size:11},margin:{l:60,r:30,t:50,b:40}};
+  var gridColor = '#334155';
+
+  /* -- Validation bar chart -- */
+  var vals = REPORT_DATA._validations || [];
+  if (vals.length) {
+    var vChecks = vals.map(function(v){return v.check_name;});
+    var vIssues = vals.map(function(v){return parseInt(String(v.issues_found).replace(/,/g,''))||0;});
+    var vColors = vIssues.map(function(i){return i>0?'#f87171':'#4ade80';});
+    Plotly.newPlot('chart-validation',[{x:vIssues,y:vChecks,orientation:'h',type:'bar',marker:{color:vColors},text:vIssues.map(function(i){return i.toLocaleString();}),textposition:'outside'}],
+      Object.assign({},dark,{title:'Issues Found Per Validation Check',xaxis:{title:'Issues Found',gridcolor:gridColor},yaxis:{autorange:'reversed',gridcolor:gridColor},height:Math.max(350,vChecks.length*35),margin:{l:250,r:60,t:50,b:40}}),{responsive:true});
+  }
+
+  /* -- YoY Beneficiaries -- */
+  var yoyB = REPORT_DATA.yoy_beneficiaries || [];
+  if (yoyB.length) {
+    Plotly.newPlot('chart-yoy-bene',[{x:yoyB.map(function(r){return String(r.year);}),y:yoyB.map(function(r){return r.count;}),type:'bar',marker:{color:'#38bdf8'},text:yoyB.map(function(r){return r.count.toLocaleString();}),textposition:'outside'}],
+      Object.assign({},dark,{title:'Beneficiaries by Year',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Count',gridcolor:gridColor},height:350}),{responsive:true});
+  }
+
+  /* -- YoY Claims -- */
+  var yoyC = REPORT_DATA.yoy_claims || [];
+  if (yoyC.length) {
+    Plotly.newPlot('chart-yoy-claims',[{x:yoyC.map(function(r){return String(r.year);}),y:yoyC.map(function(r){return r.count;}),type:'bar',marker:{color:'#a78bfa'},text:yoyC.map(function(r){return r.count.toLocaleString();}),textposition:'outside'}],
+      Object.assign({},dark,{title:'Carrier Claims by Year',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Claims',gridcolor:gridColor},height:350}),{responsive:true});
+  }
+
+  /* -- Financial Trends (grouped bar) -- */
+  var ft = REPORT_DATA.financial_trends || [];
+  if (ft.length) {
+    var ftYears = ft.map(function(r){return String(r.year);});
+    Plotly.newPlot('chart-financial-trends',[
+      {name:'Inpatient',x:ftYears,y:ft.map(function(r){return r.inpatient;}),type:'bar',marker:{color:'#f87171'}},
+      {name:'Outpatient',x:ftYears,y:ft.map(function(r){return r.outpatient;}),type:'bar',marker:{color:'#fbbf24'}},
+      {name:'Carrier',x:ftYears,y:ft.map(function(r){return r.carrier;}),type:'bar',marker:{color:'#4ade80'}}
+    ],Object.assign({},dark,{barmode:'group',title:'Medicare Reimbursement Totals by Year & Type',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Total Reimbursement ($)',gridcolor:gridColor},legend:{bgcolor:'rgba(0,0,0,0)'},height:400,margin:{l:80,r:30,t:50,b:40}}),{responsive:true});
+  }
+
+  /* -- Financial Distribution (box plots) -- */
+  var fd = REPORT_DATA.financial_distribution || {};
+  if (fd.medicare_reimb && fd.medicare_reimb.length) {
+    Plotly.newPlot('chart-financial-dist',[
+      {y:fd.medicare_reimb,name:'Medicare Reimb',type:'box',marker:{color:'#4ade80'}},
+      {y:fd.beneficiary_resp,name:'Beneficiary Resp',type:'box',marker:{color:'#fbbf24'}},
+      {y:fd.primary_payer,name:'Primary Payer',type:'box',marker:{color:'#38bdf8'}}
+    ],Object.assign({},dark,{title:'Carrier Payment Distribution (sample)',yaxis:{title:'Amount ($)',gridcolor:gridColor},showlegend:false,height:400,margin:{l:80,r:30,t:50,b:40}}),{responsive:true});
+  }
+
+  /* -- Chronic Conditions (line chart) -- */
+  var cc = REPORT_DATA.chronic_conditions || {};
+  if (cc.years && cc.conditions) {
+    var ccColors = ['#f87171','#fb923c','#fbbf24','#a3e635','#4ade80','#2dd4bf','#38bdf8','#818cf8','#a78bfa','#f472b6','#e2e8f0'];
+    var ccTraces = cc.conditions.map(function(c,i){
+      return {x:cc.years.map(String),y:c.rates,mode:'lines+markers',name:c.condition,line:{color:ccColors[i%ccColors.length],width:2},marker:{size:6}};
+    });
+    Plotly.newPlot('chart-chronic',ccTraces,
+      Object.assign({},dark,{title:'Chronic Condition Prevalence by Year (%)',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Prevalence (%)',gridcolor:gridColor},legend:{bgcolor:'rgba(0,0,0,0)',font:{size:10}},height:400}),{responsive:true});
+  }
+
+  /* -- Table sorting -- */
   document.querySelectorAll('table').forEach(function(table) {
     var headers = table.querySelectorAll('th');
     headers.forEach(function(th, colIdx) {
@@ -978,31 +1036,18 @@ def run(
     json_path.write_text(json.dumps(report_data, indent=2, default=str), encoding="utf-8")
     logger.info(f"Report data written to {json_path}")
 
-    # ── 3. Build Plotly chart HTML fragments (presentation-specific) ──
-    validation_chart = _build_validation_chart(validations) if validations else ""
-    yoy_beneficiary_chart = ""
-    yoy_claims_chart = ""
-    financial_trends_chart = ""
-    financial_dist_chart = ""
-    chronic_conditions_chart = ""
-    if con:
-        yoy_beneficiary_chart = _build_yoy_beneficiary_chart(con)
-        yoy_claims_chart = _build_yoy_claims_chart(con)
-        financial_trends_chart = _build_financial_trends_chart(con)
-        financial_dist_chart = _build_financial_distribution_chart(con)
-        chronic_conditions_chart = _build_chronic_conditions_chart(con)
+    # ── 3. Build chart data JSON for client-side rendering ──
+    # Merge chart_data with validations so the JS can render the validation bar chart
+    chart_json_obj = dict(report_data.get("chart_data", {}))
+    chart_json_obj["_validations"] = report_data.get("validations", [])
+    chart_data_json = json.dumps(chart_json_obj, default=str)
 
-    # ── 4. Render HTML from data + chart fragments ──
+    # ── 4. Render HTML from data + embedded chart JSON ──
     dc = report_data["data_context"]
     template = Template(HTML_TEMPLATE)
     html = template.render(
         **report_data,
-        validation_chart=validation_chart,
-        yoy_beneficiary_chart=yoy_beneficiary_chart,
-        yoy_claims_chart=yoy_claims_chart,
-        financial_trends_chart=financial_trends_chart,
-        financial_dist_chart=financial_dist_chart,
-        chronic_conditions_chart=chronic_conditions_chart,
+        chart_data_json=chart_data_json,
         # Flatten data context for template compatibility
         old_system_files=dc["old_system"]["files"],
         old_system_file_count=dc["old_system"]["file_count"],
