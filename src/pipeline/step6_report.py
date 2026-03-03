@@ -27,7 +27,10 @@ def run(ctx: PipelineContext) -> StepResult:
     con = ctx.con
 
     try:
-        report_path = report_run(profiles, validations, comparisons, con=con)
+        report_path = report_run(
+            profiles, validations, comparisons,
+            con=con, pipeline_results=ctx.results,
+        )
     except Exception as e:
         return StepResult(
             step_name="report",

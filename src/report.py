@@ -27,6 +27,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CMS Claims Comparison Report</title>
+<script charset="utf-8" src="https://cdn.plot.ly/plotly-3.4.4.min.js" integrity="sha256-kOpBbJy9Jkj47XrhGCqj9AjMvdOE7gEg0bOtEqwh6tc=" crossorigin="anonymous"></script>
 <style>
   :root {
     --bg: #0f172a; --surface: #1e293b; --border: #334155;
@@ -109,19 +110,92 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <div class="container">
   <h1>CMS Claims Data Comparison Report</h1>
   <p class="subtitle">Generated {{ generated_at }}</p>
-  <p class="report-desc">
-    Comparison of legacy CMS Medicare claims processing system outputs against a replacement system.
-    This report surfaces discrepancies, quantifies their impact, and identifies trends affecting accuracy.
-  </p>
 
   <!-- Quick Nav -->
   <div class="nav">
+    <a href="#data-context">Data Context</a>
     <a href="#summary">Summary</a>
     <a href="#validation">Validation</a>
     <a href="#trends">Trends</a>
     <a href="#financial">Financial</a>
     <a href="#comparison">Comparison</a>
     <a href="#profiles">Data Profiles</a>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 0. DATA CONTEXT — what exactly is being compared              -->
+  <!-- ============================================================ -->
+  <div class="section" id="data-context">
+    <h2>Data Under Comparison</h2>
+    <p style="color: var(--muted); margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.7; max-width: 900px;">
+      This report compares outputs from two CMS Medicare claims processing systems.
+      The <strong style="color: var(--accent);">old system</strong> is the legacy production pipeline
+      (CMS DE-SynPUF reference dataset, 2008&ndash;2010).
+      The <strong style="color: #4ade80;">new system</strong> is the replacement pipeline whose outputs
+      are validated against the old system to ensure correctness before cutover.
+    </p>
+
+    <div class="grid-2">
+      <!-- Old System -->
+      <div class="card card-accent">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <strong style="font-size: 1rem;">Old System (Reference)</strong>
+          <span class="badge badge-info">{{ old_system_file_count }} files</span>
+        </div>
+        <table style="margin: 0; font-size: 0.8rem;">
+          <thead><tr><th style="font-size: 0.7rem;">File</th><th style="font-size: 0.7rem;">Rows</th><th style="font-size: 0.7rem;">Size</th></tr></thead>
+          <tbody>
+            {% for f in old_system_files %}
+            <tr><td style="font-size: 0.8rem;">{{ f.name }}</td><td>{{ f.rows }}</td><td>{{ f.size }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted);">
+          Source: <code style="background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.75rem;">{{ old_system_path }}</code>
+        </div>
+      </div>
+
+      <!-- New System -->
+      <div class="card" style="border-left: 3px solid #4ade80;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <strong style="font-size: 1rem;">New System (Under Test)</strong>
+          {% if new_system_files %}
+          <span class="badge badge-pass">{{ new_system_file_count }} files</span>
+          {% else %}
+          <span class="badge badge-warn">Not loaded</span>
+          {% endif %}
+        </div>
+        {% if new_system_files %}
+        <table style="margin: 0; font-size: 0.8rem;">
+          <thead><tr><th style="font-size: 0.7rem;">File</th><th style="font-size: 0.7rem;">Rows</th><th style="font-size: 0.7rem;">Size</th></tr></thead>
+          <tbody>
+            {% for f in new_system_files %}
+            <tr><td style="font-size: 0.8rem;">{{ f.name }}</td><td>{{ f.rows }}</td><td>{{ f.size }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted);">
+          Source: <code style="background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.75rem;">{{ new_system_path }}</code>
+        </div>
+        {% else %}
+        <p style="color: var(--muted); font-size: 0.85rem; margin-top: 0.5rem;">New system data has not been loaded yet. Run with <code style="background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px;">--new-data path/to/csvs/</code></p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if match_summary %}
+    <!-- Match summary -->
+    <h3 style="margin-top: 1.5rem;">Record Matching Results</h3>
+    <div class="grid">
+      {% for m in match_summary %}
+      <div class="card {{ 'card-green' if m.match_rate >= 99.5 else 'card-yellow' if m.match_rate >= 95 else 'card-red' }}">
+        <div class="card-label">{{ m.table }}</div>
+        <div class="card-value {{ 'pass' if m.match_rate >= 99.5 else 'warn' if m.match_rate >= 95 else 'fail' }}">{{ m.match_rate }}%</div>
+        <div class="card-sub">{{ m.matched }} matched &middot; {{ m.old_only }} old-only &middot; {{ m.new_only }} new-only</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 
   <!-- ============================================================ -->
@@ -572,7 +646,7 @@ def _build_validation_chart(validations: list[ValidationResult]) -> str:
         height=max(350, len(checks) * 35),
         margin=dict(l=250, r=60, t=50, b=40),
     )
-    return pio.to_html(fig, full_html=False, include_plotlyjs="cdn")
+    return pio.to_html(fig, full_html=False, include_plotlyjs=False)
 
 
 def _serialize_profile(profile: TableProfile) -> dict[str, object]:
@@ -598,15 +672,45 @@ def _serialize_profile(profile: TableProfile) -> dict[str, object]:
     }
 
 
+def _build_file_inventory(inventory: dict) -> list[dict]:
+    """Convert a receive-step inventory dict to a list for template rendering."""
+    files = []
+    for name, info in sorted(inventory.items()):
+        files.append({
+            "name": name,
+            "rows": f"{info.get('row_count', '—'):,}" if isinstance(info.get('row_count'), int) else info.get('row_count', '—'),
+            "size": f"{info.get('size_mb', 0):.1f} MB",
+        })
+    return files
+
+
+def _count_rows_for_inventory(con: duckdb.DuckDBPyConnection, inventory: dict) -> dict:
+    """Enrich file inventory with row counts by reading the CSVs via DuckDB."""
+    enriched = {}
+    for name, info in inventory.items():
+        path = info.get("path", "")
+        row_count = "—"
+        if path:
+            try:
+                r = con.execute(f"SELECT COUNT(*) FROM read_csv_auto('{path}', header=true)").fetchone()
+                row_count = r[0]
+            except Exception:
+                pass
+        enriched[name] = {**info, "row_count": row_count}
+    return enriched
+
+
 def run(
     profiles: dict[str, TableProfile],
     validations: list[ValidationResult],
     comparisons: list[ComparisonResult],
     con: duckdb.DuckDBPyConnection | None = None,
+    pipeline_results: dict | None = None,
 ) -> Path:
     """Generate the HTML report and write it to reports/."""
     from jinja2 import Template
 
+    pipeline_results = pipeline_results or {}
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Build summary stats
@@ -641,6 +745,39 @@ def run(
         "failed_checks": failed_count,
         "summary_years": summary_years,
     }
+
+    # ── Data Context: build file inventories from receive step results ──
+    receive_data = pipeline_results.get("receive", {})
+    old_sys = receive_data.get("old_system", {})
+    new_sys = receive_data.get("new_system", None)
+
+    old_inventory = old_sys.get("inventory", {})
+    if con and old_inventory:
+        old_inventory = _count_rows_for_inventory(con, old_inventory)
+    old_system_files = _build_file_inventory(old_inventory)
+    old_system_path = old_sys.get("source_dir", "data/")
+
+    new_system_files = []
+    new_system_path = ""
+    if new_sys and "inventory" in new_sys:
+        new_inventory = new_sys["inventory"]
+        if con and new_inventory:
+            new_inventory = _count_rows_for_inventory(con, new_inventory)
+        new_system_files = _build_file_inventory(new_inventory)
+        new_system_path = new_sys.get("source_dir", "")
+
+    # ── Match summary from step 4 ──
+    match_data = pipeline_results.get("match", {})
+    match_results_raw = match_data.get("match_results", {})
+    match_summary = []
+    for table_name, mr in match_results_raw.items():
+        match_summary.append({
+            "table": table_name.replace("_", " ").title(),
+            "matched": f"{mr.get('matched', 0):,}",
+            "old_only": f"{mr.get('old_only', 0):,}",
+            "new_only": f"{mr.get('new_only', 0):,}",
+            "match_rate": mr.get("match_rate", 0),
+        })
 
     # Failed validations for the executive summary callout
     failed_validations = [
@@ -715,6 +852,14 @@ def run(
         financial_trends_chart=financial_trends_chart,
         financial_dist_chart=financial_dist_chart,
         chronic_conditions_chart=chronic_conditions_chart,
+        # Data context
+        old_system_files=old_system_files,
+        old_system_file_count=len(old_system_files),
+        old_system_path=old_system_path,
+        new_system_files=new_system_files,
+        new_system_file_count=len(new_system_files),
+        new_system_path=new_system_path,
+        match_summary=match_summary,
     )
 
     output_path = REPORT_DIR / "comparison_report.html"
