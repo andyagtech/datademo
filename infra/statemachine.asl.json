@@ -1,0 +1,217 @@
+{
+  "Comment": "CMS Claims Comparison Pipeline — 6-step orchestration with gate logic",
+  "StartAt": "Step1_Receive",
+  "States": {
+    "Step1_Receive": {
+      "Type": "Task",
+      "Resource": "${ReceiveFunctionArn}",
+      "ResultPath": "$",
+      "Next": "CheckGate_Receive",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "CheckGate_Receive": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.halted",
+          "BooleanEquals": true,
+          "Next": "PipelineHalted"
+        }
+      ],
+      "Default": "Step2_SchemaValidate"
+    },
+
+    "Step2_SchemaValidate": {
+      "Type": "Task",
+      "Resource": "${SchemaValidateFunctionArn}",
+      "ResultPath": "$",
+      "Next": "CheckGate_SchemaValidate",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "CheckGate_SchemaValidate": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.halted",
+          "BooleanEquals": true,
+          "Next": "PipelineHalted"
+        }
+      ],
+      "Default": "Step3_Ingest"
+    },
+
+    "Step3_Ingest": {
+      "Type": "Task",
+      "Resource": "${IngestFunctionArn}",
+      "ResultPath": "$",
+      "Next": "CheckGate_Ingest",
+      "TimeoutSeconds": 900,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "CheckGate_Ingest": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.halted",
+          "BooleanEquals": true,
+          "Next": "PipelineHalted"
+        }
+      ],
+      "Default": "Step4_Match"
+    },
+
+    "Step4_Match": {
+      "Type": "Task",
+      "Resource": "${MatchFunctionArn}",
+      "ResultPath": "$",
+      "Next": "CheckGate_Match",
+      "TimeoutSeconds": 900,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "CheckGate_Match": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.halted",
+          "BooleanEquals": true,
+          "Next": "PipelineHalted"
+        }
+      ],
+      "Default": "Step5_Compare"
+    },
+
+    "Step5_Compare": {
+      "Type": "Task",
+      "Resource": "${CompareFunctionArn}",
+      "ResultPath": "$",
+      "Next": "CheckGate_Compare",
+      "TimeoutSeconds": 900,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "CheckGate_Compare": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.halted",
+          "BooleanEquals": true,
+          "Next": "PipelineHalted"
+        }
+      ],
+      "Default": "Step6_Report"
+    },
+
+    "Step6_Report": {
+      "Type": "Task",
+      "Resource": "${ReportFunctionArn}",
+      "ResultPath": "$",
+      "Next": "PipelineSucceeded",
+      "TimeoutSeconds": 600,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "PipelineSucceeded": {
+      "Type": "Succeed"
+    },
+
+    "PipelineHalted": {
+      "Type": "Fail",
+      "Error": "PipelineHalted",
+      "Cause": "A pipeline step halted execution due to a validation gate failure."
+    },
+
+    "PipelineFailed": {
+      "Type": "Fail",
+      "Error": "PipelineFailed",
+      "Cause": "A pipeline step threw an unhandled exception."
+    }
+  }
+}

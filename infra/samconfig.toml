@@ -1,0 +1,30 @@
+# SAM CLI configuration for the CMS Claims Comparison Pipeline
+#
+# Deploy with:
+#   cd infra/
+#   sam build
+#   sam deploy --profile personal
+#
+# First deploy will prompt for guided setup. Subsequent deploys use these defaults.
+
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "cms-claims-pipeline"
+resolve_s3 = true
+s3_prefix = "cms-claims-pipeline"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+image_repositories = []
+
+[default.build.parameters]
+use_container = true
+
+[dev.deploy.parameters]
+stack_name = "cms-claims-pipeline-dev"
+parameter_overrides = "Environment=dev"
+
+[prod.deploy.parameters]
+stack_name = "cms-claims-pipeline-prod"
+parameter_overrides = "Environment=prod"

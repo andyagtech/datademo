@@ -80,30 +80,41 @@ docker build -t cms-pipeline .
 docker run --rm -v $(pwd)/data:/app/data -v $(pwd)/reports:/app/reports cms-pipeline
 ```
 
-### Cloud (planned)
+### Cloud (AWS — implemented)
 
-Target architecture using the `personal` AWS CLI profile:
+Deployed using AWS SAM (`infra/template.yaml`):
 
 ```
-S3 (landing bucket)
-  | (event trigger)
-Lambda: Step 1 - Receive and verify
-  |
-Lambda: Step 2 - Schema validate (gate)
-  |
-Lambda: Step 3 - Ingest (DuckDB on /tmp or EFS)
-  |
-Lambda: Step 4 - Match
-  |
-Lambda: Step 5 - Compare
-  |
-Lambda: Step 6 - Report -> S3 (results bucket)
-
-Orchestration: AWS Step Functions
-Storage: S3 for CSVs, EFS for DuckDB (if >512 MB /tmp limit)
+API Gateway POST /pipeline/start
+  │
+  ▼
+Step Functions state machine (infra/statemachine.asl.json)
+  │
+  ├─ Lambda: Step 1 (Receive)       ── S3 file listing + checksums
+  ├─ Gate check ─────────────────── halted? → Fail
+  ├─ Lambda: Step 2 (Schema)        ── S3 CSV header reads
+  ├─ Gate check
+  ├─ Lambda: Step 3 (Ingest)        ── DuckDB in /tmp, reads CSVs from S3 via httpfs
+  │                                    10 GB memory, 15 min timeout
+  │                                    snapshots DuckDB file → S3
+  ├─ Gate check
+  ├─ Lambda: Step 4 (Match)         ── restores DuckDB from S3, matches records
+  ├─ Lambda: Step 5 (Compare)       ── field-level diffs, trend analysis
+  ├─ Lambda: Step 6 (Report)        ── generates HTML, uploads to S3
+  │                                    returns presigned download URL
+  ▼
+  Success / Fail
 ```
 
-The key insight: **same Python functions, different I/O adapters.** Each Lambda handler is a thin wrapper that reads from S3, calls the same `step_run(ctx)` function, and writes results back to S3.
+**Key design decisions:**
+
+- **Lambda container images** (not zip deploys) — based on the AWS Lambda Python base image, shared with the local Dockerfile. Avoids the 250 MB zip limit and ensures identical Python + DuckDB versions.
+- **DuckDB on Lambda** — runs in `/tmp` (10 GB ephemeral storage). Between Lambda invocations, the DuckDB file is snapshotted to S3 and restored by the next step. This works because our dataset (~2.5 GB) fits in Lambda's 10 GB memory limit.
+- **DuckDB httpfs extension** — reads CSVs directly from S3 during ingest, eliminating the need to download multi-GB files to `/tmp`.
+- **StorageAdapter pattern** — `src/adapters/aws.py` (S3Storage) implements the same `StorageAdapter` protocol as `src/adapters/local.py` (LocalStorage). Pipeline steps use `ctx.storage` for I/O without knowing which backend they're on.
+- **Step Functions gate logic** — mirrors `runner.py`'s halt checks. After each Lambda step, a Choice state checks `$.halted` and routes to a Fail state if true.
+
+**Scaling note:** For datasets >5 GB, the heavy steps (ingest, compare) can be moved to **Fargate** using the same container image. The SAM template would add an ECS task definition alongside the Lambda functions.
 
 ## Testing
 

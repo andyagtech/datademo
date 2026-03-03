@@ -1,0 +1,244 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  CMS Claims Comparison Pipeline — Serverless deployment.
+  6-step pipeline orchestrated by Step Functions, with Lambda container
+  images for compute and S3 for storage.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+  BucketNameSuffix:
+    Type: String
+    Default: cms-claims-pipeline
+    Description: S3 bucket name suffix (prefixed with account ID)
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 1024
+    EphemeralStorage:
+      Size: 10240
+    Environment:
+      Variables:
+        BUCKET_NAME: !Ref DataBucket
+        ENVIRONMENT: !Ref Environment
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # S3 Bucket — stores input data, DuckDB snapshots, reports
+  # ---------------------------------------------------------------------------
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${BucketNameSuffix}-${Environment}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: CleanupTempFiles
+            Prefix: runs/
+            Status: Enabled
+            ExpirationInDays: 30
+          - Id: CleanupOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ---------------------------------------------------------------------------
+  # Lambda Functions — one per pipeline step, sharing a container image
+  # ---------------------------------------------------------------------------
+  ReceiveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-receive-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_receive"]
+      MemorySize: 1024
+      Timeout: 300
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+  SchemaValidateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-schema-validate-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_schema_validate"]
+      MemorySize: 1024
+      Timeout: 300
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-ingest-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_ingest"]
+      MemorySize: 10240
+      Timeout: 900
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+  MatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-match-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_match"]
+      MemorySize: 10240
+      Timeout: 900
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+  CompareFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-compare-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_compare"]
+      MemorySize: 10240
+      Timeout: 900
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+  ReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-report-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_report"]
+      MemorySize: 4096
+      Timeout: 600
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+  # ---------------------------------------------------------------------------
+  # Step Functions — orchestrates the 6-step pipeline
+  # ---------------------------------------------------------------------------
+  PipelineStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "cms-pipeline-${Environment}"
+      DefinitionUri: statemachine.asl.json
+      DefinitionSubstitutions:
+        ReceiveFunctionArn: !GetAtt ReceiveFunction.Arn
+        SchemaValidateFunctionArn: !GetAtt SchemaValidateFunction.Arn
+        IngestFunctionArn: !GetAtt IngestFunction.Arn
+        MatchFunctionArn: !GetAtt MatchFunction.Arn
+        CompareFunctionArn: !GetAtt CompareFunction.Arn
+        ReportFunctionArn: !GetAtt ReportFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ReceiveFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SchemaValidateFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref IngestFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref MatchFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref CompareFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ReportFunction
+
+  # ---------------------------------------------------------------------------
+  # API Gateway — HTTP trigger to start the pipeline
+  # ---------------------------------------------------------------------------
+  PipelineApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "cms-pipeline-api-${Environment}"
+      StageName: !Ref Environment
+      Auth:
+        DefaultAuthorizer: NONE
+
+  StartPipelineFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-start-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_start_pipeline"]
+      MemorySize: 256
+      Timeout: 30
+      Policies:
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt PipelineStateMachine.Name
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref PipelineStateMachine
+      Events:
+        StartPipeline:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PipelineApi
+            Path: /pipeline/start
+            Method: POST
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  DataBucketName:
+    Description: S3 bucket for pipeline data
+    Value: !Ref DataBucket
+
+  StateMachineArn:
+    Description: ARN of the Step Functions state machine
+    Value: !Ref PipelineStateMachine
+
+  ApiEndpoint:
+    Description: API Gateway endpoint to start the pipeline
+    Value: !Sub "https://${PipelineApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/pipeline/start"

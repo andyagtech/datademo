@@ -201,7 +201,7 @@ The pipeline auto-detects file types by reading CSV headers — it doesn't rely 
 
 ---
 
-## CLI Reference
+## CLI Reference (Local)
 
 ```
 python -m src.main [OPTIONS]
@@ -214,38 +214,140 @@ Options:
 
 ---
 
+## Cloud Deployment (AWS)
+
+The same pipeline logic runs on AWS using Lambda container images orchestrated by Step Functions.
+
+### Architecture
+
+```
+API Gateway POST /pipeline/start
+        │
+        ▼
+  Step Functions state machine
+        │
+        ├─ Step 1: Lambda (Receive)       ── S3 file listing + checksums
+        ├─ Gate check ──────────────────── halted? → Fail
+        ├─ Step 2: Lambda (Schema)         ── S3 CSV header reads
+        ├─ Gate check
+        ├─ Step 3: Lambda (Ingest)         ── DuckDB in /tmp, reads from S3 via httpfs
+        ├─ Gate check                        snapshot DuckDB → S3
+        ├─ Step 4: Lambda (Match)          ── restore DuckDB from S3, match records
+        ├─ Gate check                        snapshot → S3
+        ├─ Step 5: Lambda (Compare)        ── restore, compare, snapshot → S3
+        ├─ Gate check
+        └─ Step 6: Lambda (Report)         ── generate HTML, upload to S3
+                                              return presigned download URL
+```
+
+### AWS Services
+
+| Service | Role |
+|---------|------|
+| **S3** | Stores input CSVs, DuckDB snapshots between steps, and output reports |
+| **Lambda** | Runs each pipeline step as a container image (up to 10 GB memory, 15 min timeout) |
+| **Step Functions** | Orchestrates the 6 steps with gate logic (mirrors `runner.py`) |
+| **API Gateway** | HTTP POST trigger to start a pipeline run |
+| **IAM** | Least-privilege roles for Lambda → S3 access |
+
+### DuckDB on Lambda
+
+DuckDB runs inside the Lambda container using `/tmp` (10 GB ephemeral storage) for the database file. Between Lambda invocations, the DuckDB file is snapshotted to S3 and restored by the next step. DuckDB's `httpfs` extension reads CSVs directly from S3 during ingest — no need to download multi-GB files to `/tmp`.
+
+For datasets larger than ~5 GB, consider switching the heavy steps (ingest, compare) to **Fargate** (same container image, more memory/storage). The SAM template can be extended to support this.
+
+### Prerequisites
+
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+- Docker (for `sam build`)
+- AWS CLI configured with your profile
+
+### Deploy
+
+```bash
+cd infra/
+
+# Build container images
+sam build
+
+# Deploy (first time — guided setup)
+sam deploy --guided --profile personal
+
+# Subsequent deploys
+sam deploy --profile personal
+```
+
+### Trigger a Pipeline Run
+
+```bash
+# Upload data to S3
+aws s3 cp data/raw/ s3://<BUCKET>/raw/ --recursive --profile personal
+
+# Start the pipeline
+curl -X POST https://<API_ENDPOINT>/dev/pipeline/start \
+  -H "Content-Type: application/json" \
+  -d '{"old_data_prefix": "raw"}'
+```
+
+### Shared Code
+
+The local and cloud versions share all pipeline logic:
+
+| Layer | Shared | Local-specific | Cloud-specific |
+|-------|--------|----------------|----------------|
+| `src/pipeline/step1–6` | ✅ | | |
+| `src/*.py` (core modules) | ✅ | | |
+| `src/adapters/__init__.py` (Protocol) | ✅ | | |
+| `src/adapters/local.py` | | ✅ | |
+| `src/adapters/aws.py` | | | ✅ |
+| `src/pipeline/runner.py` | | ✅ (sequential) | |
+| `cloud/handlers.py` | | | ✅ (Lambda entry points) |
+| `infra/template.yaml` | | | ✅ (SAM infrastructure) |
+
+---
+
 ## Project Structure
 
 ```
-├── Dockerfile               # Container build (Python 3.14-slim)
+├── Dockerfile               # Local container build (Python 3.14-slim)
 ├── .dockerignore             # Keep image small
 ├── .gitignore               # Excludes data/, caches, IDE files
 ├── README.md                 # This file
 ├── FEEDBACK.md               # Assessment feedback (per spec)
-├── requirements.txt          # Python dependencies
+├── requirements.txt          # Python dependencies (local)
 ├── screenshots/              # Report screenshots for submission
-│
-├── specs/
-│   ├── solution.md           # Architecture decisions and design rationale
-│   └── ...                   # Assessment spec, codebook
 │
 ├── src/
 │   ├── __init__.py
-│   ├── main.py               # CLI entry point
+│   ├── main.py               # Local CLI entry point
 │   ├── ingest.py             # CSV → DuckDB loading
 │   ├── profile.py            # Column-level data quality profiling
 │   ├── validate.py           # Internal consistency checks
 │   ├── compare.py            # Old vs New comparison engine
 │   ├── report.py             # HTML report + Plotly charts
+│   ├── adapters/
+│   │   ├── __init__.py       # StorageAdapter protocol
+│   │   ├── local.py          # Local filesystem adapter
+│   │   └── aws.py            # S3 storage adapter
 │   └── pipeline/
 │       ├── __init__.py       # PipelineContext, StepResult
-│       ├── runner.py         # 6-step orchestrator with gate logic
+│       ├── runner.py         # Local 6-step orchestrator with gate logic
 │       ├── step1_receive.py
 │       ├── step2_schema_validate.py
 │       ├── step3_ingest.py
 │       ├── step4_match.py
 │       ├── step5_compare.py
 │       └── step6_report.py
+│
+├── cloud/                    # AWS Lambda entry points
+│   ├── Dockerfile            # Lambda container image
+│   ├── handlers.py           # One handler per step + API trigger
+│   └── requirements.txt      # Lambda dependencies
+│
+├── infra/                    # AWS infrastructure-as-code (SAM)
+│   ├── template.yaml         # S3 + Lambda + Step Functions + API Gateway
+│   ├── statemachine.asl.json # Step Functions state machine definition
+│   └── samconfig.toml        # SAM deploy configuration
 │
 ├── tests/                    # 54 tests (pytest)
 │   ├── conftest.py           # Shared fixtures (in-memory DuckDB + sample data)
@@ -254,6 +356,10 @@ Options:
 │   ├── test_profile.py
 │   ├── test_report.py
 │   └── test_validate.py
+│
+├── specs/
+│   ├── solution.md           # Architecture decisions and design rationale
+│   └── ...                   # Assessment spec, codebook
 │
 ├── data/
 │   ├── raw/                  # Old system CSVs (unzipped)
@@ -264,6 +370,5 @@ Options:
 │   ├── comparison_report.html
 │   └── exports/              # CSV exports of analysis tables
 │
-├── docs/                     # CMS codebook, FAQ, data users guide
-└── specs/                    # Assessment specification
+└── docs/                     # CMS codebook, FAQ, data users guide
 ```

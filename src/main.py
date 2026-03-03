@@ -20,6 +20,7 @@ import logging
 import sys
 from pathlib import Path
 
+from src.adapters.local import LocalStorage
 from src.pipeline import PipelineContext
 from src.pipeline.runner import run_pipeline
 from src.ingest import DB_PATH, get_connection
@@ -58,12 +59,17 @@ def main() -> None:
     new_data_dir = Path(args.new_data) if args.new_data else None
     db_path = Path(args.db_path) if args.db_path else DB_PATH
 
-    # Build pipeline context
+    # Build pipeline context with local storage adapter
+    data_dir = RAW_DIR.parent  # data/ directory (has raw/ inside)
+    storage = LocalStorage(base_dir=data_dir)
+
     ctx = PipelineContext(
-        old_data_dir=RAW_DIR.parent,  # data/ directory (has raw/ inside)
+        old_data_dir=data_dir,
         new_data_dir=new_data_dir,
         db_path=db_path,
+        storage=storage,
         skip_ingest=args.skip_ingest,
+        mode="local",
     )
 
     # If skipping ingest, pre-connect so step 3 reuses the connection

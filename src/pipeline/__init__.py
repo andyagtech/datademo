@@ -19,6 +19,8 @@ from typing import Any
 
 import duckdb
 
+from src.adapters import StorageAdapter
+
 
 @dataclass
 class PipelineContext:
@@ -29,9 +31,15 @@ class PipelineContext:
     new_data_dir: Path | None = None
     db_path: Path | None = None
 
+    # Storage adapter (local filesystem or S3)
+    storage: StorageAdapter | None = None
+
     # Runtime
     con: duckdb.DuckDBPyConnection | None = None
     skip_ingest: bool = False
+
+    # Execution mode
+    mode: str = "local"  # "local" or "cloud"
 
     # Accumulated results from each step
     results: dict[str, Any] = field(default_factory=dict)
