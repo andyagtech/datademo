@@ -700,18 +700,125 @@ def _count_rows_for_inventory(con: duckdb.DuckDBPyConnection, inventory: dict) -
     return enriched
 
 
-def run(
+def _extract_chart_data(con: duckdb.DuckDBPyConnection | None) -> dict:
+    """Extract raw chart data series from DuckDB for JSON output.
+
+    These are the underlying data points that any presentation layer
+    (HTML/Plotly, React, CLI, PDF) can use to render its own charts.
+    """
+    chart_data: dict = {}
+    if not con:
+        return chart_data
+
+    # YoY beneficiary counts
+    try:
+        rows = con.execute("""
+            SELECT summary_year, COUNT(*) AS cnt
+            FROM beneficiary_summary
+            GROUP BY summary_year ORDER BY summary_year
+        """).fetchall()
+        chart_data["yoy_beneficiaries"] = [
+            {"year": int(r[0]), "count": r[1]} for r in rows
+        ]
+    except Exception:
+        pass
+
+    # YoY claims counts
+    try:
+        rows = con.execute("""
+            SELECT (CLM_FROM_DT / 10000)::INT AS yr, COUNT(*) AS cnt
+            FROM carrier_claims
+            GROUP BY yr ORDER BY yr
+        """).fetchall()
+        chart_data["yoy_claims"] = [
+            {"year": int(r[0]), "count": r[1]} for r in rows
+        ]
+    except Exception:
+        pass
+
+    # Financial trends (reimbursement by year & type)
+    try:
+        rows = con.execute("""
+            SELECT
+                summary_year,
+                SUM(MEDREIMB_IP) AS ip_total,
+                SUM(MEDREIMB_OP) AS op_total,
+                SUM(MEDREIMB_CAR) AS car_total
+            FROM beneficiary_summary
+            GROUP BY summary_year ORDER BY summary_year
+        """).fetchall()
+        chart_data["financial_trends"] = [
+            {"year": int(r[0]), "inpatient": float(r[1]), "outpatient": float(r[2]), "carrier": float(r[3])}
+            for r in rows
+        ]
+    except Exception:
+        pass
+
+    # Financial distribution (sampled box plot data)
+    try:
+        data = con.execute("""
+            SELECT MEDREIMB_CAR, BENRES_CAR, PPPYMT_CAR
+            FROM beneficiary_summary
+            WHERE MEDREIMB_CAR > 0
+            USING SAMPLE 5000
+        """).fetchdf()
+        chart_data["financial_distribution"] = {
+            "medicare_reimb": data["MEDREIMB_CAR"].tolist(),
+            "beneficiary_resp": data["BENRES_CAR"].tolist(),
+            "primary_payer": data["PPPYMT_CAR"].tolist(),
+        }
+    except Exception:
+        pass
+
+    # Chronic condition prevalence by year
+    conditions = [
+        ("SP_ALZHDMTA", "Alzheimer's"), ("SP_CHF", "Heart Failure"),
+        ("SP_CHRNKIDN", "Kidney Disease"), ("SP_CNCR", "Cancer"),
+        ("SP_COPD", "COPD"), ("SP_DEPRESSN", "Depression"),
+        ("SP_DIABETES", "Diabetes"), ("SP_ISCHMCHT", "Ischemic Heart"),
+        ("SP_OSTEOPRS", "Osteoporosis"), ("SP_RA_OA", "RA/OA"),
+        ("SP_STRKETIA", "Stroke/TIA"),
+    ]
+    try:
+        years_rows = con.execute(
+            "SELECT DISTINCT summary_year FROM beneficiary_summary ORDER BY summary_year"
+        ).fetchall()
+        years = [int(r[0]) for r in years_rows]
+
+        chronic_data = []
+        for col, label in conditions:
+            rates = []
+            for yr in years:
+                try:
+                    r = con.execute(f"""
+                        SELECT ROUND(100.0 * SUM(CASE WHEN {col} = 1 THEN 1 ELSE 0 END) / COUNT(*), 1)
+                        FROM beneficiary_summary WHERE summary_year = {yr}
+                    """).fetchone()
+                    rates.append(float(r[0]) if r[0] else 0.0)
+                except Exception:
+                    rates.append(0.0)
+            chronic_data.append({"condition": label, "column": col, "rates": rates})
+
+        chart_data["chronic_conditions"] = {"years": years, "conditions": chronic_data}
+    except Exception:
+        pass
+
+    return chart_data
+
+
+def build_report_data(
     profiles: dict[str, TableProfile],
     validations: list[ValidationResult],
     comparisons: list[ComparisonResult],
     con: duckdb.DuckDBPyConnection | None = None,
     pipeline_results: dict | None = None,
-) -> Path:
-    """Generate the HTML report and write it to reports/."""
-    from jinja2 import Template
+) -> dict:
+    """Build the complete report data as a plain dict.
 
+    This is the canonical data artifact that any presentation layer
+    (HTML report, React viewer, CLI, PDF, API) can consume.
+    """
     pipeline_results = pipeline_results or {}
-    REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Build summary stats
     total_benes = 0
@@ -821,10 +928,58 @@ def run(
         for c in comparisons
     ]
 
-    # Build charts
-    validation_chart = _build_validation_chart(validations) if validations else ""
+    # Extract raw chart data series
+    chart_data = _extract_chart_data(con)
 
-    # Enhanced charts (need DB connection)
+    return {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "summary": summary,
+        "failed_validations": failed_validations,
+        "validations": serialized_validations,
+        "comparisons": serialized_comparisons,
+        "profiles": serialized_profiles,
+        "data_context": {
+            "old_system": {
+                "files": old_system_files,
+                "file_count": len(old_system_files),
+                "path": old_system_path,
+            },
+            "new_system": {
+                "files": new_system_files,
+                "file_count": len(new_system_files),
+                "path": new_system_path,
+            },
+            "match_summary": match_summary,
+        },
+        "chart_data": chart_data,
+    }
+
+
+def run(
+    profiles: dict[str, TableProfile],
+    validations: list[ValidationResult],
+    comparisons: list[ComparisonResult],
+    con: duckdb.DuckDBPyConnection | None = None,
+    pipeline_results: dict | None = None,
+) -> Path:
+    """Generate JSON data file + HTML report and write them to reports/."""
+    from jinja2 import Template
+
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ── 1. Build canonical data artifact ──
+    report_data = build_report_data(
+        profiles, validations, comparisons,
+        con=con, pipeline_results=pipeline_results,
+    )
+
+    # ── 2. Write JSON (presentation-agnostic data layer) ──
+    json_path = REPORT_DIR / "report_data.json"
+    json_path.write_text(json.dumps(report_data, indent=2, default=str), encoding="utf-8")
+    logger.info(f"Report data written to {json_path}")
+
+    # ── 3. Build Plotly chart HTML fragments (presentation-specific) ──
+    validation_chart = _build_validation_chart(validations) if validations else ""
     yoy_beneficiary_chart = ""
     yoy_claims_chart = ""
     financial_trends_chart = ""
@@ -837,29 +992,25 @@ def run(
         financial_dist_chart = _build_financial_distribution_chart(con)
         chronic_conditions_chart = _build_chronic_conditions_chart(con)
 
-    # Render
+    # ── 4. Render HTML from data + chart fragments ──
+    dc = report_data["data_context"]
     template = Template(HTML_TEMPLATE)
     html = template.render(
-        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        summary=summary,
-        failed_validations=failed_validations,
-        profiles=serialized_profiles,
-        validations=serialized_validations,
-        comparisons=serialized_comparisons,
+        **report_data,
         validation_chart=validation_chart,
         yoy_beneficiary_chart=yoy_beneficiary_chart,
         yoy_claims_chart=yoy_claims_chart,
         financial_trends_chart=financial_trends_chart,
         financial_dist_chart=financial_dist_chart,
         chronic_conditions_chart=chronic_conditions_chart,
-        # Data context
-        old_system_files=old_system_files,
-        old_system_file_count=len(old_system_files),
-        old_system_path=old_system_path,
-        new_system_files=new_system_files,
-        new_system_file_count=len(new_system_files),
-        new_system_path=new_system_path,
-        match_summary=match_summary,
+        # Flatten data context for template compatibility
+        old_system_files=dc["old_system"]["files"],
+        old_system_file_count=dc["old_system"]["file_count"],
+        old_system_path=dc["old_system"]["path"],
+        new_system_files=dc["new_system"]["files"],
+        new_system_file_count=dc["new_system"]["file_count"],
+        new_system_path=dc["new_system"]["path"],
+        match_summary=dc["match_summary"],
     )
 
     output_path = REPORT_DIR / "comparison_report.html"
