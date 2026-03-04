@@ -57,14 +57,15 @@
   }
   .picker-hint { font-size: 0.72rem; color: var(--border); margin-bottom: 12px; }
   .picker-divider { height: 1px; background: var(--border); margin: 20px 0; }
-  .export-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .export-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .export-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 14px 16px; cursor: pointer; transition: all 0.2s; text-decoration: none; display: block;
   }
   .export-card:hover { border-color: var(--accent); background: var(--surface2); transform: translateY(-1px); }
-  .export-card .ec-name { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; margin-bottom: 4px; color: var(--text); }
-  .export-card .ec-meta { font-size: 0.68rem; color: var(--muted); display: flex; gap: 8px; }
+  .export-card .ec-name { font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+  .export-card .ec-meta { font-size: 0.68rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+  .export-card .ec-file { font-family: var(--mono); font-size: 0.65rem; display: block; margin-top: 4px; color: var(--border); word-break: break-all; }
   .export-card .ec-badge {
     display: inline-block; font-size: 0.6rem; padding: 1px 6px; border-radius: 3px;
     background: rgba(56,189,248,0.1); color: var(--accent); font-family: var(--mono); font-weight: 600;
@@ -336,9 +337,9 @@ async function probeExports() {
       <div class="ec-name">${c.label}</div>
       <div class="ec-meta">
         <span class="ec-badge">PARQUET</span>
-        <span>${c.file}</span>
         ${c.size ? '<span>' + formatBytes(c.size) + '</span>' : ''}
       </div>
+      <div class="ec-file">${c.file}</div>
     </div>
   `).join('');
 
@@ -347,6 +348,41 @@ async function probeExports() {
   });
 }
 probeExports();
+
+// ============================================================
+// RE-RENDER FILE PICKER (used by "Open another file" button)
+// ============================================================
+function renderFilePicker() {
+  app.innerHTML = `
+    <div class="file-picker">
+      <div class="picker-section">
+        <div class="picker-label">Pipeline Exports</div>
+        <div class="picker-hint">Click a file to view &mdash; parsed entirely in your browser</div>
+        <div class="export-grid" id="exportGrid">
+          <div style="color:var(--muted);font-size:0.78rem;padding:12px">Checking for exports...</div>
+        </div>
+      </div>
+      <div class="picker-divider"></div>
+      <div class="picker-section" style="padding-bottom:18px">
+        <div class="picker-label">Custom File</div>
+        <div class="drop-zone-mini" id="dropZone2">
+          <span>&#128451; Drop a .parquet file here or <button class="link-btn" id="browseBtn2">browse</button></span>
+          <input type="file" id="fileInput2" accept=".parquet,.parq" style="display:none">
+        </div>
+      </div>
+    </div>`;
+  // Wire up custom file drop/browse
+  const dz2 = document.getElementById('dropZone2');
+  const fi2 = document.getElementById('fileInput2');
+  const bb2 = document.getElementById('browseBtn2');
+  bb2.addEventListener('click', (e) => { e.stopPropagation(); fi2.click(); });
+  fi2.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+  dz2.addEventListener('dragover', (e) => { e.preventDefault(); dz2.classList.add('dragover'); });
+  dz2.addEventListener('dragleave', () => dz2.classList.remove('dragover'));
+  dz2.addEventListener('drop', (e) => { e.preventDefault(); dz2.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+  // Re-probe exports
+  probeExports();
+}
 
 // ============================================================
 // FILE HANDLING
@@ -410,6 +446,8 @@ async function loadFile(file) {
 async function loadBuffer(arrayBuffer, fileName) {
   state.fileName = fileName;
   state.fileSize = arrayBuffer.byteLength;
+  // Update URL to reflect which file is being viewed
+  history.replaceState(null, '', location.pathname + '#' + encodeURIComponent(fileName));
   state.currentPage = 0;
   state.cachedRows = null;
   state.cachedRange = null;
@@ -513,22 +551,8 @@ function render() {
     state = { metadata: null, schema: null, columns: [], fileName: '', fileSize: 0,
               buffer: null, currentPage: 0, pageSize: 50, totalRows: 0, currentTab: 'data',
               cachedRows: null, cachedRange: null };
-    app.innerHTML = `
-      <div class="drop-zone" id="dropZone2">
-        <div class="icon">&#128451;</div>
-        <h2>Drop a Parquet file here</h2>
-        <p>or click to browse</p>
-        <button class="btn" id="browseBtn2">Choose File</button>
-        <input type="file" id="fileInput2" accept=".parquet,.parq" style="display:none">
-      </div>`;
-    const dz = document.getElementById('dropZone2');
-    const fi = document.getElementById('fileInput2');
-    document.getElementById('browseBtn2').addEventListener('click', (e) => { e.stopPropagation(); fi.click(); });
-    dz.addEventListener('click', () => fi.click());
-    fi.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
-    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
-    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-    dz.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+    history.replaceState(null, '', location.pathname);
+    renderFilePicker();
   });
 
   renderTab();
