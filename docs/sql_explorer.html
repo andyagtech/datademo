@@ -331,7 +331,8 @@ async function loadExport(el) {
   const file = el.dataset.file;
   const tableName = file.replace(/\.parq(uet)?$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
   if (tables[tableName]) {
-    // Already loaded — just set query and run preview
+    // Already loaded — set as active, update examples, and run preview
+    setActiveTable(tableName);
     queryEditor.value = `SELECT *\nFROM ${tableName}\nLIMIT 100`;
     runQuery();
     return;
@@ -408,6 +409,7 @@ async function loadParquetBuffer(arrayBuffer, tableName) {
   tables[tableName] = rows;
   tableSchemas[tableName] = columns.map(c => ({ name: c.name, type: getTypeName(c) }));
 
+  activeTable = tableName;
   renderTableList();
   updateExampleQueries();
 
@@ -530,6 +532,7 @@ function renderTableList() {
     tableItem.addEventListener('click', (e) => {
       if (e.target.dataset.remove) return;
       colList.style.display = colList.style.display === 'none' ? 'block' : 'none';
+      setActiveTable(name);
     });
 
     // Remove table
@@ -559,29 +562,64 @@ function renderTableList() {
 }
 
 // ============================================================
-// EXAMPLE QUERIES
+// EXAMPLE QUERIES — file-specific + global
 // ============================================================
+let activeTable = null;
+
+// Per-table sample queries based on actual schemas
+const TABLE_QUERIES = {
+  '_match_claims': [
+    { label: 'All claims', sql: `SELECT *\nFROM _match_claims\nLIMIT 100` },
+    { label: 'Status breakdown', sql: `SELECT match_status, COUNT(*) AS cnt\nFROM _match_claims\nGROUP BY match_status` },
+    { label: 'Unmatched claims', sql: `SELECT CLM_ID, match_status\nFROM _match_claims\nWHERE match_status != 'matched'\nLIMIT 100` },
+  ],
+  '_discrepancy_detail': [
+    { label: 'All discrepancies', sql: `SELECT *\nFROM _discrepancy_detail\nLIMIT 100` },
+    { label: 'Most diffs', sql: `SELECT DESYNPUF_ID, summary_year, total_diffs\nFROM _discrepancy_detail\nORDER BY total_diffs DESC\nLIMIT 50` },
+    { label: 'Birth date diffs', sql: `SELECT DESYNPUF_ID, summary_year,\n  diff_bene_birth_dt, diff_bene_sex_ident_cd, diff_bene_race_cd\nFROM _discrepancy_detail\nWHERE diff_bene_birth_dt = 1\nLIMIT 50` },
+    { label: 'Financial diffs', sql: `SELECT DESYNPUF_ID, summary_year,\n  delta_medreimb_ip, delta_benres_ip, delta_medreimb_op, delta_benres_op,\n  delta_medreimb_car, delta_benres_car\nFROM _discrepancy_detail\nWHERE delta_medreimb_ip != 0 OR delta_medreimb_op != 0 OR delta_medreimb_car != 0\nLIMIT 50` },
+    { label: 'By state', sql: `SELECT SP_STATE_CODE, COUNT(*) AS cnt,\n  SUM(total_diffs) AS sum_diffs\nFROM _discrepancy_detail\nGROUP BY SP_STATE_CODE\nORDER BY sum_diffs DESC\nLIMIT 20` },
+  ],
+  '_financial_recon': [
+    { label: 'All recon', sql: `SELECT *\nFROM _financial_recon\nLIMIT 100` },
+    { label: 'By year', sql: `SELECT summary_year,\n  SUM(medreimb_diff) AS total_medreimb_diff,\n  SUM(benres_diff) AS total_benres_diff,\n  SUM(pppymt_diff) AS total_pppymt_diff,\n  COUNT(*) AS records\nFROM _financial_recon\nGROUP BY summary_year\nORDER BY summary_year` },
+    { label: 'Largest diffs', sql: `SELECT DESYNPUF_ID, summary_year,\n  medreimb_diff, benres_diff, pppymt_diff\nFROM _financial_recon\nORDER BY medreimb_diff DESC\nLIMIT 50` },
+    { label: 'Non-zero diffs', sql: `SELECT COUNT(*) AS total,\n  SUM(CASE WHEN medreimb_diff != 0 THEN 1 ELSE 0 END) AS medreimb_nonzero,\n  SUM(CASE WHEN benres_diff != 0 THEN 1 ELSE 0 END) AS benres_nonzero,\n  SUM(CASE WHEN pppymt_diff != 0 THEN 1 ELSE 0 END) AS pppymt_nonzero\nFROM _financial_recon` },
+  ],
+  '_match_beneficiary': [
+    { label: 'All beneficiaries', sql: `SELECT *\nFROM _match_beneficiary\nLIMIT 100` },
+    { label: 'Status breakdown', sql: `SELECT match_status, COUNT(*) AS cnt\nFROM _match_beneficiary\nGROUP BY match_status` },
+    { label: 'By year', sql: `SELECT summary_year, match_status, COUNT(*) AS cnt\nFROM _match_beneficiary\nGROUP BY summary_year, match_status\nORDER BY summary_year, match_status` },
+    { label: 'Unmatched', sql: `SELECT DESYNPUF_ID, summary_year, match_status\nFROM _match_beneficiary\nWHERE match_status != 'matched'\nLIMIT 100` },
+  ],
+};
+
+function setActiveTable(name) {
+  activeTable = name;
+  updateExampleQueries();
+}
+
 function updateExampleQueries() {
   const names = Object.keys(tables);
   if (names.length === 0) { exampleQueries.innerHTML = ''; return; }
 
-  const first = names[0];
-  const examples = [
-    { label: 'Preview', sql: `SELECT *\nFROM ${first}\nLIMIT 100` },
-    { label: 'Count', sql: `SELECT COUNT(*) AS total\nFROM ${first}` },
-  ];
+  const target = activeTable && tables[activeTable] ? activeTable : names[0];
+  const examples = [];
 
-  // If we have discrepancy detail, add useful queries
-  if (tables['_discrepancy_detail']) {
-    examples.push({ label: 'Top mismatches', sql: `SELECT DESYNPUF_ID, summary_year,\n  diff_bene_birth_dt, diff_medreimb_ip, diff_benres_ip\nFROM _discrepancy_detail\nWHERE diff_bene_birth_dt = 1 OR diff_medreimb_ip = 1\nLIMIT 50` });
+  // File-specific queries first
+  if (TABLE_QUERIES[target]) {
+    examples.push(...TABLE_QUERIES[target]);
+  } else {
+    // Generic for unknown tables
+    examples.push({ label: 'Preview', sql: `SELECT *\nFROM ${target}\nLIMIT 100` });
+    examples.push({ label: 'Count', sql: `SELECT COUNT(*) AS total\nFROM ${target}` });
   }
-  if (tables['_financial_recon']) {
-    examples.push({ label: 'Financial summary', sql: `SELECT summary_year,\n  SUM(medreimb_diff) AS total_medreimb_diff,\n  SUM(benres_diff) AS total_benres_diff,\n  COUNT(*) AS records\nFROM _financial_recon\nGROUP BY summary_year\nORDER BY summary_year` });
-  }
-  if (tables['_match_beneficiary']) {
+
+  // Global cross-table queries
+  if (tables['_match_beneficiary'] && target !== '_match_beneficiary') {
     examples.push({ label: 'Match status', sql: `SELECT match_status, COUNT(*) AS cnt\nFROM _match_beneficiary\nGROUP BY match_status` });
   }
-  if (tables['_match_claims']) {
+  if (tables['_match_claims'] && target !== '_match_claims') {
     examples.push({ label: 'Claims status', sql: `SELECT match_status, COUNT(*) AS cnt\nFROM _match_claims\nGROUP BY match_status` });
   }
 
