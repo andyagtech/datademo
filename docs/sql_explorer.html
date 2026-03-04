@@ -457,6 +457,8 @@ async function runQuery() {
   runBtn.disabled = true;
   setStatus('Running...', '');
   showRunning();
+  // Yield to browser so it can paint the indicator before heavy work
+  await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
   const t0 = performance.now();
 
   try {
