@@ -382,6 +382,7 @@ The local and cloud versions share all pipeline logic:
 │   └── vite.config.ts
 │
 ├── docs/                    # Our authored documentation
+│   ├── index.html            # Documentation hub (links to all pages)
 │   ├── SOLUTION.md           # Architecture decisions and design rationale
 │   ├── REQUIREMENTS_TRACEABILITY.md  # Requirement → implementation mapping
 │   ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook ref

@@ -16,11 +16,28 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+  .project-nav .nav-home:hover { background: rgba(56,189,248,0.12); }
+
   /* -- Header -- */
   .header {
     background: var(--surface); border-bottom: 1px solid var(--border);
     padding: 14px 24px; display: flex; align-items: center; gap: 16px;
-    position: sticky; top: 0; z-index: 100;
+    position: sticky; top: 32px; z-index: 100;
   }
   .header h1 { font-size: 0.95rem; font-weight: 700; }
   .header h1 span { color: var(--accent); }
@@ -180,7 +197,16 @@
 </head>
 <body>
 
-<div class="header">
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="../reports/comparison_report.html">Report</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html" class="active">Parquet</a>
+</nav>
+
+<div class="header" style="margin-top:32px">
   <h1><span>Parquet</span> Viewer</h1>
   <span class="powered">Powered by <a href="https://github.com/hyparam/hyparquet" target="_blank">hyparquet</a></span>
 </div>

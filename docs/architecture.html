@@ -13,7 +13,25 @@
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
-  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem; font-family: 'Inter', system-ui, sans-serif;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+  .project-nav .nav-home:hover { background: rgba(56,189,248,0.12); }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; padding-top: calc(2rem + 32px); }
   h1 { font-size: 1.75rem; margin-bottom: 0.25rem; color: var(--accent); }
   h2 { font-size: 1.25rem; margin: 2.5rem 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
   h3 { font-size: 1rem; margin: 1rem 0 0.5rem; color: var(--muted); }
@@ -40,6 +58,16 @@
 </style>
 </head>
 <body>
+
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="../reports/comparison_report.html">Report</a>
+  <a href="architecture.html" class="active">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html">Parquet</a>
+</nav>
+
 <div class="container">
   <h1>Pipeline Architecture</h1>
   <p class="subtitle">CMS Claims Data Comparison Pipeline — 6-step design</p>

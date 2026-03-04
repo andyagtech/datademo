@@ -73,9 +73,26 @@
   }
   .summary-meta { margin-left: auto; font-size: 0.8rem; color: var(--muted); font-weight: 400; }
 
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0a0c14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem; font-family: 'Inter', system-ui, sans-serif;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+  .project-nav .nav-home:hover { background: rgba(56,189,248,0.12); }
+
   /* Sidebar nav */
   .sidebar {
-    position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
+    position: fixed; top: 32px; left: 0; width: 220px; height: calc(100vh - 32px);
     background: var(--surface); border-right: 1px solid var(--border);
     padding: 1.25rem 0; overflow-y: auto; z-index: 100;
     display: flex; flex-direction: column;
@@ -105,7 +122,17 @@
 </style>
 </head>
 <body>
-<div class="container">
+
+<nav class="project-nav">
+  <a href="../docs/index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="../reports/comparison_report.html" class="active">Report</a>
+  <a href="../docs/architecture.html">Architecture</a>
+  <a href="../docs/schema_explorer.html">Schema</a>
+  <a href="../docs/parquet_viewer.html">Parquet</a>
+</nav>
+
+<div class="container" style="padding-top: calc(2rem + 32px)">
   <h1>CMS Claims Data Comparison Report</h1>
   <p class="subtitle">Generated 2026-03-03 19:29:50</p>
 
