@@ -115,6 +115,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="nav">
     <a href="#data-context">Data Context</a>
     <a href="#summary">Summary</a>
+    <a href="#discrepancies">Discrepancies</a>
     <a href="#validation">Validation</a>
     <a href="#trends">Trends</a>
     <a href="#financial">Financial</a>
@@ -246,6 +247,61 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       {% endfor %}
     </div>
     {% endif %}
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 1b. DISCREPANCY DASHBOARD — the spec's core ask              -->
+  <!-- ============================================================ -->
+  <div class="section" id="discrepancies">
+    <h2>Discrepancy Dashboard</h2>
+    <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.88rem; line-height: 1.6; max-width: 900px;">
+      The old system (CMS DE-SynPUF) is treated as <strong style="color: var(--accent);">ground truth</strong>.
+      All metrics below quantify how the new system's outputs <strong style="color: var(--yellow);">deviate</strong>
+      from the old system. Discrepancies indicate potential issues in the new claims processing pipeline
+      that must be resolved before cutover.
+    </p>
+
+    <!-- Key discrepancy KPIs -->
+    <div class="grid">
+      <div class="card card-red" id="kpi-bene-mismatch">
+        <div class="card-label">Beneficiaries with Data Mismatches</div>
+        <div class="card-value fail" id="kpi-bene-mismatch-val">—</div>
+        <div class="card-sub" id="kpi-bene-mismatch-sub"></div>
+      </div>
+      <div class="card card-red" id="kpi-claims-pmt">
+        <div class="card-label">Claims with Payment Mismatches</div>
+        <div class="card-value fail" id="kpi-claims-pmt-val">—</div>
+        <div class="card-sub" id="kpi-claims-pmt-sub"></div>
+      </div>
+      <div class="card card-yellow" id="kpi-fin-diverge">
+        <div class="card-label">Total Financial Divergence</div>
+        <div class="card-value warn" id="kpi-fin-diverge-val">—</div>
+        <div class="card-sub" id="kpi-fin-diverge-sub">Sum of absolute differences across all reimbursement columns</div>
+      </div>
+      <div class="card" style="border-left: 3px solid var(--accent);" id="kpi-phantom">
+        <div class="card-label">Phantom / Missing Records</div>
+        <div class="card-value" id="kpi-phantom-val">—</div>
+        <div class="card-sub" id="kpi-phantom-sub">Records in one system but not the other</div>
+      </div>
+    </div>
+
+    <!-- Discrepancy charts -->
+    <div class="grid-2" style="margin-top: 1.5rem;">
+      <div class="chart-container">
+        <div id="chart-field-mismatches" style="width:100%;height:400px;"></div>
+      </div>
+      <div class="chart-container">
+        <div id="chart-discrepancy-trend" style="width:100%;height:400px;"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="chart-container">
+        <div id="chart-fin-divergence" style="width:100%;height:400px;"></div>
+      </div>
+      <div class="chart-container">
+        <div id="chart-reimb-comparison" style="width:100%;height:400px;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ============================================================ -->
@@ -396,6 +452,127 @@ var REPORT_DATA = {{ chart_data_json }};
 document.addEventListener('DOMContentLoaded', function() {
   var dark = {plot_bgcolor:'#1e293b',paper_bgcolor:'#1e293b',font:{color:'#e2e8f0',size:11},margin:{l:60,r:30,t:50,b:40}};
   var gridColor = '#334155';
+
+  /* ================================================================ */
+  /* DISCREPANCY DASHBOARD — KPIs + Charts                           */
+  /* ================================================================ */
+
+  /* -- KPI: Beneficiaries with data mismatches -- */
+  var dby = REPORT_DATA.discrepancy_by_year || [];
+  if (dby.length) {
+    var totalBene = dby.reduce(function(s,r){return s+r.total;},0);
+    var mismatchedBene = dby.reduce(function(s,r){return s+r.mismatched;},0);
+    var benePct = (100.0 * mismatchedBene / Math.max(totalBene,1)).toFixed(2);
+    document.getElementById('kpi-bene-mismatch-val').textContent = mismatchedBene.toLocaleString();
+    document.getElementById('kpi-bene-mismatch-sub').textContent = benePct + '% of ' + totalBene.toLocaleString() + ' matched beneficiary-years';
+  }
+
+  /* -- KPI: Claims with payment mismatches -- */
+  var cpm = REPORT_DATA.claims_payment_mismatches || [];
+  if (cpm.length) {
+    var totalClaimsMismatch = cpm.reduce(function(s,r){return s+r.mismatch_count;},0);
+    var volClaims = REPORT_DATA.volume_claims || {};
+    document.getElementById('kpi-claims-pmt-val').textContent = totalClaimsMismatch.toLocaleString();
+    var claimDenom = volClaims.old || 0;
+    document.getElementById('kpi-claims-pmt-sub').textContent = 'Across ' + cpm.length + ' payment columns on ' + claimDenom.toLocaleString() + ' matched claims';
+  }
+
+  /* -- KPI: Total financial divergence -- */
+  var finDiv = REPORT_DATA.financial_divergence || [];
+  if (finDiv.length) {
+    var totalAbsDiff = finDiv.reduce(function(s,r){return s+r.abs_diff;},0);
+    document.getElementById('kpi-fin-diverge-val').textContent = '$' + totalAbsDiff.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+
+  /* -- KPI: Phantom / missing records -- */
+  var volB = REPORT_DATA.volume_beneficiaries || {};
+  var volC = REPORT_DATA.volume_claims || {};
+  if (volB.old || volC.old) {
+    var bDiff = Math.abs(volB.diff || 0);
+    var cDiff = Math.abs(volC.diff || 0);
+    document.getElementById('kpi-phantom-val').textContent = (bDiff + cDiff).toLocaleString();
+    var parts = [];
+    if (volB.diff > 0) parts.push(volB.diff.toLocaleString() + ' extra beneficiaries in new');
+    if (volB.diff < 0) parts.push(Math.abs(volB.diff).toLocaleString() + ' missing beneficiaries in new');
+    if (volC.diff > 0) parts.push(volC.diff.toLocaleString() + ' extra claims in new');
+    if (volC.diff < 0) parts.push(Math.abs(volC.diff).toLocaleString() + ' missing claims in new');
+    if (parts.length) document.getElementById('kpi-phantom-sub').textContent = parts.join(' · ');
+  }
+
+  /* -- Chart: Top field mismatches (horizontal bar) -- */
+  var fm = REPORT_DATA.field_mismatches || [];
+  if (fm.length) {
+    var fmTop = fm.slice(0, 20);
+    Plotly.newPlot('chart-field-mismatches',[{
+      x: fmTop.map(function(r){return r.mismatch_count;}),
+      y: fmTop.map(function(r){return r.field;}),
+      orientation:'h', type:'bar',
+      marker:{color:fmTop.map(function(r){return r.mismatch_count > 100 ? '#f87171' : '#fbbf24';})},
+      text:fmTop.map(function(r){return r.mismatch_count.toLocaleString();}),
+      textposition:'outside'
+    }],Object.assign({},dark,{
+      title:'Top Mismatched Fields (New vs Old)',
+      xaxis:{title:'Mismatched Records',gridcolor:gridColor},
+      yaxis:{autorange:'reversed',gridcolor:gridColor},
+      height:400,margin:{l:200,r:60,t:50,b:40}
+    }),{responsive:true});
+  }
+
+  /* -- Chart: Discrepancy trend by year -- */
+  if (dby.length) {
+    var dbyYears = dby.map(function(r){return String(r.year);});
+    Plotly.newPlot('chart-discrepancy-trend',[
+      {x:dbyYears,y:dby.map(function(r){return r.total;}),name:'Total Matched',type:'bar',marker:{color:'#334155'}},
+      {x:dbyYears,y:dby.map(function(r){return r.mismatched;}),name:'With Mismatches',type:'bar',marker:{color:'#f87171'}},
+      {x:dbyYears,y:dby.map(function(r){return r.pct;}),name:'Mismatch %',type:'scatter',mode:'lines+markers',yaxis:'y2',line:{color:'#fbbf24',width:3},marker:{size:8}}
+    ],Object.assign({},dark,{
+      barmode:'overlay',
+      title:'Beneficiary Discrepancy Trend by Year',
+      xaxis:{title:'Year',gridcolor:gridColor},
+      yaxis:{title:'Records',gridcolor:gridColor},
+      yaxis2:{title:'Mismatch %',overlaying:'y',side:'right',gridcolor:'rgba(0,0,0,0)',showgrid:false,ticksuffix:'%'},
+      legend:{bgcolor:'rgba(0,0,0,0)',x:0.01,y:0.99},
+      height:400,margin:{l:70,r:70,t:50,b:40}
+    }),{responsive:true});
+  }
+
+  /* -- Chart: Financial divergence by column -- */
+  if (finDiv.length) {
+    var fdCols = finDiv.map(function(r){return r.column;});
+    var fdColors = finDiv.map(function(r){return r.diff > 0 ? '#4ade80' : '#f87171';});
+    Plotly.newPlot('chart-fin-divergence',[{
+      x:fdCols,y:finDiv.map(function(r){return r.diff;}),
+      type:'bar',marker:{color:fdColors},
+      text:finDiv.map(function(r){return '$'+r.diff.toLocaleString(undefined,{minimumFractionDigits:0});}),
+      textposition:'outside'
+    }],Object.assign({},dark,{
+      title:'Financial Divergence: New − Old (by column)',
+      xaxis:{title:'Reimbursement Column',gridcolor:gridColor,tickangle:-35},
+      yaxis:{title:'Dollar Difference ($)',gridcolor:gridColor},
+      height:400,margin:{l:80,r:30,t:50,b:100}
+    }),{responsive:true});
+  }
+
+  /* -- Chart: Old vs New total reimbursement by year -- */
+  var reimbOld = REPORT_DATA.reimb_by_year_old || [];
+  var reimbNew = REPORT_DATA.reimb_by_year_new || [];
+  if (reimbOld.length && reimbNew.length) {
+    Plotly.newPlot('chart-reimb-comparison',[
+      {x:reimbOld.map(function(r){return String(r.year);}),y:reimbOld.map(function(r){return r.total;}),name:'Old System (Truth)',type:'bar',marker:{color:'#38bdf8'}},
+      {x:reimbNew.map(function(r){return String(r.year);}),y:reimbNew.map(function(r){return r.total;}),name:'New System',type:'bar',marker:{color:'#4ade80',opacity:0.7}}
+    ],Object.assign({},dark,{
+      barmode:'group',
+      title:'Total Medicare Reimbursement: Old vs New',
+      xaxis:{title:'Year',gridcolor:gridColor},
+      yaxis:{title:'Total Reimbursement ($)',gridcolor:gridColor},
+      legend:{bgcolor:'rgba(0,0,0,0)'},
+      height:400,margin:{l:80,r:30,t:50,b:40}
+    }),{responsive:true});
+  }
+
+  /* ================================================================ */
+  /* EXISTING CHARTS                                                  */
+  /* ================================================================ */
 
   /* -- Validation bar chart -- */
   var vals = REPORT_DATA._validations || [];
@@ -858,6 +1035,124 @@ def _extract_chart_data(con: duckdb.DuckDBPyConnection | None) -> dict:
             chronic_data.append({"condition": label, "column": col, "rates": rates})
 
         chart_data["chronic_conditions"] = {"years": years, "conditions": chronic_data}
+    except Exception:
+        pass
+
+    # ── Discrepancy-focused data (old system = truth, new = under test) ──
+
+    # Beneficiary mismatches by field (from _discrepancy_detail)
+    # Schema: diff_* columns are 0/1 flags, delta_* are dollar amounts, total_diffs = count
+    try:
+        diff_cols = con.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = '_discrepancy_detail'
+            AND column_name LIKE 'diff_%'
+        """).fetchall()
+        if diff_cols:
+            field_mismatches = []
+            for (col_name,) in diff_cols:
+                field = col_name.replace("diff_", "").upper()
+                try:
+                    r = con.execute(f"""
+                        SELECT SUM("{col_name}") FROM _discrepancy_detail
+                    """).fetchone()
+                    count = int(r[0]) if r[0] else 0
+                    if count > 0:
+                        field_mismatches.append({"field": field, "mismatch_count": count})
+                except Exception:
+                    pass
+            field_mismatches.sort(key=lambda x: x["mismatch_count"], reverse=True)
+            chart_data["field_mismatches"] = field_mismatches
+    except Exception:
+        pass
+
+    # Discrepancy trend by year (beneficiaries with ANY mismatch per year)
+    try:
+        rows = con.execute("""
+            SELECT summary_year,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN total_diffs > 0 THEN 1 ELSE 0 END) AS mismatched
+            FROM _discrepancy_detail
+            GROUP BY summary_year ORDER BY summary_year
+        """).fetchall()
+        chart_data["discrepancy_by_year"] = [
+            {"year": int(r[0]), "total": r[1], "mismatched": r[2],
+             "pct": round(100.0 * r[2] / max(r[1], 1), 2)}
+            for r in rows
+        ]
+    except Exception:
+        pass
+
+    # Old vs new volume comparison (beneficiaries + claims)
+    try:
+        for old_t, new_t, label in [
+            ("beneficiary_summary", "new_beneficiary_summary", "beneficiaries"),
+            ("carrier_claims", "new_carrier_claims", "claims"),
+        ]:
+            old_count = con.execute(f"SELECT COUNT(*) FROM {old_t}").fetchone()[0]
+            try:
+                new_count = con.execute(f"SELECT COUNT(*) FROM {new_t}").fetchone()[0]
+            except Exception:
+                new_count = 0
+            chart_data[f"volume_{label}"] = {"old": old_count, "new": new_count, "diff": new_count - old_count}
+    except Exception:
+        pass
+
+    # Financial divergence summary (old vs new reimbursement totals)
+    try:
+        for old_t, new_t, label in [
+            ("beneficiary_summary", "new_beneficiary_summary", "beneficiary"),
+        ]:
+            fin_cols = ["MEDREIMB_IP", "BENRES_IP", "PPPYMT_IP",
+                        "MEDREIMB_OP", "BENRES_OP", "PPPYMT_OP",
+                        "MEDREIMB_CAR", "BENRES_CAR", "PPPYMT_CAR"]
+            fin_divergence = []
+            for col in fin_cols:
+                try:
+                    old_sum = con.execute(f'SELECT COALESCE(SUM("{col}"::DOUBLE), 0) FROM {old_t}').fetchone()[0]
+                    new_sum = con.execute(f'SELECT COALESCE(SUM("{col}"::DOUBLE), 0) FROM {new_t}').fetchone()[0]
+                    diff = new_sum - old_sum
+                    fin_divergence.append({
+                        "column": col, "old_sum": round(old_sum, 2), "new_sum": round(new_sum, 2),
+                        "diff": round(diff, 2), "abs_diff": round(abs(diff), 2),
+                    })
+                except Exception:
+                    pass
+            chart_data["financial_divergence"] = fin_divergence
+    except Exception:
+        pass
+
+    # Claims payment mismatches (from new vs old on matched claims)
+    try:
+        pmt_cols = ["LINE_NCH_PMT_AMT_1", "LINE_BENE_PTB_DDCTBL_AMT_1",
+                    "LINE_COINSRNC_AMT_1", "LINE_ALOWD_CHRG_AMT_1"]
+        claims_pmt_mismatches = []
+        for col in pmt_cols:
+            try:
+                r = con.execute(f"""
+                    SELECT COUNT(*) FROM carrier_claims o
+                    INNER JOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR
+                    WHERE o."{col}"::VARCHAR IS DISTINCT FROM n."{col}"::VARCHAR
+                """).fetchone()
+                claims_pmt_mismatches.append({"column": col, "mismatch_count": r[0]})
+            except Exception:
+                pass
+        chart_data["claims_payment_mismatches"] = claims_pmt_mismatches
+    except Exception:
+        pass
+
+    # Old vs new reimbursement by year (side-by-side)
+    try:
+        for suffix, table in [("old", "beneficiary_summary"), ("new", "new_beneficiary_summary")]:
+            rows = con.execute(f"""
+                SELECT summary_year,
+                       SUM(MEDREIMB_IP) + SUM(MEDREIMB_OP) + SUM(MEDREIMB_CAR) AS total_reimb
+                FROM {table}
+                GROUP BY summary_year ORDER BY summary_year
+            """).fetchall()
+            chart_data[f"reimb_by_year_{suffix}"] = [
+                {"year": int(r[0]), "total": round(float(r[1]), 2)} for r in rows
+            ]
     except Exception:
         pass
 
