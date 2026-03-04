@@ -46,7 +46,46 @@
   }
   .header .powered a { color: var(--accent); text-decoration: none; }
 
-  /* -- Drop Zone -- */
+  /* -- File Picker -- */
+  .file-picker {
+    max-width: 700px; margin: 40px auto; padding: 0 24px;
+  }
+  .picker-section { padding: 0; }
+  .picker-label {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px;
+  }
+  .picker-hint { font-size: 0.72rem; color: var(--border); margin-bottom: 12px; }
+  .picker-divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .export-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .export-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; cursor: pointer; transition: all 0.2s; text-decoration: none; display: block;
+  }
+  .export-card:hover { border-color: var(--accent); background: var(--surface2); transform: translateY(-1px); }
+  .export-card .ec-name { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+  .export-card .ec-meta { font-size: 0.68rem; color: var(--muted); display: flex; gap: 8px; }
+  .export-card .ec-badge {
+    display: inline-block; font-size: 0.6rem; padding: 1px 6px; border-radius: 3px;
+    background: rgba(56,189,248,0.1); color: var(--accent); font-family: var(--mono); font-weight: 600;
+  }
+  .export-card.loading { opacity: 0.5; pointer-events: none; }
+  .export-card.loading .ec-name::after { content: ' Loading...'; color: var(--muted); font-weight: 400; }
+  .drop-zone-mini {
+    border: 1.5px dashed var(--border); border-radius: 8px;
+    padding: 14px 16px; text-align: center; font-size: 0.78rem;
+    color: var(--muted); transition: all 0.2s;
+  }
+  .drop-zone-mini:hover, .drop-zone-mini.dragover {
+    border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.03);
+  }
+  .link-btn {
+    background: none; border: none; color: var(--accent); cursor: pointer;
+    font-family: var(--font); font-size: 0.78rem; text-decoration: underline;
+    padding: 0;
+  }
+
+  /* -- Drop Zone (legacy, keep for reset) -- */
   .drop-zone {
     max-width: 700px; margin: 60px auto; border: 2px dashed var(--border);
     border-radius: 16px; padding: 60px 40px; text-align: center;
@@ -213,12 +252,22 @@
 </div>
 
 <div id="app">
-  <div class="drop-zone" id="dropZone">
-    <div class="icon">&#128451;</div>
-    <h2>Drop a Parquet file here</h2>
-    <p>or click to browse &mdash; parsed entirely in your browser, nothing uploaded</p>
-    <button class="btn" id="browseBtn">Choose File</button>
-    <input type="file" id="fileInput" accept=".parquet,.parq">
+  <div class="file-picker">
+    <div class="picker-section">
+      <div class="picker-label">Pipeline Exports</div>
+      <div class="picker-hint">Click a file to view &mdash; parsed entirely in your browser</div>
+      <div class="export-grid" id="exportGrid">
+        <div style="color:var(--muted);font-size:0.78rem;padding:12px">Checking for exports...</div>
+      </div>
+    </div>
+    <div class="picker-divider"></div>
+    <div class="picker-section" style="padding-bottom:18px">
+      <div class="picker-label">Custom File</div>
+      <div class="drop-zone-mini" id="dropZone">
+        <span>&#128451; Drop a .parquet file here or <button class="link-btn" id="browseBtn">browse</button></span>
+        <input type="file" id="fileInput" accept=".parquet,.parq" style="display:none">
+      </div>
+    </div>
   </div>
 </div>
 
@@ -235,10 +284,53 @@ const fileInput = document.getElementById('fileInput');
 const browseBtn = document.getElementById('browseBtn');
 
 // ============================================================
+// KNOWN EXPORTS — served from reports/exports/
+// ============================================================
+const KNOWN_EXPORTS = [
+  { file: '_match_claims.parquet',        label: 'Match Claims',        desc: 'Claim-level old↔new join results' },
+  { file: '_discrepancy_detail.parquet',  label: 'Discrepancy Detail',  desc: 'Field-level diff flags per beneficiary-year' },
+  { file: '_financial_recon.parquet',     label: 'Financial Recon',     desc: 'Financial reconciliation by record' },
+  { file: '_match_beneficiary.parquet',   label: 'Match Beneficiary',   desc: 'Beneficiary-level old↔new join results' },
+];
+const EXPORTS_BASE = '../reports/exports/';
+
+async function probeExports() {
+  const grid = document.getElementById('exportGrid');
+  const cards = [];
+  for (const ex of KNOWN_EXPORTS) {
+    try {
+      const resp = await fetch(EXPORTS_BASE + ex.file, { method: 'HEAD' });
+      if (resp.ok) {
+        const size = resp.headers.get('content-length');
+        cards.push({ ...ex, size: size ? parseInt(size) : null });
+      }
+    } catch (_) { /* file not available */ }
+  }
+  if (cards.length === 0) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;padding:8px">No exports found. Run the pipeline first, or drop a file below.</div>';
+    return;
+  }
+  grid.innerHTML = cards.map(c => `
+    <div class="export-card" data-file="${c.file}">
+      <div class="ec-name">${c.label}</div>
+      <div class="ec-meta">
+        <span class="ec-badge">PARQUET</span>
+        <span>${c.file}</span>
+        ${c.size ? '<span>' + formatBytes(c.size) + '</span>' : ''}
+      </div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.export-card').forEach(card => {
+    card.addEventListener('click', () => loadFromUrl(EXPORTS_BASE + card.dataset.file, card));
+  });
+}
+probeExports();
+
+// ============================================================
 // FILE HANDLING
 // ============================================================
 browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
-dropZone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
 
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -257,20 +349,52 @@ let state = { metadata: null, schema: null, columns: [], fileName: '', fileSize:
               cachedRows: null, cachedRange: null };
 
 // ============================================================
-// LOAD FILE
+// LOAD FROM URL (known export)
+// ============================================================
+async function loadFromUrl(url, cardEl) {
+  if (cardEl) cardEl.classList.add('loading');
+  app.innerHTML = '<div class="loading"><div class="spinner"></div>Fetching Parquet file...</div>';
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const fileName = url.split('/').pop();
+    await loadBuffer(arrayBuffer, fileName);
+  } catch (err) {
+    app.innerHTML = `<div class="error-box"><h3>Failed to load file</h3><pre>${escapeHtml(err.message)}</pre></div>`;
+    console.error(err);
+  } finally {
+    if (cardEl) cardEl.classList.remove('loading');
+  }
+}
+
+// ============================================================
+// LOAD FILE (from drag/drop or browse)
 // ============================================================
 async function loadFile(file) {
-  state.fileName = file.name;
-  state.fileSize = file.size;
+  app.innerHTML = '<div class="loading"><div class="spinner"></div>Parsing Parquet metadata...</div>';
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    await loadBuffer(arrayBuffer, file.name);
+  } catch (err) {
+    app.innerHTML = `<div class="error-box"><h3>Failed to parse Parquet file</h3><pre>${escapeHtml(err.message)}\n${escapeHtml(err.stack || '')}</pre></div>`;
+    console.error(err);
+  }
+}
+
+// ============================================================
+// LOAD BUFFER (shared core)
+// ============================================================
+async function loadBuffer(arrayBuffer, fileName) {
+  state.fileName = fileName;
+  state.fileSize = arrayBuffer.byteLength;
   state.currentPage = 0;
   state.cachedRows = null;
   state.cachedRange = null;
-
-  app.innerHTML = '<div class="loading"><div class="spinner"></div>Parsing Parquet metadata...</div>';
+  state.buffer = arrayBuffer;
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    state.buffer = arrayBuffer;
 
     // Read metadata
     state.metadata = await parquetMetadataAsync(arrayBuffer);

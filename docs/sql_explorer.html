@@ -72,6 +72,15 @@
     background: rgba(56,189,248,0.04);
   }
   .sidebar-drop input { display: none; }
+  .export-item {
+    padding: 5px 10px; font-size: 0.73rem; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    color: var(--muted); transition: all 0.12s; border-radius: 4px;
+  }
+  .export-item:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .export-item .ei-icon { font-size: 0.65rem; opacity: 0.4; }
+  .export-item .ei-name { flex: 1; font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .export-item .ei-status { font-size: 0.62rem; font-family: var(--mono); color: var(--border); }
   .table-item {
     padding: 6px 14px; font-size: 0.78rem; cursor: pointer;
     display: flex; align-items: center; gap: 8px;
@@ -195,20 +204,26 @@
 <div class="main">
   <!-- Sidebar -->
   <div class="sidebar">
+    <div class="sidebar-section" style="padding-top:12px">Pipeline Exports</div>
+    <div id="exportList" style="padding:4px 10px 8px">
+      <div style="color:var(--border);font-size:0.68rem;padding:4px">Checking...</div>
+    </div>
+    <div style="height:1px;background:var(--border);margin:4px 14px"></div>
+    <div class="sidebar-section">Loaded Tables (<span id="tableCount">0</span>)</div>
+    <div id="tableList"></div>
+    <div style="height:1px;background:var(--border);margin:4px 14px"></div>
     <div class="sidebar-drop">
       <div class="drop-area" id="dropArea">
-        &#128451; Drop .parquet files<br>or click to browse
+        &#128451; Drop .parquet<br>or click to browse
       </div>
       <input type="file" id="fileInput" accept=".parquet,.parq" multiple>
     </div>
-    <div class="sidebar-section">Tables (<span id="tableCount">0</span>)</div>
-    <div id="tableList"></div>
   </div>
 
   <!-- Editor + Results -->
   <div class="editor-panel">
     <div class="query-area">
-      <textarea class="query-editor" id="queryEditor" placeholder="SELECT * FROM table_name LIMIT 100" spellcheck="false">SELECT 'Drop a .parquet file to get started' AS message</textarea>
+      <textarea class="query-editor" id="queryEditor" placeholder="SELECT * FROM table_name LIMIT 100" spellcheck="false">SELECT 'Loading pipeline exports...' AS message</textarea>
       <div class="query-bar">
         <button class="run-btn" id="runBtn">&#9654; Run <kbd>&#8984;&#9166;</kbd></button>
         <span class="query-status" id="queryStatus"></span>
@@ -250,54 +265,120 @@ const fileInput = document.getElementById('fileInput');
 const exampleQueries = document.getElementById('exampleQueries');
 
 // ============================================================
-// FILE LOADING
+// KNOWN EXPORTS — served from reports/exports/
+// ============================================================
+const KNOWN_EXPORTS = [
+  { file: '_match_claims.parquet',        label: 'Match Claims' },
+  { file: '_discrepancy_detail.parquet',  label: 'Discrepancies' },
+  { file: '_financial_recon.parquet',     label: 'Financial Recon' },
+  { file: '_match_beneficiary.parquet',   label: 'Match Beneficiary' },
+];
+const EXPORTS_BASE = '../reports/exports/';
+
+async function probeAndLoadExports() {
+  const exportList = document.getElementById('exportList');
+  const available = [];
+  for (const ex of KNOWN_EXPORTS) {
+    try {
+      const resp = await fetch(EXPORTS_BASE + ex.file, { method: 'HEAD' });
+      if (resp.ok) available.push(ex);
+    } catch (_) {}
+  }
+  if (available.length === 0) {
+    exportList.innerHTML = '<div style="color:var(--border);font-size:0.68rem;padding:4px">No exports found. Run pipeline or drop files below.</div>';
+    queryEditor.value = 'SELECT \'Drop a .parquet file to get started\' AS message';
+    return;
+  }
+  exportList.innerHTML = available.map(ex => `
+    <div class="export-item" data-file="${ex.file}" data-label="${ex.label}">
+      <span class="ei-icon">&#128451;</span>
+      <span class="ei-name">${ex.label}</span>
+      <span class="ei-status">load</span>
+    </div>
+  `).join('');
+
+  exportList.querySelectorAll('.export-item').forEach(el => {
+    el.addEventListener('click', () => loadExport(el));
+  });
+
+  // Auto-load all available exports
+  for (const el of exportList.querySelectorAll('.export-item')) {
+    await loadExport(el);
+  }
+}
+
+async function loadExport(el) {
+  const file = el.dataset.file;
+  const tableName = file.replace(/\.parq(uet)?$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
+  if (tables[tableName]) return; // already loaded
+
+  el.querySelector('.ei-status').textContent = '...';
+  el.style.opacity = '0.5';
+  try {
+    const resp = await fetch(EXPORTS_BASE + file);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    await loadParquetBuffer(arrayBuffer, tableName);
+    el.querySelector('.ei-status').textContent = '\u2713';
+    el.querySelector('.ei-status').style.color = 'var(--green)';
+    el.style.opacity = '1';
+  } catch (err) {
+    el.querySelector('.ei-status').textContent = '\u2717';
+    el.querySelector('.ei-status').style.color = 'var(--red)';
+    el.style.opacity = '1';
+    setStatus(`Failed to load ${file}: ${err.message}`, 'error');
+  }
+}
+probeAndLoadExports();
+
+// ============================================================
+// FILE LOADING (drag/drop + browse)
 // ============================================================
 dropArea.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', (e) => { for (const f of e.target.files) loadParquet(f); });
+fileInput.addEventListener('change', (e) => { for (const f of e.target.files) loadParquetFile(f); });
 dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('dragover'); });
 dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
 dropArea.addEventListener('drop', (e) => {
   e.preventDefault(); dropArea.classList.remove('dragover');
-  for (const f of e.dataTransfer.files) loadParquet(f);
+  for (const f of e.dataTransfer.files) loadParquetFile(f);
 });
 
-async function loadParquet(file) {
+async function loadParquetFile(file) {
   const tableName = file.name.replace(/\.parq(uet)?$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
-
-  // Show loading state in sidebar
   addTableLoading(tableName);
-
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const metadata = await parquetMetadataAsync(arrayBuffer);
-    const schema = parquetSchema(metadata);
-    const columns = schema.children.map(c => c.element);
-    const totalRows = Number(metadata.num_rows);
-
-    // Read all rows (for tables that fit in memory — our exports are <30MB)
-    const rows = [];
-    await parquetRead({
-      file: arrayBuffer,
-      compressors,
-      rowFormat: 'object',
-      onComplete: data => rows.push(...data),
-    });
-
-    tables[tableName] = rows;
-    tableSchemas[tableName] = columns.map(c => ({ name: c.name, type: getTypeName(c) }));
-
-    renderTableList();
-    updateExampleQueries();
-
-    // Auto-run a preview query for the first table loaded
-    if (Object.keys(tables).length === 1) {
-      queryEditor.value = `SELECT *\nFROM ${tableName}\nLIMIT 100`;
-      runQuery();
-    }
+    await loadParquetBuffer(arrayBuffer, tableName);
   } catch (err) {
     setStatus(`Failed to load ${file.name}: ${err.message}`, 'error');
     removeTableFromList(tableName);
-    console.error(err);
+  }
+}
+
+async function loadParquetBuffer(arrayBuffer, tableName) {
+
+  const metadata = await parquetMetadataAsync(arrayBuffer);
+  const schema = parquetSchema(metadata);
+  const columns = schema.children.map(c => c.element);
+
+  const rows = [];
+  await parquetRead({
+    file: arrayBuffer,
+    compressors,
+    rowFormat: 'object',
+    onComplete: data => rows.push(...data),
+  });
+
+  tables[tableName] = rows;
+  tableSchemas[tableName] = columns.map(c => ({ name: c.name, type: getTypeName(c) }));
+
+  renderTableList();
+  updateExampleQueries();
+
+  // Auto-run a preview query for the first table loaded
+  if (Object.keys(tables).length === 1) {
+    queryEditor.value = `SELECT *\nFROM ${tableName}\nLIMIT 100`;
+    runQuery();
   }
 }
 
