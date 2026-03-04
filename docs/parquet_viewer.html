@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parquet Viewer — Powered by hyparquet</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* -- Header -- */
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 24px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header h1 { font-size: 0.95rem; font-weight: 700; }
+  .header h1 span { color: var(--accent); }
+  .header .powered {
+    font-size: 0.7rem; color: var(--muted); margin-left: auto;
+  }
+  .header .powered a { color: var(--accent); text-decoration: none; }
+
+  /* -- Drop Zone -- */
+  .drop-zone {
+    max-width: 700px; margin: 60px auto; border: 2px dashed var(--border);
+    border-radius: 16px; padding: 60px 40px; text-align: center;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent); background: rgba(56,189,248,0.04);
+  }
+  .drop-zone h2 { font-size: 1.1rem; margin-bottom: 8px; }
+  .drop-zone p { color: var(--muted); font-size: 0.85rem; }
+  .drop-zone .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+  .drop-zone input { display: none; }
+  .drop-zone .btn {
+    display: inline-block; margin-top: 16px; padding: 8px 20px;
+    background: var(--accent); color: #000; border-radius: 6px;
+    font-weight: 600; font-size: 0.82rem; cursor: pointer; border: none;
+  }
+
+  /* -- Loading -- */
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .spinner {
+    width: 28px; height: 28px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* -- File Info Panel -- */
+  .content { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+  .file-bar {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .file-name {
+    font-family: var(--mono); font-size: 0.9rem; font-weight: 600;
+    background: var(--surface); padding: 6px 14px; border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .file-stat {
+    font-size: 0.78rem; color: var(--muted); padding: 4px 10px;
+    background: var(--surface2); border-radius: 4px;
+  }
+  .file-stat b { color: var(--text); }
+  .btn-new {
+    margin-left: auto; padding: 6px 14px; background: transparent;
+    border: 1px solid var(--border); border-radius: 6px; color: var(--muted);
+    cursor: pointer; font-size: 0.78rem; font-family: var(--font);
+  }
+  .btn-new:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* -- Tabs -- */
+  .tabs {
+    display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+  }
+  .tab {
+    padding: 8px 20px; font-size: 0.82rem; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: var(--font);
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* -- Schema Tab -- */
+  .schema-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .schema-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .schema-card .col-name {
+    font-family: var(--mono); font-size: 0.82rem; font-weight: 600;
+  }
+  .schema-card .col-idx { color: var(--muted); font-size: 0.7rem; margin-right: 6px; }
+  .schema-card .col-meta { margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .type-badge {
+    font-family: var(--mono); font-size: 0.68rem; padding: 2px 8px;
+    border-radius: 3px; display: inline-block;
+  }
+  .type-badge.int { background: rgba(56,189,248,0.12); color: var(--accent); }
+  .type-badge.float { background: rgba(129,140,248,0.12); color: var(--accent2); }
+  .type-badge.string { background: rgba(52,211,153,0.12); color: var(--green); }
+  .type-badge.bool { background: rgba(251,146,60,0.12); color: var(--orange); }
+  .type-badge.other { background: rgba(136,146,176,0.12); color: var(--muted); }
+  .nullable-badge {
+    font-size: 0.65rem; color: var(--muted); padding: 2px 6px;
+    border: 1px solid var(--border); border-radius: 3px;
+  }
+
+  /* -- Data Tab -- */
+  .table-wrap {
+    overflow-x: auto; border: 1px solid var(--border); border-radius: 8px;
+  }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 0.78rem;
+  }
+  thead th {
+    background: var(--surface); padding: 8px 12px; text-align: left;
+    font-family: var(--mono); font-size: 0.75rem; font-weight: 600;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5;
+    white-space: nowrap;
+  }
+  thead th .th-type { font-weight: 400; color: var(--muted); font-size: 0.65rem; display: block; }
+  tbody td {
+    padding: 6px 12px; border-bottom: 1px solid rgba(45,49,72,0.5);
+    font-family: var(--mono); font-size: 0.73rem; white-space: nowrap;
+    max-width: 280px; overflow: hidden; text-overflow: ellipsis;
+  }
+  tbody tr:hover td { background: rgba(56,189,248,0.03); }
+  td.null { color: var(--muted); font-style: italic; }
+  td.num { color: var(--accent); }
+
+  /* -- Pagination -- */
+  .pagination {
+    display: flex; align-items: center; gap: 8px; margin-top: 12px;
+    justify-content: center; flex-wrap: wrap;
+  }
+  .page-btn {
+    padding: 5px 12px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); cursor: pointer;
+    font-size: 0.78rem; font-family: var(--font);
+  }
+  .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .page-btn:disabled { opacity: 0.3; cursor: default; }
+  .page-info { font-size: 0.78rem; color: var(--muted); }
+  .page-size-select {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); padding: 4px 8px; font-size: 0.75rem; font-family: var(--font);
+  }
+
+  /* -- Metadata Tab -- */
+  .meta-table { width: 100%; }
+  .meta-table td { padding: 6px 12px; font-size: 0.82rem; }
+  .meta-table td:first-child { color: var(--muted); width: 200px; }
+  .meta-table td:last-child { font-family: var(--mono); }
+  .meta-table tr { border-bottom: 1px solid rgba(45,49,72,0.5); }
+
+  /* -- Error -- */
+  .error-box {
+    background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.3);
+    border-radius: 8px; padding: 16px 20px; margin: 20px auto; max-width: 600px;
+  }
+  .error-box h3 { color: var(--red); font-size: 0.9rem; margin-bottom: 6px; }
+  .error-box pre { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>Parquet</span> Viewer</h1>
+  <span class="powered">Powered by <a href="https://github.com/hyparam/hyparquet" target="_blank">hyparquet</a></span>
+</div>
+
+<div id="app">
+  <div class="drop-zone" id="dropZone">
+    <div class="icon">&#128451;</div>
+    <h2>Drop a Parquet file here</h2>
+    <p>or click to browse &mdash; parsed entirely in your browser, nothing uploaded</p>
+    <button class="btn" id="browseBtn">Choose File</button>
+    <input type="file" id="fileInput" accept=".parquet,.parq">
+  </div>
+</div>
+
+<script type="module">
+// ============================================================
+// IMPORTS — hyparquet + compressors from CDN (ESM)
+// ============================================================
+import { parquetMetadataAsync, parquetRead, parquetSchema } from 'https://cdn.jsdelivr.net/npm/hyparquet@1/src/hyparquet.min.js';
+import { compressors } from 'https://cdn.jsdelivr.net/npm/hyparquet-compressors@1/src/index.js';
+
+const app = document.getElementById('app');
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const browseBtn = document.getElementById('browseBtn');
+
+// ============================================================
+// FILE HANDLING
+// ============================================================
+browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+
+// ============================================================
+// STATE
+// ============================================================
+let state = { metadata: null, schema: null, columns: [], fileName: '', fileSize: 0,
+              buffer: null, currentPage: 0, pageSize: 50, totalRows: 0, currentTab: 'data',
+              cachedRows: null, cachedRange: null };
+
+// ============================================================
+// LOAD FILE
+// ============================================================
+async function loadFile(file) {
+  state.fileName = file.name;
+  state.fileSize = file.size;
+  state.currentPage = 0;
+  state.cachedRows = null;
+  state.cachedRange = null;
+
+  app.innerHTML = '<div class="loading"><div class="spinner"></div>Parsing Parquet metadata...</div>';
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    state.buffer = arrayBuffer;
+
+    // Read metadata
+    state.metadata = await parquetMetadataAsync(arrayBuffer);
+    state.totalRows = Number(state.metadata.num_rows);
+    state.schema = parquetSchema(state.metadata);
+    state.columns = state.schema.children.map(c => c.element);
+
+    render();
+    if (state.currentTab === 'data') await loadPage(0);
+  } catch (err) {
+    app.innerHTML = `<div class="error-box"><h3>Failed to parse Parquet file</h3><pre>${escapeHtml(err.message)}\n${escapeHtml(err.stack || '')}</pre></div>`;
+    console.error(err);
+  }
+}
+
+// ============================================================
+// LOAD PAGE OF DATA
+// ============================================================
+async function loadPage(page) {
+  state.currentPage = page;
+  const rowStart = page * state.pageSize;
+  const rowEnd = Math.min(rowStart + state.pageSize, state.totalRows);
+
+  // Check cache
+  if (state.cachedRange && state.cachedRange[0] === rowStart && state.cachedRange[1] === rowEnd) {
+    renderDataTable(state.cachedRows, rowStart, rowEnd);
+    return;
+  }
+
+  const tableBody = document.getElementById('tableBody');
+  if (tableBody) tableBody.innerHTML = '<tr><td colspan="999" style="text-align:center;padding:20px;color:var(--muted)"><div class="spinner"></div>Loading rows...</td></tr>';
+
+  try {
+    const rows = [];
+    await parquetRead({
+      file: state.buffer,
+      compressors,
+      rowStart,
+      rowEnd,
+      rowFormat: 'object',
+      onComplete: data => rows.push(...data),
+    });
+
+    state.cachedRows = rows;
+    state.cachedRange = [rowStart, rowEnd];
+    renderDataTable(rows, rowStart, rowEnd);
+  } catch (err) {
+    const tableBody = document.getElementById('tableBody');
+    if (tableBody) tableBody.innerHTML = `<tr><td colspan="999" class="error-box" style="border:none"><pre>${escapeHtml(err.message)}</pre></td></tr>`;
+    console.error(err);
+  }
+}
+
+// ============================================================
+// RENDER MAIN LAYOUT
+// ============================================================
+function render() {
+  const m = state.metadata;
+  const numCols = state.columns.length;
+  const numRowGroups = m.row_groups.length;
+  const compression = getCompression(m);
+
+  app.innerHTML = `
+    <div class="content">
+      <div class="file-bar">
+        <span class="file-name">${escapeHtml(state.fileName)}</span>
+        <span class="file-stat"><b>${fmt(state.totalRows)}</b> rows</span>
+        <span class="file-stat"><b>${numCols}</b> columns</span>
+        <span class="file-stat"><b>${numRowGroups}</b> row group${numRowGroups > 1 ? 's' : ''}</span>
+        <span class="file-stat"><b>${formatBytes(state.fileSize)}</b></span>
+        <span class="file-stat">${compression}</span>
+        <button class="btn-new" id="btnNewFile">Open another file</button>
+      </div>
+      <div class="tabs">
+        <button class="tab ${state.currentTab === 'data' ? 'active' : ''}" data-tab="data">Data</button>
+        <button class="tab ${state.currentTab === 'schema' ? 'active' : ''}" data-tab="schema">Schema</button>
+        <button class="tab ${state.currentTab === 'metadata' ? 'active' : ''}" data-tab="metadata">Metadata</button>
+      </div>
+      <div id="tabContent"></div>
+    </div>
+  `;
+
+  // Tab click handlers
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', async () => {
+      state.currentTab = t.dataset.tab;
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      renderTab();
+      if (state.currentTab === 'data') await loadPage(state.currentPage);
+    });
+  });
+
+  document.getElementById('btnNewFile').addEventListener('click', () => {
+    state = { metadata: null, schema: null, columns: [], fileName: '', fileSize: 0,
+              buffer: null, currentPage: 0, pageSize: 50, totalRows: 0, currentTab: 'data',
+              cachedRows: null, cachedRange: null };
+    app.innerHTML = `
+      <div class="drop-zone" id="dropZone2">
+        <div class="icon">&#128451;</div>
+        <h2>Drop a Parquet file here</h2>
+        <p>or click to browse</p>
+        <button class="btn" id="browseBtn2">Choose File</button>
+        <input type="file" id="fileInput2" accept=".parquet,.parq" style="display:none">
+      </div>`;
+    const dz = document.getElementById('dropZone2');
+    const fi = document.getElementById('fileInput2');
+    document.getElementById('browseBtn2').addEventListener('click', (e) => { e.stopPropagation(); fi.click(); });
+    dz.addEventListener('click', () => fi.click());
+    fi.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+  });
+
+  renderTab();
+}
+
+function renderTab() {
+  const container = document.getElementById('tabContent');
+  if (state.currentTab === 'schema') renderSchemaTab(container);
+  else if (state.currentTab === 'metadata') renderMetadataTab(container);
+  else renderDataTab(container);
+}
+
+// ============================================================
+// SCHEMA TAB
+// ============================================================
+function renderSchemaTab(container) {
+  const cards = state.columns.map((col, i) => {
+    const typeName = getTypeName(col);
+    const typeClass = getTypeClass(typeName);
+    return `<div class="schema-card">
+      <div><span class="col-idx">#${i}</span><span class="col-name">${escapeHtml(col.name)}</span></div>
+      <div class="col-meta">
+        <span class="type-badge ${typeClass}">${typeName}</span>
+        ${col.repetition_type === 1 ? '<span class="nullable-badge">OPTIONAL</span>' : '<span class="nullable-badge" style="color:var(--orange)">REQUIRED</span>'}
+      </div>
+    </div>`;
+  }).join('');
+  container.innerHTML = `<div class="schema-grid">${cards}</div>`;
+}
+
+// ============================================================
+// METADATA TAB
+// ============================================================
+function renderMetadataTab(container) {
+  const m = state.metadata;
+  const compression = getCompression(m);
+  const createdBy = m.created_by || 'Unknown';
+
+  let rgRows = m.row_groups.map((rg, i) => {
+    const rgRows = Number(rg.num_rows);
+    const rgSize = rg.total_byte_size ? formatBytes(Number(rg.total_byte_size)) : '—';
+    return `<tr><td>Row Group ${i}</td><td>${fmt(rgRows)} rows, ${rgSize}</td></tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="meta-table">
+      <tr><td>File name</td><td>${escapeHtml(state.fileName)}</td></tr>
+      <tr><td>File size</td><td>${formatBytes(state.fileSize)}</td></tr>
+      <tr><td>Total rows</td><td>${fmt(state.totalRows)}</td></tr>
+      <tr><td>Columns</td><td>${state.columns.length}</td></tr>
+      <tr><td>Row groups</td><td>${m.row_groups.length}</td></tr>
+      <tr><td>Compression</td><td>${compression}</td></tr>
+      <tr><td>Parquet version</td><td>${m.version || '—'}</td></tr>
+      <tr><td>Created by</td><td>${escapeHtml(createdBy)}</td></tr>
+    </table>
+    <h3 style="margin:20px 0 10px;font-size:0.82rem;color:var(--muted)">Row Groups</h3>
+    <table class="meta-table">${rgRows}</table>
+  `;
+}
+
+// ============================================================
+// DATA TAB
+// ============================================================
+function renderDataTab(container) {
+  const colHeaders = state.columns.map(col => {
+    const typeName = getTypeName(col);
+    return `<th>${escapeHtml(col.name)}<span class="th-type">${typeName}</span></th>`;
+  }).join('');
+
+  const totalPages = Math.ceil(state.totalRows / state.pageSize);
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:50px">#</th>${colHeaders}</tr></thead>
+        <tbody id="tableBody"><tr><td colspan="999" style="text-align:center;padding:20px;color:var(--muted)"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <button class="page-btn" id="btnFirst" title="First page">&laquo;</button>
+      <button class="page-btn" id="btnPrev">&lsaquo; Prev</button>
+      <span class="page-info">Page <b id="pageNum">${state.currentPage + 1}</b> of <b>${fmt(totalPages)}</b> &mdash; rows ${fmt(state.currentPage * state.pageSize + 1)}&ndash;${fmt(Math.min((state.currentPage + 1) * state.pageSize, state.totalRows))} of ${fmt(state.totalRows)}</span>
+      <button class="page-btn" id="btnNext">Next &rsaquo;</button>
+      <button class="page-btn" id="btnLast" title="Last page">&raquo;</button>
+      <select class="page-size-select" id="pageSizeSelect">
+        <option value="25" ${state.pageSize===25?'selected':''}>25 rows</option>
+        <option value="50" ${state.pageSize===50?'selected':''}>50 rows</option>
+        <option value="100" ${state.pageSize===100?'selected':''}>100 rows</option>
+        <option value="250" ${state.pageSize===250?'selected':''}>250 rows</option>
+        <option value="500" ${state.pageSize===500?'selected':''}>500 rows</option>
+      </select>
+    </div>
+  `;
+
+  const totalP = totalPages;
+  document.getElementById('btnFirst').addEventListener('click', () => { if (state.currentPage > 0) loadPage(0); });
+  document.getElementById('btnPrev').addEventListener('click', () => { if (state.currentPage > 0) loadPage(state.currentPage - 1); });
+  document.getElementById('btnNext').addEventListener('click', () => { if (state.currentPage < totalP - 1) loadPage(state.currentPage + 1); });
+  document.getElementById('btnLast').addEventListener('click', () => { if (state.currentPage < totalP - 1) loadPage(totalP - 1); });
+  document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+    state.pageSize = parseInt(e.target.value);
+    state.currentPage = 0;
+    state.cachedRows = null;
+    state.cachedRange = null;
+    renderDataTab(document.getElementById('tabContent'));
+    loadPage(0);
+  });
+
+  document.getElementById('btnFirst').disabled = state.currentPage === 0;
+  document.getElementById('btnPrev').disabled = state.currentPage === 0;
+  document.getElementById('btnNext').disabled = state.currentPage >= totalP - 1;
+  document.getElementById('btnLast').disabled = state.currentPage >= totalP - 1;
+}
+
+function renderDataTable(rows, rowStart, rowEnd) {
+  const tbody = document.getElementById('tableBody');
+  if (!tbody) return;
+
+  const colNames = state.columns.map(c => c.name);
+  const numericTypes = new Set(['INT32','INT64','FLOAT','DOUBLE','INT96']);
+
+  tbody.innerHTML = rows.map((row, i) => {
+    const cells = colNames.map(name => {
+      const v = row[name];
+      if (v === null || v === undefined) return '<td class="null">null</td>';
+      if (typeof v === 'number' || typeof v === 'bigint') return `<td class="num">${v}</td>`;
+      const s = String(v);
+      return `<td title="${escapeHtml(s)}">${escapeHtml(s.length > 60 ? s.slice(0,57) + '...' : s)}</td>`;
+    }).join('');
+    return `<tr><td style="color:var(--muted);font-size:0.7rem">${rowStart + i + 1}</td>${cells}</tr>`;
+  }).join('');
+
+  // Update pagination state
+  const totalPages = Math.ceil(state.totalRows / state.pageSize);
+  const pn = document.getElementById('pageNum');
+  if (pn) pn.textContent = state.currentPage + 1;
+  const btnF = document.getElementById('btnFirst');
+  const btnP = document.getElementById('btnPrev');
+  const btnN = document.getElementById('btnNext');
+  const btnL = document.getElementById('btnLast');
+  if (btnF) btnF.disabled = state.currentPage === 0;
+  if (btnP) btnP.disabled = state.currentPage === 0;
+  if (btnN) btnN.disabled = state.currentPage >= totalPages - 1;
+  if (btnL) btnL.disabled = state.currentPage >= totalPages - 1;
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function getTypeName(col) {
+  const pt = ['BOOLEAN','INT32','INT64','INT96','FLOAT','DOUBLE','BYTE_ARRAY','FIXED_LEN_BYTE_ARRAY'];
+  const logical = col.logicalType || col.converted_type;
+  if (logical) {
+    if (typeof logical === 'object') {
+      if (logical.stringType !== undefined) return 'STRING';
+      if (logical.intType) return `INT${logical.intType.bitWidth}${logical.intType.isSigned ? '' : 'U'}`;
+      if (logical.decimalType) return `DECIMAL(${logical.decimalType.precision},${logical.decimalType.scale})`;
+      if (logical.timestampType) return 'TIMESTAMP';
+      if (logical.dateType !== undefined) return 'DATE';
+      if (logical.timeType) return 'TIME';
+      if (logical.jsonType !== undefined) return 'JSON';
+      if (logical.uuidType !== undefined) return 'UUID';
+    }
+    if (typeof logical === 'number') {
+      const ct = ['','UTF8','MAP','MAP_KEY_VALUE','LIST','ENUM','DECIMAL','DATE',
+                   'TIME_MILLIS','TIME_MICROS','TIMESTAMP_MILLIS','TIMESTAMP_MICROS',
+                   'UINT_8','UINT_16','UINT_32','UINT_64',
+                   'INT_8','INT_16','INT_32','INT_64','JSON','BSON','INTERVAL'];
+      return ct[logical] || `CONVERTED(${logical})`;
+    }
+  }
+  return pt[col.type] || `TYPE(${col.type})`;
+}
+
+function getTypeClass(typeName) {
+  if (/INT|UINT|DECIMAL/.test(typeName)) return 'int';
+  if (/FLOAT|DOUBLE/.test(typeName)) return 'float';
+  if (/STRING|UTF8|BYTE_ARRAY|JSON|UUID/.test(typeName)) return 'string';
+  if (/BOOL/.test(typeName)) return 'bool';
+  return 'other';
+}
+
+function getCompression(metadata) {
+  const codecs = ['UNCOMPRESSED','SNAPPY','GZIP','LZO','BROTLI','LZ4','ZSTD','LZ4_RAW'];
+  const found = new Set();
+  for (const rg of metadata.row_groups) {
+    for (const col of rg.columns) {
+      if (col.meta_data && col.meta_data.codec !== undefined) {
+        found.add(codecs[col.meta_data.codec] || `CODEC(${col.meta_data.codec})`);
+      }
+    }
+  }
+  return found.size ? [...found].join(', ') : 'Unknown';
+}
+
+function fmt(n) { return Number(n).toLocaleString(); }
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1024*1024*1024) return (b/1024/1024).toFixed(1) + ' MB';
+  return (b/1024/1024/1024).toFixed(2) + ' GB';
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

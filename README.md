@@ -394,5 +394,6 @@ The local and cloud versions share all pipeline logic:
     ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook reference
     ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
     ├── architecture.html     # Interactive architecture diagrams (Mermaid.js)
-    └── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
+    ├── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
+    └── parquet_viewer.html   # In-browser Parquet file viewer (hyparquet)
 ```
