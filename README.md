@@ -20,26 +20,38 @@ docker build -t cms-pipeline .
 #    - Old system CSVs → data/raw/
 #    - New system CSVs → data/new/  (when available)
 
-# 3. Run the full pipeline
-docker run --rm \
+# 3. Run the full pipeline + serve docs (all-in-one)
+docker run --rm -p 8888:8888 \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/reports:/app/reports" \
   cms-pipeline
 
-# 4. Run with new system data
-docker run --rm \
-  -v "$(pwd)/data:/app/data" \
-  -v "$(pwd)/reports:/app/reports" \
-  cms-pipeline python -m src.main --new-data /app/data/new/
+# Then open http://localhost:8888 for the full documentation hub:
+#   - Comparison Report, Architecture diagrams, Schema Explorer
+#   - Parquet Viewer, SQL Explorer (query exports in-browser)
+#   - Solution Design, Pipeline Reference, Data Dictionary
 
-# 5. Skip ingest on re-runs (reuses DuckDB)
+# 4. Pipeline-only (no web server)
 docker run --rm \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/reports:/app/reports" \
-  cms-pipeline python -m src.main --skip-ingest
+  cms-pipeline python -m src.main
+
+# 5. With new system data
+docker run --rm -p 8888:8888 \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/reports:/app/reports" \
+  cms-pipeline ./entrypoint.sh --new-data /app/data/new/
+
+# 6. Skip ingest on re-runs (reuses DuckDB)
+docker run --rm -p 8888:8888 \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/reports:/app/reports" \
+  cms-pipeline ./entrypoint.sh --skip-ingest
 ```
 
-The report is written to `reports/comparison_report.html`. Open it in any browser.
+The entrypoint runs the pipeline, tests, renders markdown docs, then starts a web server on port 8888.
+Reports are also written to `reports/comparison_report.html` for standalone viewing.
 
 ### Option B: Local Python
 
@@ -100,21 +112,20 @@ Upload old system CSVs → optionally upload new system CSVs → run pipeline �
 
 | Component | Purpose | Required? |
 |-----------|---------|-----------|
-| **Python 3.13+** | Runtime (3.14 recommended) | Yes (or use Docker) |
+| **Python 3.13+** | Runtime | Yes (or use Docker) |
 | **DuckDB** | Analytical database — zero-config, embedded, handles GBs of CSVs natively | Yes (pip install) |
 | **Pandas** | DataFrame conversion for chart building | Yes (pip install) |
 | **Plotly** | Interactive charts in the HTML report | Yes (pip install) |
 | **Jinja2** | HTML report templating | Yes (pip install) |
+| **Markdown** | Renders .md docs as styled HTML pages | Yes (pip install) |
 | **pytest** | Test runner | Dev only |
 | **Docker** | Portable containerized execution | Recommended |
 
 All Python dependencies are in `requirements.txt`. There are **no system-level dependencies** beyond Python itself — DuckDB is a pure pip install with no external database server.
 
-### Why Python 3.14?
+### Python Version
 
-Python 3.14 (released October 2025) is the latest stable release. All of our dependencies — including DuckDB, which ships compiled C extensions — publish binary wheels for CPython 3.14 across macOS, Linux, and Windows. The Dockerfile pins `python:3.14-slim` to match.
-
-Python 3.13 also works if that's what you have locally. The codebase uses no 3.14-only features.
+The Dockerfile pins `python:3.13-slim`. Python 3.13 is the latest stable release with full binary wheel support across all our dependencies (DuckDB, Pandas, Plotly, etc.) on macOS, Linux, and Windows. Python 3.12 also works — the codebase uses no version-specific features.
 
 ### Python Libraries
 

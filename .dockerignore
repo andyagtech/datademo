@@ -23,18 +23,18 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+.windsurf/
 
 # Git
 .git/
 .gitignore
 
 # Not needed in runtime image
-docs/
-specs/
 viewer/
 screenshots/
 cloud/
 infra/
-tests/
-*.md
-!requirements.txt
+
+# Symlinks (recreated in Dockerfile)
+docs/exports
+docs/reports
