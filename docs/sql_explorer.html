@@ -36,7 +36,7 @@
   .header {
     background: var(--surface); border-bottom: 1px solid var(--border);
     padding: 12px 24px; display: flex; align-items: center; gap: 16px;
-    margin-top: 32px;
+    margin-top: 32px; position: relative;
   }
   .header h1 { font-size: 0.95rem; font-weight: 700; }
   .header h1 span { color: var(--accent); }
@@ -145,6 +145,13 @@
   .query-status.error { color: var(--red); }
   .query-status.success { color: var(--green); }
   .query-status.warning { color: var(--orange); }
+  .running-indicator {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-size: 0.82rem; font-family: var(--mono); color: var(--accent);
+    letter-spacing: 0.02em; opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .running-indicator.active { opacity: 1; }
   .example-queries {
     display: flex; gap: 6px; flex-wrap: wrap;
   }
@@ -196,6 +203,7 @@
 
 <div class="header">
   <h1><span>SQL</span> Explorer</h1>
+  <span class="running-indicator" id="runningIndicator"></span>
   <span class="powered">
     Powered by <a href="https://github.com/hyparam/squirreling" target="_blank">Squirreling</a>
     + <a href="https://github.com/hyparam/hyparquet" target="_blank">hyparquet</a>
@@ -423,12 +431,32 @@ async function loadParquetBuffer(arrayBuffer, tableName) {
 // ============================================================
 // QUERY EXECUTION
 // ============================================================
+const runningIndicator = document.getElementById('runningIndicator');
+let dotInterval = null;
+
+function showRunning() {
+  let dots = 3;
+  runningIndicator.textContent = 'Running Query...';
+  runningIndicator.classList.add('active');
+  dotInterval = setInterval(() => {
+    dots = (dots % 6) + 1;
+    runningIndicator.textContent = 'Running Query' + '.'.repeat(dots);
+  }, 800);
+}
+
+function hideRunning() {
+  clearInterval(dotInterval);
+  dotInterval = null;
+  runningIndicator.classList.remove('active');
+}
+
 async function runQuery() {
   const query = queryEditor.value.trim();
   if (!query) return;
 
   runBtn.disabled = true;
   setStatus('Running...', '');
+  showRunning();
   const t0 = performance.now();
 
   try {
@@ -449,6 +477,7 @@ async function runQuery() {
     console.error(err);
   } finally {
     runBtn.disabled = false;
+    hideRunning();
   }
 }
 
@@ -596,6 +625,7 @@ const TABLE_QUERIES = {
 
 function setActiveTable(name) {
   activeTable = name;
+  history.replaceState(null, '', location.pathname + '#' + encodeURIComponent(name));
   updateExampleQueries();
 }
 
