@@ -92,7 +92,7 @@ The report includes a **Key Findings** narrative section with:
 | **Python 3.14** | Standard for data engineering; rich ecosystem (pandas, plotly, jinja2) |
 | **DuckDB** | Embedded analytical database — zero-config, handles 2.4GB CSVs natively, columnar engine optimized for aggregations on wide tables |
 
-Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (requires server), Spark (overkill), Pandas-only (fragile at scale). All documented in `specs/SOLUTION.md`.
+Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (requires server), Spark (overkill), Pandas-only (fragile at scale). All documented in `docs/SOLUTION.md`.
 
 ### REQ-7: Provide a way to review results
 
@@ -117,7 +117,7 @@ Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (require
 
 | Document | Content |
 |---|---|
-| `specs/SOLUTION.md` | Architecture decisions, design rationale for DuckDB/pipeline/Docker/report, analysis findings, deployment strategy, testing approach |
+| `docs/SOLUTION.md` | Architecture decisions, design rationale for DuckDB/pipeline/Docker/report, analysis findings, deployment strategy, testing approach |
 | `docs/PIPELINE.md` | 492-line reference documenting all 6 pipeline steps, data model, 57 validation/comparison checks, output artifacts |
 | `docs/DATA_DICTIONARY.md` | Dataset overview, column definitions for all tables, codebook reference |
 | `docs/architecture.html` | Interactive Mermaid.js architecture diagrams |

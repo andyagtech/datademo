@@ -381,10 +381,20 @@ The local and cloud versions share all pipeline logic:
 │   ├── package.json
 │   └── vite.config.ts
 │
-├── specs/
-│   ├── SOLUTION.md                              # Architecture decisions and design rationale
-│   ├── REQUIREMENTS_TRACEABILITY.md             # Requirement → implementation mapping
-│   └── 02A. Data Engineer Take Home Assessment.md  # Assessment spec (original)
+├── docs/                    # Our authored documentation
+│   ├── SOLUTION.md           # Architecture decisions and design rationale
+│   ├── REQUIREMENTS_TRACEABILITY.md  # Requirement → implementation mapping
+│   ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook ref
+│   ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
+│   ├── architecture.html     # Interactive architecture diagrams (Mermaid.js)
+│   ├── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
+│   └── parquet_viewer.html   # In-browser Parquet file viewer (hyparquet)
+│
+├── specs/                   # Assessment spec + reference materials
+│   ├── 02A. Data Engineer Take Home Assessment.md  # Assessment spec
+│   ├── DE 1.0 Codebook.pdf                        # CMS DE-SynPUF codebook
+│   ├── DE 1.0 Frequently Asked Questions.pdf      # CMS FAQ
+│   └── SynPUF_DUG.pdf                             # Data Users Guide
 │
 ├── data/                    # ⚠ gitignored — download per Quick Start
 │   ├── raw/                 # Old system CSVs (unzipped)
@@ -395,12 +405,5 @@ The local and cloud versions share all pipeline logic:
 │   ├── comparison_report.html     # Self-contained HTML report (tracked)
 │   └── exports/                   # CSV + Parquet exports (gitignored)
 │
-├── screenshots/             # Report screenshots for submission
-│
-└── docs/
-    ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook ref
-    ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
-    ├── architecture.html     # Interactive architecture diagrams (Mermaid.js)
-    ├── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
-    └── parquet_viewer.html   # In-browser Parquet file viewer (hyparquet)
+└── screenshots/             # Report screenshots for submission
 ```

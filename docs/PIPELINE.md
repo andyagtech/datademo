@@ -2,7 +2,7 @@
 
 > Canonical documentation for the CMS Claims Data Comparison Pipeline.
 > For architecture diagrams, see [`docs/architecture.html`](architecture.html).
-> For design rationale, see [`specs/SOLUTION.md`](../specs/SOLUTION.md).
+> For design rationale, see [`docs/SOLUTION.md`](SOLUTION.md).
 
 ---
 

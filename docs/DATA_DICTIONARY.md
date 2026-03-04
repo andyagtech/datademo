@@ -217,7 +217,7 @@ The pipeline's Step 2 (Schema Validate) and Step 5 (Compare) verify schema compa
 | **Phantom claims** | 4,777 | Exist in new system only, 0 lost from old system |
 | **Total financial divergence** | $35,624.71 | All positive (new system overstates) |
 
-For the full analysis of what these discrepancies mean, see the [Key Findings narrative](../reports/comparison_report.html) in the HTML report and the [Analysis Findings](../specs/SOLUTION.md#analysis-findings) section in SOLUTION.md.
+For the full analysis of what these discrepancies mean, see the [Key Findings narrative](../reports/comparison_report.html) in the HTML report and the [Analysis Findings](SOLUTION.md#analysis-findings) section in SOLUTION.md.
 
 ---
 
