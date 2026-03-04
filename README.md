@@ -64,6 +64,17 @@ python -m src.main --skip-ingest
 pytest tests/ -v
 ```
 
+### Web UI (Drag-and-Drop)
+
+For a browser-based experience with file uploads:
+
+```bash
+python -m uvicorn web.server:app --host 0.0.0.0 --port 8000
+# Open http://localhost:8000
+```
+
+Upload old system CSVs → optionally upload new system CSVs → run pipeline → view report. The web UI supports drag-and-drop, streams pipeline progress in real time, and serves the generated report directly.
+
 ### Data Setup
 
 1. Download the **old system** (legacy) files from [CMS DE-SynPUF Sample 1](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf/de10-sample-1):
@@ -352,6 +363,9 @@ The local and cloud versions share all pipeline logic:
 │   ├── template.yaml         # S3 + Lambda + Step Functions + API Gateway
 │   ├── statemachine.asl.json # Step Functions state machine definition
 │   └── samconfig.toml        # SAM deploy configuration
+│
+├── web/                      # FastAPI web UI (drag-and-drop uploads)
+│   └── server.py             # Self-contained server + frontend
 │
 ├── tests/                    # 54 tests (pytest)
 │   ├── conftest.py           # Shared fixtures (in-memory DuckDB + sample data)
