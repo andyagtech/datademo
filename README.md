@@ -174,6 +174,8 @@ The pipeline auto-detects file types by reading CSV headers — it doesn't rely 
 
 ## Validation Checks
 
+> **Detailed reference:** See [`docs/PIPELINE.md`](docs/PIPELINE.md) for the complete check-by-check breakdown with SQL logic, column definitions, and instructions for adding new checks.
+
 ### Internal Consistency (Old System)
 
 | Category | Check | Description |
@@ -370,5 +372,7 @@ The local and cloud versions share all pipeline logic:
 │   ├── comparison_report.html
 │   └── exports/              # CSV exports of analysis tables
 │
-└── docs/                     # CMS codebook, FAQ, data users guide
+└── docs/
+    ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
+    └── architecture.html     # Interactive architecture diagrams (Mermaid.js)
 ```
