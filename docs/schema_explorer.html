@@ -70,7 +70,9 @@
   .legend {
     display: flex; gap: 16px; margin-left: auto; font-size: 0.75rem;
   }
-  .legend-item { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+  .legend-item { display: flex; align-items: center; gap: 5px; color: var(--muted); cursor: pointer; padding: 3px 6px; border-radius: 4px; transition: all 0.15s; user-select: none; }
+  .legend-item:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .legend-item.active { color: var(--text); background: rgba(56,189,248,0.12); }
   .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
   .legend-dot.old { background: var(--old); }
   .legend-dot.new { background: var(--new); }
@@ -236,9 +238,9 @@
     <div class="search-results" id="searchResults"></div>
   </div>
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot old"></div> Old System</div>
-    <div class="legend-item"><div class="legend-dot new"></div> New System</div>
-    <div class="legend-item"><div class="legend-dot derived"></div> Derived</div>
+    <div class="legend-item" data-category="old"><div class="legend-dot old"></div> Old System</div>
+    <div class="legend-item" data-category="new"><div class="legend-dot new"></div> New System</div>
+    <div class="legend-item" data-category="derived"><div class="legend-dot derived"></div> Derived</div>
   </div>
   <div class="zoom-controls">
     <button class="zoom-btn" onclick="zoomIn()" title="Zoom in">+</button>
@@ -450,13 +452,13 @@ const SCHEMA = {
 
   layout: {
     beneficiary_summary:      {x: 120, y: 80},
-    carrier_claims:           {x: 120, y: 480},
+    carrier_claims:           {x: 120, y: 520},
     new_beneficiary_summary:  {x: 560, y: 80},
-    new_carrier_claims:       {x: 560, y: 480},
+    new_carrier_claims:       {x: 560, y: 520},
     _match_beneficiary:       {x: 1000, y: 80},
-    _match_claims:            {x: 1000, y: 480},
-    _discrepancy_detail:      {x: 1000, y: 240},
-    _financial_recon:         {x: 1000, y: 680},
+    _discrepancy_detail:      {x: 1000, y: 250},
+    _match_claims:            {x: 1000, y: 600},
+    _financial_recon:         {x: 1000, y: 740},
   }
 };
 
@@ -846,6 +848,32 @@ searchInput.addEventListener('blur', function() {
 document.getElementById('detailClose').addEventListener('click', deselectTable);
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') deselectTable();
+});
+
+// ============================================================
+// LEGEND FILTER — click to highlight tables by category
+// ============================================================
+let activeLegendCategory = null;
+
+document.querySelectorAll('.legend-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const cat = item.dataset.category;
+    if (activeLegendCategory === cat) {
+      // Toggle off — show all
+      activeLegendCategory = null;
+      item.classList.remove('active');
+      Object.values(cardElements).forEach(c => c.classList.remove('dimmed'));
+    } else {
+      // Activate this category
+      activeLegendCategory = cat;
+      document.querySelectorAll('.legend-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      Object.entries(cardElements).forEach(([name, card]) => {
+        const tableCat = SCHEMA.tables[name].category;
+        card.classList.toggle('dimmed', tableCat !== cat);
+      });
+    }
+  });
 });
 
 // ============================================================
