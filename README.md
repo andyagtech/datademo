@@ -244,38 +244,51 @@ Options:
 
 ## Cloud Deployment (AWS)
 
-The same pipeline logic runs on AWS using Lambda container images orchestrated by Step Functions.
+The same pipeline logic runs on AWS using Lambda container images orchestrated by Step Functions. The documentation hub (including Parquet Viewer and SQL Explorer) is hosted as an S3 static website behind CloudFront.
+
+> **Status:** The cloud deployment is **scaffolded but not production-tested**. See the [Implementation Status](#cloud-implementation-status) table below for details on what is implemented vs stubbed.
 
 ### Architecture
 
 ```
-API Gateway POST /pipeline/start
-        │
-        ▼
-  Step Functions state machine
-        │
-        ├─ Step 1: Lambda (Receive)       ── S3 file listing + checksums
-        ├─ Gate check ──────────────────── halted? → Fail
-        ├─ Step 2: Lambda (Schema)         ── S3 CSV header reads
-        ├─ Gate check
-        ├─ Step 3: Lambda (Ingest)         ── DuckDB in /tmp, reads from S3 via httpfs
-        ├─ Gate check                        snapshot DuckDB → S3
-        ├─ Step 4: Lambda (Match)          ── restore DuckDB from S3, match records
-        ├─ Gate check                        snapshot → S3
-        ├─ Step 5: Lambda (Compare)        ── restore, compare, snapshot → S3
-        ├─ Gate check
-        └─ Step 6: Lambda (Report)         ── generate HTML, upload to S3
-                                              return presigned download URL
+                    ┌─────────────────────────────────────────────┐
+                    │            S3 Static Website                │
+  Browser ────────▶ │  docs/index.html, schema_explorer.html,    │
+                    │  sql_explorer.html, parquet_viewer.html,    │
+                    │  reports/comparison_report.html,            │
+                    │  reports/exports/*.parquet                  │
+                    └─────────────────────────────────────────────┘
+
+  API Gateway POST /pipeline/start
+          │
+          ▼
+    Step Functions state machine
+          │
+          ├─ Step 1: Lambda (Receive)       ── S3 file listing + checksums
+          ├─ Gate check ──────────────────── halted? → Fail
+          ├─ Step 2: Lambda (Schema)         ── S3 CSV header reads
+          ├─ Gate check
+          ├─ Step 3: Lambda (Ingest)         ── DuckDB in /tmp, reads from S3 via httpfs
+          ├─ Gate check                        snapshot DuckDB → S3
+          ├─ Step 4: Lambda (Match)          ── restore DuckDB from S3, match records
+          ├─ Gate check                        snapshot → S3
+          ├─ Step 5: Lambda (Compare)        ── restore, compare, snapshot → S3
+          ├─ Gate check
+          └─ Step 6: Lambda (Report)         ── generate HTML + Parquet exports → S3
+                                                sync docs/ to S3 static site bucket
 ```
+
+See also the [Architecture page](docs/architecture.html) for an interactive Mermaid diagram of the cloud deployment.
 
 ### AWS Services
 
 | Service | Role |
 |---------|------|
-| **S3** | Stores input CSVs, DuckDB snapshots between steps, and output reports |
+| **S3** | Stores input CSVs, DuckDB snapshots between steps, output reports, and hosts the static documentation site |
 | **Lambda** | Runs each pipeline step as a container image (up to 10 GB memory, 15 min timeout) |
 | **Step Functions** | Orchestrates the 6 steps with gate logic (mirrors `runner.py`) |
 | **API Gateway** | HTTP POST trigger to start a pipeline run |
+| **CloudFront** | CDN for the static documentation site (optional, for production) |
 | **IAM** | Least-privilege roles for Lambda → S3 access |
 
 ### DuckDB on Lambda
@@ -286,9 +299,46 @@ For datasets larger than ~5 GB, consider switching the heavy steps (ingest, comp
 
 ### Prerequisites
 
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) v1.100+
 - Docker (for `sam build`)
-- AWS CLI configured with your profile
+- AWS CLI v2 configured with credentials
+
+### Environment Variables & Credentials
+
+**AWS credentials** — configure via any standard method:
+
+```bash
+# Option 1: Named profile (recommended)
+aws configure --profile personal
+# Then use: sam deploy --profile personal
+
+# Option 2: Environment variables
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_DEFAULT_REGION=us-east-1
+
+# Option 3: IAM role (for CI/CD or EC2/ECS)
+# Automatically picked up by the AWS SDK
+```
+
+**Lambda environment variables** (set automatically by the SAM template):
+
+| Variable | Set By | Value |
+|----------|--------|-------|
+| `BUCKET_NAME` | SAM template | `!Ref DataBucket` — the S3 bucket name |
+| `ENVIRONMENT` | SAM template | `dev`, `staging`, or `prod` |
+| `STATE_MACHINE_ARN` | SAM template | ARN of the Step Functions state machine (start function only) |
+| `DB_PATH` | Handler code | `/tmp/pipeline.duckdb` (Lambda ephemeral storage) |
+
+**IAM permissions required** for the deploying user/role:
+
+- `cloudformation:*` — SAM uses CloudFormation under the hood
+- `s3:*` on the pipeline bucket
+- `lambda:*` — create/update functions
+- `states:*` — create/update Step Functions
+- `apigateway:*` — create/update API Gateway
+- `iam:CreateRole`, `iam:AttachRolePolicy`, `iam:PassRole` — Lambda execution roles
+- `ecr:*` — push container images
 
 ### Deploy
 
@@ -303,19 +353,55 @@ sam deploy --guided --profile personal
 
 # Subsequent deploys
 sam deploy --profile personal
+
+# Upload data to S3
+aws s3 cp data/raw/ s3://<BUCKET>/raw/ --recursive --profile personal
 ```
+
+After the report step completes, the pipeline syncs `docs/` and `reports/` to the S3 static site bucket, making the documentation hub (including Parquet Viewer and SQL Explorer) accessible via the S3 website URL or CloudFront.
 
 ### Trigger a Pipeline Run
 
 ```bash
-# Upload data to S3
-aws s3 cp data/raw/ s3://<BUCKET>/raw/ --recursive --profile personal
-
-# Start the pipeline
+# Start the pipeline via API Gateway
 curl -X POST https://<API_ENDPOINT>/dev/pipeline/start \
   -H "Content-Type: application/json" \
   -d '{"old_data_prefix": "raw"}'
 ```
+
+The API endpoint URL is printed as a CloudFormation output after `sam deploy`.
+
+### Teardown
+
+To remove all AWS resources when you're done:
+
+```bash
+# Remove all deployed resources
+scripts/teardown_cloud.sh
+
+# Or manually:
+cd infra/
+sam delete --stack-name cms-claims-pipeline-dev --profile personal --no-prompts
+# Then empty and delete the S3 bucket if needed
+```
+
+See `scripts/teardown_cloud.sh` for a complete cleanup script that empties S3 buckets and deletes the CloudFormation stack.
+
+### Cloud Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `src/pipeline/step1–6` | ✅ **Implemented** | Shared with local — same code runs in both modes |
+| `src/adapters/aws.py` (S3Storage) | ✅ **Implemented** | S3 read/write/list/glob via boto3 |
+| `cloud/handlers.py` (Lambda handlers) | ✅ **Implemented** | One handler per step + API trigger |
+| `infra/template.yaml` (SAM template) | ✅ **Implemented** | S3, Lambda ×7, Step Functions, API Gateway |
+| `infra/statemachine.asl.json` | ✅ **Implemented** | Full 6-step orchestration with gate logic, retries, error handling |
+| S3 static site for docs | ⚠️ **Scaffolded** | SAM resource defined; sync from report step not yet wired |
+| DuckDB S3 snapshotting | ⚠️ **Scaffolded** | Handler code has snapshot/restore logic; not tested with real S3 |
+| End-to-end cloud test | ❌ **Not tested** | Handlers are coded but have not been deployed or run on real AWS |
+| CloudFront CDN | ❌ **Not implemented** | Recommended for production but not in SAM template yet |
+| CI/CD pipeline | ❌ **Not implemented** | No GitHub Actions / CodePipeline defined |
+| Monitoring / alarms | ❌ **Not implemented** | No CloudWatch alarms or dashboards |
 
 ### Shared Code
 

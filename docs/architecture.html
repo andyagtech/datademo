@@ -569,6 +569,135 @@ flowchart TB
     </div>
   </div>
 
+  <!-- Section: AWS Cloud Architecture -->
+  <div class="section" id="cloud">
+    <h2>6. AWS Cloud Architecture</h2>
+    <p>Serverless deployment using Lambda container images, Step Functions orchestration, and S3 for storage + static site hosting. <strong>Status: scaffolded, not production-tested.</strong></p>
+
+    <div class="detail-grid">
+      <div>
+        <h3>Pipeline Execution</h3>
+        <p>Each pipeline step runs as a Lambda function (container image). Step Functions chains them with gate logic — if a step sets <code>halted=true</code>, execution stops immediately.</p>
+        <ul>
+          <li><strong>Memory:</strong> 1 GB (light steps) – 10 GB (ingest/compare)</li>
+          <li><strong>Timeout:</strong> 5 min (light) – 15 min (heavy)</li>
+          <li><strong>Storage:</strong> DuckDB in /tmp (10 GB ephemeral), snapshot to S3 between steps</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Static Site Hosting</h3>
+        <p>After the report step, docs/ and reports/ (including Parquet exports) are synced to an S3 static website bucket. The Parquet Viewer and SQL Explorer work identically — hyparquet and Squirreling run in the browser, loading .parquet files via HTTP GET from S3.</p>
+        <ul>
+          <li><strong>S3 Website:</strong> index.html, all interactive tools</li>
+          <li><strong>CORS:</strong> enabled for cross-origin Parquet fetches</li>
+          <li><strong>CloudFront:</strong> recommended for production (not yet configured)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="diagram-container">
+      <pre class="mermaid">
+flowchart TB
+    USER["Browser"] -->|"GET"| S3SITE["S3 Static Website<br/>docs + reports + exports"]
+    USER -->|"POST /pipeline/start"| APIGW["API Gateway"]
+
+    APIGW --> START["Lambda: Start<br/>(trigger)"]
+    START -->|"StartExecution"| SFN["Step Functions<br/>State Machine"]
+
+    subgraph PIPELINE["Pipeline Steps (Lambda Containers)"]
+        L1["Step 1: Receive<br/>S3 file listing"]
+        L2["Step 2: Schema Validate<br/>CSV header checks"]
+        L3["Step 3: Ingest<br/>DuckDB + httpfs"]
+        L4["Step 4: Match<br/>FULL OUTER JOIN"]
+        L5["Step 5: Compare<br/>field-level diffs"]
+        L6["Step 6: Report<br/>HTML + Parquet"]
+    end
+
+    SFN --> L1 --> L2 --> L3 --> L4 --> L5 --> L6
+
+    S3DATA["S3 Data Bucket<br/>CSVs, DuckDB snapshots,<br/>reports, exports"]
+
+    L1 <-->|"read files"| S3DATA
+    L3 <-->|"httpfs + snapshot"| S3DATA
+    L4 <-->|"restore + snapshot"| S3DATA
+    L5 <-->|"restore + snapshot"| S3DATA
+    L6 -->|"write reports"| S3DATA
+    L6 -->|"sync docs/"| S3SITE
+
+    style USER fill:#0f172a,stroke:#38bdf8,color:#38bdf8
+    style APIGW fill:#1e293b,stroke:#f59e0b,color:#f59e0b
+    style START fill:#1e293b,stroke:#f59e0b,color:#e2e8f0
+    style SFN fill:#1e293b,stroke:#a78bfa,color:#a78bfa
+    style S3DATA fill:#1e293b,stroke:#4ade80,color:#4ade80
+    style S3SITE fill:#1e293b,stroke:#38bdf8,color:#38bdf8
+    style L1 fill:#0f172a,stroke:#fb923c,color:#e2e8f0
+    style L2 fill:#0f172a,stroke:#fb923c,color:#e2e8f0
+    style L3 fill:#0f172a,stroke:#fb923c,color:#e2e8f0
+    style L4 fill:#0f172a,stroke:#fb923c,color:#e2e8f0
+    style L5 fill:#0f172a,stroke:#fb923c,color:#e2e8f0
+    style L6 fill:#0f172a,stroke:#fb923c,color:#e2e8f0
+      </pre>
+    </div>
+
+    <h3>Implementation Status</h3>
+    <table style="width:100%; border-collapse:collapse; font-size:0.82rem; margin-top:1rem;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="text-align:left; padding:8px; color:var(--accent);">Component</th>
+          <th style="text-align:left; padding:8px; color:var(--accent);">Status</th>
+          <th style="text-align:left; padding:8px; color:var(--accent);">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px; font-family:var(--mono); font-size:0.78rem;">src/pipeline/step1–6</td>
+          <td style="padding:6px 8px; color:var(--green);">✅ Implemented</td>
+          <td style="padding:6px 8px; color:var(--muted);">Shared with local — same code</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px; font-family:var(--mono); font-size:0.78rem;">src/adapters/aws.py</td>
+          <td style="padding:6px 8px; color:var(--green);">✅ Implemented</td>
+          <td style="padding:6px 8px; color:var(--muted);">S3 read/write/list via boto3</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px; font-family:var(--mono); font-size:0.78rem;">cloud/handlers.py</td>
+          <td style="padding:6px 8px; color:var(--green);">✅ Implemented</td>
+          <td style="padding:6px 8px; color:var(--muted);">Lambda entry points + API trigger</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px; font-family:var(--mono); font-size:0.78rem;">infra/template.yaml</td>
+          <td style="padding:6px 8px; color:var(--green);">✅ Implemented</td>
+          <td style="padding:6px 8px; color:var(--muted);">SAM: S3, Lambda ×7, Step Functions, API GW, static site</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;">S3 static site for docs</td>
+          <td style="padding:6px 8px; color:var(--orange);">⚠️ Scaffolded</td>
+          <td style="padding:6px 8px; color:var(--muted);">SAM resource defined; sync not yet wired</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;">DuckDB S3 snapshotting</td>
+          <td style="padding:6px 8px; color:var(--orange);">⚠️ Scaffolded</td>
+          <td style="padding:6px 8px; color:var(--muted);">Handler code exists; not tested on real AWS</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;">End-to-end cloud test</td>
+          <td style="padding:6px 8px; color:var(--red);">❌ Not tested</td>
+          <td style="padding:6px 8px; color:var(--muted);">Not deployed or run on real AWS</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;">CloudFront CDN</td>
+          <td style="padding:6px 8px; color:var(--red);">❌ Not implemented</td>
+          <td style="padding:6px 8px; color:var(--muted);">Recommended for production</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 8px;">CI/CD + Monitoring</td>
+          <td style="padding:6px 8px; color:var(--red);">❌ Not implemented</td>
+          <td style="padding:6px 8px; color:var(--muted);">No GitHub Actions or CloudWatch alarms</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
   <!-- Footer -->
   <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between;">
     <p style="color: var(--muted); font-size: 0.8rem;">CMS Claims Comparison Pipeline — Architecture Diagrams</p>

@@ -188,6 +188,40 @@ Resources:
             FunctionName: !Ref ReportFunction
 
   # ---------------------------------------------------------------------------
+  # S3 Static Website — hosts docs, reports, and Parquet exports
+  # ---------------------------------------------------------------------------
+  DocsSiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${BucketNameSuffix}-docs-${Environment}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ["*"]
+            MaxAge: 3600
+
+  DocsSiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocsSiteBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${DocsSiteBucket}/*"
+
+  # ---------------------------------------------------------------------------
   # API Gateway — HTTP trigger to start the pipeline
   # ---------------------------------------------------------------------------
   PipelineApi:
@@ -242,3 +276,11 @@ Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint to start the pipeline
     Value: !Sub "https://${PipelineApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/pipeline/start"
+
+  DocsSiteUrl:
+    Description: URL for the static documentation site
+    Value: !GetAtt DocsSiteBucket.WebsiteURL
+
+  DocsSiteBucketName:
+    Description: S3 bucket for the static documentation site
+    Value: !Ref DocsSiteBucket
