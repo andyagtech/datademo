@@ -11,6 +11,10 @@ __pycache__/
 .venv/
 venv/
 
+# Node / JS
+node_modules/
+dist/
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -24,6 +28,13 @@ Thumbs.db
 .git/
 .gitignore
 
-# Docs (not needed in runtime image)
+# Not needed in runtime image
 docs/
 specs/
+viewer/
+screenshots/
+cloud/
+infra/
+tests/
+*.md
+!requirements.txt

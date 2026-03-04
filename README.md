@@ -332,7 +332,6 @@ The local and cloud versions share all pipeline logic:
 ├── README.md                 # This file
 ├── FEEDBACK.md               # Assessment feedback (per spec)
 ├── requirements.txt          # Python dependencies (local)
-├── screenshots/              # Report screenshots for submission
 │
 ├── src/
 │   ├── __init__.py
@@ -377,21 +376,29 @@ The local and cloud versions share all pipeline logic:
 │   ├── test_report.py
 │   └── test_validate.py
 │
+├── viewer/                  # React diff viewer (Vite + TypeScript)
+│   ├── src/                 # Components, types, demo data generator
+│   ├── package.json
+│   └── vite.config.ts
+│
 ├── specs/
-│   ├── solution.md           # Architecture decisions and design rationale
-│   └── ...                   # Assessment spec, codebook
+│   ├── SOLUTION.md                              # Architecture decisions and design rationale
+│   ├── REQUIREMENTS_TRACEABILITY.md             # Requirement → implementation mapping
+│   └── 02A. Data Engineer Take Home Assessment.md  # Assessment spec (original)
 │
-├── data/
-│   ├── raw/                  # Old system CSVs (unzipped)
-│   ├── new/                  # New system CSVs (when available)
-│   └── db/                   # DuckDB database file
+├── data/                    # ⚠ gitignored — download per Quick Start
+│   ├── raw/                 # Old system CSVs (unzipped)
+│   ├── new_claims_system_outputs/  # New system CSVs (from zip)
+│   └── db/                  # DuckDB database file (generated)
 │
-├── reports/
-│   ├── comparison_report.html
-│   └── exports/              # CSV + Parquet exports of analysis tables
+├── reports/                 # Pipeline outputs
+│   ├── comparison_report.html     # Self-contained HTML report (tracked)
+│   └── exports/                   # CSV + Parquet exports (gitignored)
+│
+├── screenshots/             # Report screenshots for submission
 │
 └── docs/
-    ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook reference
+    ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook ref
     ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
     ├── architecture.html     # Interactive architecture diagrams (Mermaid.js)
     ├── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
