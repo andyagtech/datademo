@@ -273,10 +273,29 @@ const KNOWN_EXPORTS = [
   { file: '_financial_recon.parquet',     label: 'Financial Recon' },
   { file: '_match_beneficiary.parquet',   label: 'Match Beneficiary' },
 ];
-const EXPORTS_BASE = '../reports/exports/';
+// Try multiple paths to handle different server root configurations
+const CANDIDATE_BASES = ['exports/', '../reports/exports/', '/reports/exports/'];
+let EXPORTS_BASE = null;
+
+async function detectExportsBase() {
+  const testFile = KNOWN_EXPORTS[0].file;
+  for (const base of CANDIDATE_BASES) {
+    try {
+      const resp = await fetch(base + testFile, { method: 'HEAD' });
+      if (resp.ok) return base;
+    } catch (_) {}
+  }
+  return null;
+}
 
 async function probeAndLoadExports() {
   const exportList = document.getElementById('exportList');
+  EXPORTS_BASE = await detectExportsBase();
+  if (!EXPORTS_BASE) {
+    exportList.innerHTML = '<div style="color:var(--border);font-size:0.68rem;padding:4px">No exports found. Run pipeline or drop files below.</div>';
+    queryEditor.value = 'SELECT \'Drop a .parquet file to get started\' AS message';
+    return;
+  }
   const available = [];
   for (const ex of KNOWN_EXPORTS) {
     try {

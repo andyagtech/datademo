@@ -292,10 +292,31 @@ const KNOWN_EXPORTS = [
   { file: '_financial_recon.parquet',     label: 'Financial Recon',     desc: 'Financial reconciliation by record' },
   { file: '_match_beneficiary.parquet',   label: 'Match Beneficiary',   desc: 'Beneficiary-level old↔new join results' },
 ];
-const EXPORTS_BASE = '../reports/exports/';
+// Try multiple paths to handle different server root configurations:
+//   exports/           — symlink inside docs/ (server rooted at docs/)
+//   ../reports/exports/ — relative (server rooted at project root)
+//   /reports/exports/   — absolute (server rooted at project root)
+const CANDIDATE_BASES = ['exports/', '../reports/exports/', '/reports/exports/'];
+let EXPORTS_BASE = null;
+
+async function detectExportsBase() {
+  const testFile = KNOWN_EXPORTS[0].file;
+  for (const base of CANDIDATE_BASES) {
+    try {
+      const resp = await fetch(base + testFile, { method: 'HEAD' });
+      if (resp.ok) return base;
+    } catch (_) {}
+  }
+  return null;
+}
 
 async function probeExports() {
   const grid = document.getElementById('exportGrid');
+  EXPORTS_BASE = await detectExportsBase();
+  if (!EXPORTS_BASE) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;padding:8px">No exports found. Run the pipeline first, or drop a file below.</div>';
+    return;
+  }
   const cards = [];
   for (const ex of KNOWN_EXPORTS) {
     try {
@@ -304,7 +325,7 @@ async function probeExports() {
         const size = resp.headers.get('content-length');
         cards.push({ ...ex, size: size ? parseInt(size) : null });
       }
-    } catch (_) { /* file not available */ }
+    } catch (_) {}
   }
   if (cards.length === 0) {
     grid.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;padding:8px">No exports found. Run the pipeline first, or drop a file below.</div>';
