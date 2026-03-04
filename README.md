@@ -389,7 +389,8 @@ The local and cloud versions share all pipeline logic:
 │   ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
 │   ├── architecture.html     # Interactive architecture diagrams (Mermaid.js)
 │   ├── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
-│   └── parquet_viewer.html   # In-browser Parquet file viewer (hyparquet)
+│   ├── parquet_viewer.html   # In-browser Parquet file viewer (hyparquet)
+│   └── sql_explorer.html     # In-browser SQL queries on Parquet (Squirreling)
 │
 ├── specs/                   # Assessment spec + reference materials
 │   ├── 02A. Data Engineer Take Home Assessment.md  # Assessment spec

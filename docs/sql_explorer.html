@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Explorer — Squirreling + hyparquet</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+
+  /* -- Header -- */
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+    margin-top: 32px;
+  }
+  .header h1 { font-size: 0.95rem; font-weight: 700; }
+  .header h1 span { color: var(--accent); }
+  .header .powered {
+    font-size: 0.68rem; color: var(--muted); margin-left: auto;
+  }
+  .header .powered a { color: var(--accent); text-decoration: none; }
+
+  /* -- Layout -- */
+  .main { display: flex; flex: 1; min-height: 0; }
+
+  /* -- Sidebar: Tables -- */
+  .sidebar {
+    width: 240px; min-width: 240px; background: var(--surface);
+    border-right: 1px solid var(--border); overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-section {
+    padding: 10px 14px 6px; font-size: 0.65rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  }
+  .sidebar-drop {
+    padding: 16px 14px; border-bottom: 1px solid var(--border);
+    text-align: center;
+  }
+  .sidebar-drop .drop-area {
+    border: 1.5px dashed var(--border); border-radius: 8px;
+    padding: 14px 8px; cursor: pointer; transition: all 0.2s;
+    font-size: 0.75rem; color: var(--muted);
+  }
+  .sidebar-drop .drop-area:hover, .sidebar-drop .drop-area.dragover {
+    border-color: var(--accent); color: var(--accent);
+    background: rgba(56,189,248,0.04);
+  }
+  .sidebar-drop input { display: none; }
+  .table-item {
+    padding: 6px 14px; font-size: 0.78rem; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    color: var(--muted); transition: all 0.12s;
+  }
+  .table-item:hover { color: var(--text); background: rgba(56,189,248,0.04); }
+  .table-item .t-icon { font-size: 0.7rem; opacity: 0.5; }
+  .table-item .t-name { font-family: var(--mono); font-size: 0.75rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table-item .t-rows { font-size: 0.65rem; color: var(--border); }
+  .table-item .t-remove {
+    opacity: 0; font-size: 0.7rem; color: var(--red); cursor: pointer;
+    padding: 2px 4px; border-radius: 3px;
+  }
+  .table-item:hover .t-remove { opacity: 0.6; }
+  .table-item .t-remove:hover { opacity: 1; background: rgba(248,113,113,0.1); }
+  .col-list { padding: 0 14px 8px 30px; }
+  .col-list .col-item {
+    font-family: var(--mono); font-size: 0.68rem; color: var(--muted);
+    padding: 1px 0; cursor: pointer; display: flex; gap: 6px;
+  }
+  .col-list .col-item:hover { color: var(--accent); }
+  .col-list .col-type { color: var(--border); font-size: 0.6rem; }
+  .loading-spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* -- Editor + Results -- */
+  .editor-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  .query-area {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .query-editor {
+    width: 100%; min-height: 100px; max-height: 300px; resize: vertical;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--mono); font-size: 0.82rem;
+    padding: 12px 14px; line-height: 1.6; outline: none;
+  }
+  .query-editor:focus { border-color: var(--accent); }
+  .query-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .run-btn {
+    padding: 7px 18px; background: var(--accent); color: #000;
+    border: none; border-radius: 6px; font-weight: 700;
+    font-size: 0.8rem; cursor: pointer; font-family: var(--font);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .run-btn:hover { filter: brightness(1.15); }
+  .run-btn:disabled { opacity: 0.4; cursor: default; }
+  .run-btn kbd {
+    font-family: var(--mono); font-size: 0.65rem; opacity: 0.6;
+    background: rgba(0,0,0,0.2); padding: 1px 5px; border-radius: 3px;
+  }
+  .query-status {
+    font-size: 0.72rem; color: var(--muted); margin-left: 4px;
+  }
+  .query-status.error { color: var(--red); }
+  .query-status.success { color: var(--green); }
+  .example-queries {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .example-btn {
+    font-size: 0.68rem; padding: 3px 10px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 4px; color: var(--muted);
+    cursor: pointer; font-family: var(--font); white-space: nowrap;
+  }
+  .example-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* -- Results Table -- */
+  .results-area { flex: 1; overflow: auto; }
+  .results-area table {
+    width: 100%; border-collapse: collapse; font-size: 0.76rem;
+  }
+  .results-area thead th {
+    background: var(--surface); padding: 7px 12px; text-align: left;
+    font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5;
+    white-space: nowrap;
+  }
+  .results-area tbody td {
+    padding: 5px 12px; border-bottom: 1px solid rgba(45,49,72,0.4);
+    font-family: var(--mono); font-size: 0.72rem; white-space: nowrap;
+    max-width: 300px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .results-area tbody tr:hover td { background: rgba(56,189,248,0.03); }
+  .results-area td.null { color: var(--muted); font-style: italic; }
+  .results-area td.num { color: var(--accent); }
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%; color: var(--muted);
+    font-size: 0.85rem; gap: 8px; padding: 40px;
+  }
+  .empty-state .hint { font-size: 0.75rem; }
+</style>
+</head>
+<body>
+
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="../reports/comparison_report.html">Report</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html">Parquet</a>
+  <a href="sql_explorer.html" class="active">SQL</a>
+</nav>
+
+<div class="header">
+  <h1><span>SQL</span> Explorer</h1>
+  <span class="powered">
+    Powered by <a href="https://github.com/hyparam/squirreling" target="_blank">Squirreling</a>
+    + <a href="https://github.com/hyparam/hyparquet" target="_blank">hyparquet</a>
+  </span>
+</div>
+
+<div class="main">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-drop">
+      <div class="drop-area" id="dropArea">
+        &#128451; Drop .parquet files<br>or click to browse
+      </div>
+      <input type="file" id="fileInput" accept=".parquet,.parq" multiple>
+    </div>
+    <div class="sidebar-section">Tables (<span id="tableCount">0</span>)</div>
+    <div id="tableList"></div>
+  </div>
+
+  <!-- Editor + Results -->
+  <div class="editor-panel">
+    <div class="query-area">
+      <textarea class="query-editor" id="queryEditor" placeholder="SELECT * FROM table_name LIMIT 100" spellcheck="false">SELECT 'Drop a .parquet file to get started' AS message</textarea>
+      <div class="query-bar">
+        <button class="run-btn" id="runBtn">&#9654; Run <kbd>&#8984;&#9166;</kbd></button>
+        <span class="query-status" id="queryStatus"></span>
+        <div class="example-queries" id="exampleQueries"></div>
+      </div>
+    </div>
+    <div class="results-area" id="resultsArea">
+      <div class="empty-state">
+        <div style="font-size:2rem;opacity:0.3">&#128063;</div>
+        <div>Load Parquet files and run SQL queries</div>
+        <div class="hint">Squirreling runs entirely in your browser &mdash; no server needed</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// ============================================================
+// IMPORTS
+// ============================================================
+import { parquetMetadataAsync, parquetRead, parquetSchema } from 'https://cdn.jsdelivr.net/npm/hyparquet@1/src/hyparquet.min.js';
+import { compressors } from 'https://cdn.jsdelivr.net/npm/hyparquet-compressors@1/src/index.js';
+import { executeSql, collect } from 'https://cdn.jsdelivr.net/npm/squirreling@0/src/index.js';
+
+// ============================================================
+// STATE
+// ============================================================
+const tables = {};       // name → { rows: [...], columns: [...], rowCount, fileSize }
+const tableSchemas = {};  // name → [{ name, type }]
+
+const queryEditor = document.getElementById('queryEditor');
+const runBtn = document.getElementById('runBtn');
+const queryStatus = document.getElementById('queryStatus');
+const resultsArea = document.getElementById('resultsArea');
+const tableList = document.getElementById('tableList');
+const tableCount = document.getElementById('tableCount');
+const dropArea = document.getElementById('dropArea');
+const fileInput = document.getElementById('fileInput');
+const exampleQueries = document.getElementById('exampleQueries');
+
+// ============================================================
+// FILE LOADING
+// ============================================================
+dropArea.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => { for (const f of e.target.files) loadParquet(f); });
+dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('dragover'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+dropArea.addEventListener('drop', (e) => {
+  e.preventDefault(); dropArea.classList.remove('dragover');
+  for (const f of e.dataTransfer.files) loadParquet(f);
+});
+
+async function loadParquet(file) {
+  const tableName = file.name.replace(/\.parq(uet)?$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
+
+  // Show loading state in sidebar
+  addTableLoading(tableName);
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const metadata = await parquetMetadataAsync(arrayBuffer);
+    const schema = parquetSchema(metadata);
+    const columns = schema.children.map(c => c.element);
+    const totalRows = Number(metadata.num_rows);
+
+    // Read all rows (for tables that fit in memory — our exports are <30MB)
+    const rows = [];
+    await parquetRead({
+      file: arrayBuffer,
+      compressors,
+      rowFormat: 'object',
+      onComplete: data => rows.push(...data),
+    });
+
+    tables[tableName] = rows;
+    tableSchemas[tableName] = columns.map(c => ({ name: c.name, type: getTypeName(c) }));
+
+    renderTableList();
+    updateExampleQueries();
+
+    // Auto-run a preview query for the first table loaded
+    if (Object.keys(tables).length === 1) {
+      queryEditor.value = `SELECT *\nFROM ${tableName}\nLIMIT 100`;
+      runQuery();
+    }
+  } catch (err) {
+    setStatus(`Failed to load ${file.name}: ${err.message}`, 'error');
+    removeTableFromList(tableName);
+    console.error(err);
+  }
+}
+
+// ============================================================
+// QUERY EXECUTION
+// ============================================================
+async function runQuery() {
+  const query = queryEditor.value.trim();
+  if (!query) return;
+
+  runBtn.disabled = true;
+  setStatus('Running...', '');
+  const t0 = performance.now();
+
+  try {
+    const asyncRows = executeSql({ tables, query });
+    const rows = await collect(asyncRows);
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(3);
+
+    if (rows.length === 0) {
+      resultsArea.innerHTML = '<div class="empty-state"><div>Query returned 0 rows</div></div>';
+      setStatus(`0 rows in ${elapsed}s`, 'success');
+    } else {
+      renderResults(rows);
+      setStatus(`${rows.length.toLocaleString()} row${rows.length > 1 ? 's' : ''} in ${elapsed}s`, 'success');
+    }
+  } catch (err) {
+    setStatus(err.message, 'error');
+    resultsArea.innerHTML = `<div class="empty-state" style="color:var(--red)"><div style="font-size:1.5rem">&#9888;</div><div>${escapeHtml(err.message)}</div></div>`;
+    console.error(err);
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+// Run on click or Cmd/Ctrl+Enter
+runBtn.addEventListener('click', runQuery);
+queryEditor.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runQuery();
+  }
+  // Tab inserts 2 spaces
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = queryEditor.selectionStart;
+    queryEditor.value = queryEditor.value.substring(0, s) + '  ' + queryEditor.value.substring(queryEditor.selectionEnd);
+    queryEditor.selectionStart = queryEditor.selectionEnd = s + 2;
+  }
+});
+
+// ============================================================
+// RENDER RESULTS TABLE
+// ============================================================
+function renderResults(rows) {
+  if (!rows.length) return;
+  const cols = Object.keys(rows[0]);
+
+  const headerHtml = cols.map(c => `<th>${escapeHtml(c)}</th>`).join('');
+  const bodyHtml = rows.map((row, i) => {
+    const cells = cols.map(c => {
+      const v = row[c];
+      if (v === null || v === undefined) return '<td class="null">null</td>';
+      if (typeof v === 'number' || typeof v === 'bigint') return `<td class="num">${v}</td>`;
+      const s = String(v);
+      return `<td title="${escapeHtml(s)}">${escapeHtml(s.length > 80 ? s.slice(0,77) + '...' : s)}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  resultsArea.innerHTML = `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`;
+}
+
+// ============================================================
+// SIDEBAR TABLE LIST
+// ============================================================
+function addTableLoading(name) {
+  const el = document.createElement('div');
+  el.className = 'table-item';
+  el.id = `tbl-${name}`;
+  el.innerHTML = `<span class="loading-spinner"></span><span class="t-name">${escapeHtml(name)}</span>`;
+  tableList.appendChild(el);
+  tableCount.textContent = tableList.children.length;
+}
+
+function removeTableFromList(name) {
+  const el = document.getElementById(`tbl-${name}`);
+  if (el) el.remove();
+  tableCount.textContent = Object.keys(tables).length;
+}
+
+function renderTableList() {
+  tableList.innerHTML = '';
+  for (const [name, rows] of Object.entries(tables)) {
+    const schema = tableSchemas[name] || [];
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <div class="table-item" data-table="${name}">
+        <span class="t-icon">&#128451;</span>
+        <span class="t-name">${escapeHtml(name)}</span>
+        <span class="t-rows">${rows.length.toLocaleString()}</span>
+        <span class="t-remove" data-remove="${name}" title="Remove table">&times;</span>
+      </div>
+      <div class="col-list" id="cols-${name}" style="display:none">
+        ${schema.map(c => `<div class="col-item" data-col="${c.name}"><span>${escapeHtml(c.name)}</span><span class="col-type">${c.type}</span></div>`).join('')}
+      </div>
+    `;
+    tableList.appendChild(el);
+
+    // Toggle column list
+    const tableItem = el.querySelector('.table-item');
+    const colList = el.querySelector('.col-list');
+    tableItem.addEventListener('click', (e) => {
+      if (e.target.dataset.remove) return;
+      colList.style.display = colList.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // Remove table
+    el.querySelector('.t-remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const tName = e.target.dataset.remove;
+      delete tables[tName];
+      delete tableSchemas[tName];
+      renderTableList();
+      updateExampleQueries();
+    });
+
+    // Click column to insert into query
+    el.querySelectorAll('.col-item').forEach(ci => {
+      ci.addEventListener('click', () => {
+        const colName = ci.dataset.col;
+        const pos = queryEditor.selectionStart;
+        const before = queryEditor.value.substring(0, pos);
+        const after = queryEditor.value.substring(queryEditor.selectionEnd);
+        queryEditor.value = before + colName + after;
+        queryEditor.selectionStart = queryEditor.selectionEnd = pos + colName.length;
+        queryEditor.focus();
+      });
+    });
+  }
+  tableCount.textContent = Object.keys(tables).length;
+}
+
+// ============================================================
+// EXAMPLE QUERIES
+// ============================================================
+function updateExampleQueries() {
+  const names = Object.keys(tables);
+  if (names.length === 0) { exampleQueries.innerHTML = ''; return; }
+
+  const first = names[0];
+  const examples = [
+    { label: 'Preview', sql: `SELECT * FROM ${first} LIMIT 100` },
+    { label: 'Count', sql: `SELECT COUNT(*) AS total FROM ${first}` },
+  ];
+
+  // If we have discrepancy detail, add useful queries
+  if (tables['_discrepancy_detail']) {
+    examples.push({ label: 'Top mismatches', sql: `SELECT DESYNPUF_ID, summary_year, diff_bene_birth_dt, diff_medreimb_ip, diff_benres_ip\nFROM _discrepancy_detail\nWHERE diff_bene_birth_dt = 1 OR diff_medreimb_ip = 1\nLIMIT 50` });
+  }
+  if (tables['_financial_recon']) {
+    examples.push({ label: 'Financial summary', sql: `SELECT summary_year, \n  ROUND(SUM(medreimb_diff), 2) AS total_medreimb_diff,\n  ROUND(SUM(benres_diff), 2) AS total_benres_diff,\n  COUNT(*) AS records\nFROM _financial_recon\nGROUP BY summary_year\nORDER BY summary_year` });
+  }
+  if (tables['_match_beneficiary']) {
+    examples.push({ label: 'Match status', sql: `SELECT match_status, COUNT(*) AS cnt\nFROM _match_beneficiary\nGROUP BY match_status` });
+  }
+  if (names.length >= 2) {
+    examples.push({ label: 'Join tables', sql: `SELECT a.*, b.*\nFROM ${names[0]} a\nINNER JOIN ${names[1]} b ON a.DESYNPUF_ID = b.DESYNPUF_ID\nLIMIT 50` });
+  }
+
+  exampleQueries.innerHTML = examples.map(e =>
+    `<button class="example-btn" title="${escapeHtml(e.sql)}">${e.label}</button>`
+  ).join('');
+
+  exampleQueries.querySelectorAll('.example-btn').forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      queryEditor.value = examples[i].sql;
+      runQuery();
+    });
+  });
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function setStatus(msg, type) {
+  queryStatus.textContent = msg;
+  queryStatus.className = 'query-status' + (type ? ' ' + type : '');
+}
+
+function getTypeName(col) {
+  const pt = ['BOOLEAN','INT32','INT64','INT96','FLOAT','DOUBLE','BYTE_ARRAY','FIXED_LEN'];
+  if (col.logicalType) {
+    const lt = col.logicalType;
+    if (typeof lt === 'object') {
+      if (lt.stringType !== undefined) return 'STRING';
+      if (lt.intType) return `INT${lt.intType.bitWidth}`;
+      if (lt.decimalType) return 'DECIMAL';
+      if (lt.timestampType) return 'TIMESTAMP';
+      if (lt.dateType !== undefined) return 'DATE';
+    }
+  }
+  if (col.converted_type !== undefined) {
+    const ct = ['','UTF8','MAP','MAP_KV','LIST','ENUM','DECIMAL','DATE','TIME_MS','TIME_US','TS_MS','TS_US','UINT8','UINT16','UINT32','UINT64','INT8','INT16','INT32','INT64'];
+    return ct[col.converted_type] || pt[col.type] || 'UNKNOWN';
+  }
+  return pt[col.type] || 'UNKNOWN';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

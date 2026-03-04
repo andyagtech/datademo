@@ -153,6 +153,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <a href="../docs/architecture.html">Architecture</a>
   <a href="../docs/schema_explorer.html">Schema</a>
   <a href="../docs/parquet_viewer.html">Parquet</a>
+  <a href="../docs/sql_explorer.html">SQL</a>
 </nav>
 
 <div class="container" style="padding-top: calc(2rem + 32px)">
