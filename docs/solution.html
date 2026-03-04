@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solution Design — CMS Claims Comparison Pipeline</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.7; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+
+  /* -- Sidebar TOC -- */
+  .sidebar {
+    position: fixed; top: 32px; left: 0; width: 240px; bottom: 0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 16px 12px; font-size: 0.75rem;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar .toc-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px;
+  }
+  .sidebar a {
+    display: block; padding: 4px 8px; margin: 1px 0; border-radius: 4px;
+    color: var(--muted); text-decoration: none; transition: all 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .sidebar a.depth-2 { padding-left: 20px; font-size: 0.7rem; }
+
+  /* -- Content -- */
+  .content {
+    margin-left: 240px; margin-top: 32px; padding: 32px 48px 80px;
+    max-width: 960px;
+  }
+  @media (max-width: 800px) {
+    .sidebar { display: none; }
+    .content { margin-left: 0; padding: 24px 20px 60px; }
+  }
+
+  /* -- Typography -- */
+  .content h1 {
+    font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;
+    color: var(--accent); border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .content h2 {
+    font-size: 1.15rem; font-weight: 700; margin-top: 2.2rem; margin-bottom: 0.6rem;
+    color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .content h3 {
+    font-size: 0.95rem; font-weight: 700; margin-top: 1.6rem; margin-bottom: 0.4rem;
+    color: var(--accent2);
+  }
+  .content h4 {
+    font-size: 0.85rem; font-weight: 700; margin-top: 1.2rem; margin-bottom: 0.3rem;
+    color: var(--muted);
+  }
+  .content p { margin-bottom: 0.9rem; font-size: 0.88rem; }
+  .content a { color: var(--accent); text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .content strong { color: var(--text); font-weight: 700; }
+  .content em { color: var(--muted); }
+  .content ul, .content ol { padding-left: 1.5em; margin-bottom: 1rem; font-size: 0.88rem; }
+  .content li { margin-bottom: 0.3rem; }
+  .content li > ul, .content li > ol { margin-top: 0.3rem; margin-bottom: 0; }
+
+  /* -- Code -- */
+  .content code {
+    font-family: var(--mono); font-size: 0.78rem;
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+    color: var(--orange);
+  }
+  .content pre {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; overflow-x: auto;
+    margin-bottom: 1.2rem;
+  }
+  .content pre code {
+    background: none; padding: 0; color: var(--text); font-size: 0.76rem;
+    line-height: 1.6;
+  }
+
+  /* -- Tables -- */
+  .content table {
+    width: 100%; border-collapse: collapse; margin-bottom: 1.2rem;
+    font-size: 0.8rem;
+  }
+  .content th {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 8px 12px; text-align: left; font-weight: 700;
+    color: var(--accent); font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .content td {
+    border: 1px solid var(--border); padding: 6px 12px;
+    vertical-align: top;
+  }
+  .content tr:nth-child(even) { background: rgba(26,29,39,0.5); }
+
+  /* -- Blockquote -- */
+  .content blockquote {
+    border-left: 3px solid var(--accent); margin: 1rem 0;
+    padding: 8px 16px; background: rgba(56,189,248,0.04);
+    font-size: 0.85rem; color: var(--muted);
+  }
+
+  /* -- HR -- */
+  .content hr {
+    border: none; height: 1px; background: var(--border);
+    margin: 2rem 0;
+  }
+
+  /* -- Source badge -- */
+  .source-badge {
+    display: inline-block; font-size: 0.65rem; padding: 2px 8px;
+    border-radius: 3px; background: rgba(56,189,248,0.1);
+    color: var(--accent); font-family: var(--mono); margin-bottom: 1.2rem;
+  }
+</style>
+</head>
+<body>
+
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="reports/comparison_report.html">Report</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html">Parquet</a>
+  <a href="sql_explorer.html">SQL</a>
+</nav>
+
+<nav class="sidebar" id="toc">
+  <div class="toc-title">Contents</div>
+  <a href="#solution-architecture" class="">Solution Architecture</a>
+  <a href="#problem-statement" class="depth-2">Problem Statement</a>
+  <a href="#design-decisions" class="depth-2">Design Decisions</a>
+  <a href="#why-duckdb" class="depth-3">Why DuckDB?</a>
+  <a href="#why-a-6-step-pipeline" class="depth-3">Why a 6-Step Pipeline?</a>
+  <a href="#why-docker" class="depth-3">Why Docker?</a>
+  <a href="#report-design" class="depth-3">Report Design</a>
+  <a href="#record-matching-strategy" class="depth-3">Record Matching Strategy</a>
+  <a href="#deployment-strategy" class="depth-2">Deployment Strategy</a>
+  <a href="#local-current" class="depth-3">Local current</a>
+  <a href="#cloud-aws-implemented" class="depth-3">Cloud AWS — implemented</a>
+  <a href="#analysis-findings" class="depth-2">Analysis Findings</a>
+  <a href="#summary" class="depth-3">Summary</a>
+  <a href="#finding-1-date-migration-bug-benebirthdt" class="depth-3">Finding 1: Date Migration Bug BENEBIRTHDT</a>
+  <a href="#finding-2-payment-calculation-bias" class="depth-3">Finding 2: Payment Calculation Bias</a>
+  <a href="#finding-3-phantom-claims" class="depth-3">Finding 3: Phantom Claims</a>
+  <a href="#finding-4-claims-payment-column-concentration" class="depth-3">Finding 4: Claims Payment Column Concentration</a>
+  <a href="#geographic-distribution" class="depth-3">Geographic Distribution</a>
+  <a href="#trend-analysis" class="depth-3">Trend Analysis</a>
+  <a href="#recommendation" class="depth-3">Recommendation</a>
+  <a href="#testing" class="depth-2">Testing</a>
+</nav>
+
+<div class="content">
+  <span class="source-badge">Source: SOLUTION.md</span>
+  <h1 id="solution-architecture">Solution Architecture</h1>
+<h2 id="problem-statement">Problem Statement</h2>
+<p>Compare outputs from two healthcare claims processing systems — an old (legacy CMS) system and a new replacement — to surface, quantify, and communicate discrepancies. The new system's data intentionally contains issues; the goal is to find them, measure their impact, and identify patterns.</p>
+<h2 id="design-decisions">Design Decisions</h2>
+<h3 id="why-duckdb">Why DuckDB?</h3>
+<p>The input data is large (2.4 GB of carrier claims CSVs, ~5M rows × 142 columns). The workload is analytical: scans, aggregations, joins. DuckDB is purpose-built for this:</p>
+<ul>
+<li><strong>Zero infrastructure.</strong> No server, no configuration. A single <code>pip install</code> and a file on disk. This is critical for a pipeline that needs to run in Docker, on a developer laptop, or inside an AWS Lambda function without provisioning a database server.</li>
+<li><strong>Native CSV/Parquet I/O.</strong> Reads CSVs directly with type inference, null detection, and parallel reads. Exports to Parquet natively — no pandas or pyarrow dependency needed for columnar output.</li>
+<li><strong>Columnar engine.</strong> Aggregations over 142-column tables are fast because DuckDB only reads the columns touched by each query. Our carrier claims table has 142 columns but most queries touch fewer than 10 — a columnar engine avoids reading the other 132.</li>
+<li><strong>Embeddable.</strong> Runs inside the Python process — no network hops, no connection pooling, no Docker-in-Docker complexity. The entire database is a single file.</li>
+<li><strong>Portable.</strong> The <code>.duckdb</code> file can be copied to another machine and queried with the DuckDB CLI, Python, R, Node.js, or any of DuckDB's 15+ language bindings.</li>
+</ul>
+<p><strong>Maturity and adoption:</strong> DuckDB reached <strong>v1.0 in June 2024</strong>, marking a stable API and storage format guarantee. It is developed by DuckDB Labs, a company spun out of CWI Amsterdam (the same research institute that created MonetDB). DuckDB has 25K+ GitHub stars, is used in production by organizations including Google, MotherDuck (cloud DuckDB), and dbt Labs, and ships as a core component of tools like Evidence, Observable, and DBeaver. For this assessment, we use DuckDB ≥1.1.0 — a stable, production-grade release.</p>
+<p><strong>Why not the alternatives:</strong><br />
+- <strong>SQLite</strong> — row-oriented storage engine, designed for OLTP (small reads/writes). Analytical aggregations on wide tables are 10-50× slower than DuckDB because SQLite reads entire rows even when a query only needs 2 columns.<br />
+- <strong>PostgreSQL</strong> — excellent database, but requires a running server process, connection management, and configuration. For a self-contained batch pipeline that runs in Docker or Lambda, this is unnecessary complexity.<br />
+- <strong>Spark</strong> — designed for distributed computing across clusters. Our data fits on a single machine (2.4 GB). Spark's JVM startup, driver/executor model, and configuration overhead add minutes of latency and gigabytes of dependencies for no benefit at this scale.<br />
+- <strong>Pandas-only</strong> — 2.4 GB of CSVs in memory is feasible but fragile. SQL is clearer than chained DataFrame operations for the complex multi-table joins and aggregations in our comparison logic (FULL OUTER JOIN with 24 diff columns, financial reconciliation with GROUP BY + HAVING). Pandas also lacks native Parquet export without pyarrow.</p>
+<h3 id="why-a-6-step-pipeline">Why a 6-Step Pipeline?</h3>
+<p>The original flat pipeline (ingest -&gt; profile -&gt; validate -&gt; compare -&gt; report) worked but had no fault isolation. If someone uploaded a CSV with wrong headers, it would fail deep inside the ingest step with an opaque DuckDB error.</p>
+<p>The 6-step design adds:</p>
+<ol>
+<li><strong>Early rejection.</strong> Steps 1-2 (Receive, Schema Validate) catch bad input before any expensive processing. A malformed CSV is rejected in &lt;1 second instead of after a 30-second ingest.</li>
+<li><strong>Gate logic.</strong> Each step can halt the pipeline with a clear error message. The pipeline context carries a <code>halted</code> flag and <code>halt_reason</code>.</li>
+<li><strong>Separation of concerns.</strong> File I/O (Step 1) is separate from validation logic (Step 2), which is separate from database operations (Step 3). This makes each step independently testable and replaceable.</li>
+<li><strong>Cloud readiness.</strong> Each step is a pure function: <code>run(ctx) -&gt; StepResult</code>. Locally, the runner calls them in sequence. In the cloud, each step becomes a Lambda function, and Step Functions handles orchestration. The same Python code runs in both contexts.</li>
+</ol>
+<h3 id="why-docker">Why Docker?</h3>
+<p>The pipeline has minimal dependencies (Python + 4 pip packages), but:</p>
+<ul>
+<li><strong>DuckDB versions matter.</strong> Database files are not guaranteed compatible across major versions.</li>
+<li><strong>Python version matters.</strong> We use type unions (<code>int | str</code>) and other 3.10+ features.</li>
+<li><strong>Reproducibility.</strong> <code>python:3.14-slim</code> pins the latest stable Python release (October 2025). All dependencies — including DuckDB's compiled C extensions — ship binary wheels for 3.14. The image runs identically on macOS, Linux, and Windows (via Docker Desktop).</li>
+<li><strong>Data stays outside.</strong> CSVs and the DuckDB file are volume-mounted, not baked into the image. This keeps the image small and the data portable.</li>
+</ul>
+<h3 id="report-design">Report Design</h3>
+<p>The HTML report is designed to communicate findings, not just display data:</p>
+<ol>
+<li><strong>Executive summary first.</strong> Key metrics (total beneficiaries, claims, failed checks) and a red callout box listing every failed validation with issue counts.</li>
+<li><strong>Interactive tables.</strong> Every table has sortable columns (click any header). Sort handles numbers, percentages, and text.</li>
+<li><strong>Collapsible sections.</strong> Data profiles (which can be hundreds of rows for the 142-column carrier claims table) are collapsed by default. The header shows row/column counts and high-null warnings without needing to expand.</li>
+<li><strong>Charts before tables.</strong> Plotly charts for year-over-year trends, financial distributions, and chronic condition prevalence give a visual overview before the drill-down tables.</li>
+</ol>
+<h3 id="record-matching-strategy">Record Matching Strategy</h3>
+<p>When new system data is available, Step 4 performs a FULL OUTER JOIN:</p>
+<ul>
+<li><strong>Beneficiaries:</strong> matched on <code>(DESYNPUF_ID, summary_year)</code> — composite key because the same beneficiary appears once per year.</li>
+<li><strong>Claims:</strong> matched on <code>CLM_ID</code> — unique claim identifier.</li>
+</ul>
+<p>Every record is classified as:<br />
+- <code>matched</code> — exists in both systems (proceed to field-level comparison)<br />
+- <code>old_only</code> — exists in old system but missing from new (data loss)<br />
+- <code>new_only</code> — exists in new system but not in old (phantom records)</p>
+<p>Step 5 then runs field-by-field diffs on matched records and classifies discrepancies by type (financial, demographic, clinical, temporal) with dollar impact calculations.</p>
+<h2 id="deployment-strategy">Deployment Strategy</h2>
+<h3 id="local-current">Local (current)</h3>
+<pre><code>python -m src.main [--new-data PATH] [--skip-ingest] [--db-path PATH]
+</code></pre>
+<p>Or via Docker:</p>
+<pre><code>docker build -t cms-pipeline .
+docker run --rm -v $(pwd)/data:/app/data -v $(pwd)/reports:/app/reports cms-pipeline
+</code></pre>
+<h3 id="cloud-aws-implemented">Cloud (AWS — implemented)</h3>
+<p>Deployed using AWS SAM (<code>infra/template.yaml</code>):</p>
+<pre><code>API Gateway POST /pipeline/start
+  │
+  ▼
+Step Functions state machine (infra/statemachine.asl.json)
+  │
+  ├─ Lambda: Step 1 (Receive)       ── S3 file listing + checksums
+  ├─ Gate check ─────────────────── halted? → Fail
+  ├─ Lambda: Step 2 (Schema)        ── S3 CSV header reads
+  ├─ Gate check
+  ├─ Lambda: Step 3 (Ingest)        ── DuckDB in /tmp, reads CSVs from S3 via httpfs
+  │                                    10 GB memory, 15 min timeout
+  │                                    snapshots DuckDB file → S3
+  ├─ Gate check
+  ├─ Lambda: Step 4 (Match)         ── restores DuckDB from S3, matches records
+  ├─ Lambda: Step 5 (Compare)       ── field-level diffs, trend analysis
+  ├─ Lambda: Step 6 (Report)        ── generates HTML, uploads to S3
+  │                                    returns presigned download URL
+  ▼
+  Success / Fail
+</code></pre>
+<p><strong>Key design decisions:</strong></p>
+<ul>
+<li><strong>Lambda container images</strong> (not zip deploys) — based on the AWS Lambda Python base image, shared with the local Dockerfile. Avoids the 250 MB zip limit and ensures identical Python + DuckDB versions.</li>
+<li><strong>DuckDB on Lambda</strong> — runs in <code>/tmp</code> (10 GB ephemeral storage). Between Lambda invocations, the DuckDB file is snapshotted to S3 and restored by the next step. This works because our dataset (~2.5 GB) fits in Lambda's 10 GB memory limit.</li>
+<li><strong>DuckDB httpfs extension</strong> — reads CSVs directly from S3 during ingest, eliminating the need to download multi-GB files to <code>/tmp</code>.</li>
+<li><strong>StorageAdapter pattern</strong> — <code>src/adapters/aws.py</code> (S3Storage) implements the same <code>StorageAdapter</code> protocol as <code>src/adapters/local.py</code> (LocalStorage). Pipeline steps use <code>ctx.storage</code> for I/O without knowing which backend they're on.</li>
+<li><strong>Step Functions gate logic</strong> — mirrors <code>runner.py</code>'s halt checks. After each Lambda step, a Choice state checks <code>$.halted</code> and routes to a Fail state if true.</li>
+</ul>
+<p><strong>Scaling note:</strong> For datasets &gt;5 GB, the heavy steps (ingest, compare) can be moved to <strong>Fargate</strong> using the same container image. The SAM template would add an ECS task definition alongside the Lambda functions.</p>
+<h2 id="analysis-findings">Analysis Findings</h2>
+<h3 id="summary">Summary</h3>
+<p>The new system achieves <strong>99.87% record-level accuracy</strong> on beneficiary data (446 mismatched records out of 343,485 matched). Financial divergence totals <strong>$35,624.71</strong> on $1.24B in total reimbursements (0.003%). While the aggregate impact is small, the patterns reveal two distinct systematic bugs.</p>
+<h3 id="finding-1-date-migration-bug-benebirthdt">Finding 1: Date Migration Bug (BENE_BIRTH_DT)</h3>
+<p><strong>178 beneficiary records</strong> have different birth dates between systems — 34.2% of all field-level discrepancies, making it the single largest source of error. The count is stable across years (63 in 2008, 63 in 2009, 52 in 2010), indicating a systematic parsing or migration issue rather than random corruption.</p>
+<p><strong>Root cause hypothesis:</strong> The new system likely has a date parsing bug that affects a specific date format or range. The consistency across years rules out a time-dependent regression.</p>
+<p><strong>Impact:</strong> Demographic — no direct financial impact, but incorrect birth dates could affect age-based eligibility calculations downstream.</p>
+<h3 id="finding-2-payment-calculation-bias">Finding 2: Payment Calculation Bias</h3>
+<p>All 9 financial reimbursement columns show mismatches, and <strong>every dollar delta is positive</strong> (net = abs = $35,624.71). The new system consistently <strong>overstates</strong> reimbursement amounts — it never understates them. This one-directional pattern is a strong indicator of a systematic calculation bias, not random noise.</p>
+<p>Breakdown by service type:</p>
+<table>
+<thead>
+<tr>
+<th>Service Type</th>
+<th>Divergence</th>
+<th>Affected Records</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outpatient (OP)</td>
+<td>$14,339.20</td>
+<td>31–47 per column</td>
+</tr>
+<tr>
+<td>Inpatient (IP)</td>
+<td>$12,363.99</td>
+<td>32–38 per column</td>
+</tr>
+<tr>
+<td>Carrier (CAR)</td>
+<td>$8,921.52</td>
+<td>30–46 per column</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Root cause hypothesis:</strong> The new system may be applying a rounding rule, fee schedule adjustment, or filter condition differently than the old system, causing small per-record overpayments that aggregate across affected records.</p>
+<h3 id="finding-3-phantom-claims">Finding 3: Phantom Claims</h3>
+<p>The new system contains <strong>4,777 carrier claims</strong> that have no corresponding record in the old system. Zero claims are lost in the other direction (old-only = 0). This asymmetry suggests the new system is generating spurious claim records — possibly from a join expansion, duplicate processing, or an off-by-one error in batch boundaries.</p>
+<h3 id="finding-4-claims-payment-column-concentration">Finding 4: Claims Payment Column Concentration</h3>
+<p>On matched claims, <strong>10,411</strong> have mismatched <code>LINE_NCH_PMT_AMT_1</code> (primary payment amount) — roughly <strong>5x more</strong> than the next most-affected payment column (<code>LINE_ALOWD_CHRG_AMT_1</code> at 657). This concentration in a single column points to a targeted bug in the primary payment calculation logic rather than a broad data corruption issue.</p>
+<h3 id="geographic-distribution">Geographic Distribution</h3>
+<p>Discrepancies are spread across <strong>50 of 52 state codes</strong> with no dramatic geographic concentration. The highest mismatch rate is State 02 (0.42%, 3 records) — statistically insignificant given the small sample. This confirms the issues are systemic (code-level) rather than geographic (data-level).</p>
+<h3 id="trend-analysis">Trend Analysis</h3>
+<p>Discrepancy rates are <strong>stable across the three summary years</strong> (2008: 0.12%, 2009: 0.14%, 2010: 0.12%). The slight 2009 uptick is within normal variance. This stability suggests the bugs are inherent to the migration/calculation logic and do not worsen with time or data volume.</p>
+<h3 id="recommendation">Recommendation</h3>
+<p>The new system is <strong>not ready for production cutover</strong>. While overall accuracy is high (99.87%), two systematic bugs should be fixed:</p>
+<ol>
+<li><strong>Date handling</strong> — investigate BENE_BIRTH_DT parsing logic in the new system's beneficiary ingestion pipeline.</li>
+<li><strong>Payment calculation</strong> — investigate the one-directional overpayment bias, particularly in LINE_NCH_PMT_AMT calculation. The 5x concentration in this column narrows the search area.</li>
+</ol>
+<p>After fixes, re-run this pipeline to verify the discrepancy rate drops to zero or near-zero.</p>
+<h2 id="testing">Testing</h2>
+<p>54 tests covering:</p>
+<ul>
+<li><strong>Unit tests</strong> for each original module (profile, validate, compare, report)</li>
+<li><strong>Pipeline step tests</strong> for receive, schema validate, and record matching</li>
+<li><strong>Integration tests</strong> using in-memory DuckDB with synthetic sample data</li>
+<li>All tests run in &lt;5 seconds with no external dependencies</li>
+</ul>
+<pre><code class="language-bash">pytest tests/ -v
+</code></pre>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline Reference — CMS Claims Comparison Pipeline</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.7; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+
+  /* -- Sidebar TOC -- */
+  .sidebar {
+    position: fixed; top: 32px; left: 0; width: 240px; bottom: 0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 16px 12px; font-size: 0.75rem;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar .toc-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px;
+  }
+  .sidebar a {
+    display: block; padding: 4px 8px; margin: 1px 0; border-radius: 4px;
+    color: var(--muted); text-decoration: none; transition: all 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .sidebar a.depth-2 { padding-left: 20px; font-size: 0.7rem; }
+
+  /* -- Content -- */
+  .content {
+    margin-left: 240px; margin-top: 32px; padding: 32px 48px 80px;
+    max-width: 960px;
+  }
+  @media (max-width: 800px) {
+    .sidebar { display: none; }
+    .content { margin-left: 0; padding: 24px 20px 60px; }
+  }
+
+  /* -- Typography -- */
+  .content h1 {
+    font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;
+    color: var(--accent); border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .content h2 {
+    font-size: 1.15rem; font-weight: 700; margin-top: 2.2rem; margin-bottom: 0.6rem;
+    color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .content h3 {
+    font-size: 0.95rem; font-weight: 700; margin-top: 1.6rem; margin-bottom: 0.4rem;
+    color: var(--accent2);
+  }
+  .content h4 {
+    font-size: 0.85rem; font-weight: 700; margin-top: 1.2rem; margin-bottom: 0.3rem;
+    color: var(--muted);
+  }
+  .content p { margin-bottom: 0.9rem; font-size: 0.88rem; }
+  .content a { color: var(--accent); text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .content strong { color: var(--text); font-weight: 700; }
+  .content em { color: var(--muted); }
+  .content ul, .content ol { padding-left: 1.5em; margin-bottom: 1rem; font-size: 0.88rem; }
+  .content li { margin-bottom: 0.3rem; }
+  .content li > ul, .content li > ol { margin-top: 0.3rem; margin-bottom: 0; }
+
+  /* -- Code -- */
+  .content code {
+    font-family: var(--mono); font-size: 0.78rem;
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+    color: var(--orange);
+  }
+  .content pre {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; overflow-x: auto;
+    margin-bottom: 1.2rem;
+  }
+  .content pre code {
+    background: none; padding: 0; color: var(--text); font-size: 0.76rem;
+    line-height: 1.6;
+  }
+
+  /* -- Tables -- */
+  .content table {
+    width: 100%; border-collapse: collapse; margin-bottom: 1.2rem;
+    font-size: 0.8rem;
+  }
+  .content th {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 8px 12px; text-align: left; font-weight: 700;
+    color: var(--accent); font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .content td {
+    border: 1px solid var(--border); padding: 6px 12px;
+    vertical-align: top;
+  }
+  .content tr:nth-child(even) { background: rgba(26,29,39,0.5); }
+
+  /* -- Blockquote -- */
+  .content blockquote {
+    border-left: 3px solid var(--accent); margin: 1rem 0;
+    padding: 8px 16px; background: rgba(56,189,248,0.04);
+    font-size: 0.85rem; color: var(--muted);
+  }
+
+  /* -- HR -- */
+  .content hr {
+    border: none; height: 1px; background: var(--border);
+    margin: 2rem 0;
+  }
+
+  /* -- Source badge -- */
+  .source-badge {
+    display: inline-block; font-size: 0.65rem; padding: 2px 8px;
+    border-radius: 3px; background: rgba(56,189,248,0.1);
+    color: var(--accent); font-family: var(--mono); margin-bottom: 1.2rem;
+  }
+</style>
+</head>
+<body>
+
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="reports/comparison_report.html">Report</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html">Parquet</a>
+  <a href="sql_explorer.html">SQL</a>
+</nav>
+
+<nav class="sidebar" id="toc">
+  <div class="toc-title">Contents</div>
+  <a href="#data-pipeline-reference" class="">Data Pipeline Reference</a>
+  <a href="#table-of-contents" class="depth-2">Table of Contents</a>
+  <a href="#pipeline-overview" class="depth-2">Pipeline Overview</a>
+  <a href="#step-1-receive-verify" class="depth-2">Step 1 — Receive & Verify</a>
+  <a href="#step-2-schema-validation" class="depth-2">Step 2 — Schema Validation</a>
+  <a href="#step-3-ingest-profile" class="depth-2">Step 3 — Ingest & Profile</a>
+  <a href="#ingestion-src-ingest-py" class="depth-3">Ingestion src/ingest.py</a>
+  <a href="#profiling-src-profile-py" class="depth-3">Profiling src/profile.py</a>
+  <a href="#step-4-record-matching-validation" class="depth-2">Step 4 — Record Matching & Validation</a>
+  <a href="#record-matching-step4match-py" class="depth-3">Record Matching step4match.py</a>
+  <a href="#internal-validation-src-validate-py" class="depth-3">Internal Validation src/validate.py</a>
+  <a href="#step-5-compare-analyze" class="depth-2">Step 5 — Compare & Analyze</a>
+  <a href="#table-pair-configuration-compare-py-tablepairs" class="depth-3">Table Pair Configuration compare.py → TABLEPAIRS</a>
+  <a href="#step-6-report" class="depth-2">Step 6 — Report</a>
+  <a href="#process" class="depth-3">Process</a>
+  <a href="#data-presentation-separation" class="depth-3">Data/Presentation Separation</a>
+  <a href="#chart-data-series-in-json" class="depth-3">Chart Data Series in JSON</a>
+  <a href="#data-model" class="depth-2">Data Model</a>
+  <a href="#duckdb-tables-in-memory" class="depth-3">DuckDB Tables in-memory</a>
+  <a href="#validation-checks-reference" class="depth-2">Validation Checks Reference</a>
+  <a href="#identity-checks-checkkeyintegrity" class="depth-3">Identity Checks checkkeyintegrity</a>
+  <a href="#temporal-checks-checktemporalconsistency" class="depth-3">Temporal Checks checktemporalconsistency</a>
+  <a href="#demographic-checks-checkdemographicconsistency" class="depth-3">Demographic Checks checkdemographicconsistency</a>
+  <a href="#financial-checks-checkfinancialreconciliation" class="depth-3">Financial Checks checkfinancialreconciliation</a>
+  <a href="#result-dataclass" class="depth-3">Result Dataclass</a>
+  <a href="#comparison-checks-reference" class="depth-2">Comparison Checks Reference</a>
+  <a href="#check-categories" class="depth-3">Check Categories</a>
+  <a href="#schema-checks-3-per-table-pair-2-pairs-6" class="depth-3">Schema Checks 3 per table pair × 2 pairs = 6</a>
+  <a href="#row-level-checks-3-per-table-pair-2-pairs-6" class="depth-3">Row-Level Checks 3 per table pair × 2 pairs = 6</a>
+  <a href="#field-level-checks-15-beneficiary-6-claims-21" class="depth-3">Field-Level Checks 15 beneficiary + 6 claims = 21</a>
+  <a href="#aggregate-checks-9-beneficiary-4-claims-13" class="depth-3">Aggregate Checks 9 beneficiary + 4 claims = 13</a>
+  <a href="#result-dataclass" class="depth-3">Result Dataclass</a>
+  <a href="#output-artifacts" class="depth-2">Output Artifacts</a>
+  <a href="#report-files" class="depth-3">Report Files</a>
+  <a href="#data-exports-csv-human-readable-excel-compatible" class="depth-3">Data Exports CSV — human-readable, Excel-compatible</a>
+  <a href="#data-exports-parquet-columnar-compressed-standard-interchange" class="depth-3">Data Exports Parquet — columnar, compressed, standard interchange</a>
+  <a href="#persistent-datastore" class="depth-3">Persistent Datastore</a>
+  <a href="#adding-a-new-check" class="depth-2">Adding a New Check</a>
+</nav>
+
+<div class="content">
+  <span class="source-badge">Source: PIPELINE.md</span>
+  <h1 id="data-pipeline-reference">Data Pipeline Reference</h1>
+<blockquote>
+<p>Canonical documentation for the CMS Claims Data Comparison Pipeline.<br />
+For architecture diagrams, see <a href="architecture.html"><code>docs/architecture.html</code></a>.<br />
+For design rationale, see <a href="SOLUTION.md"><code>docs/SOLUTION.md</code></a>.</p>
+</blockquote>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#pipeline-overview">Pipeline Overview</a></li>
+<li><a href="#step-1--receive--verify">Step 1 — Receive &amp; Verify</a></li>
+<li><a href="#step-2--schema-validation">Step 2 — Schema Validation</a></li>
+<li><a href="#step-3--ingest--profile">Step 3 — Ingest &amp; Profile</a></li>
+<li><a href="#step-4--record-matching--validation">Step 4 — Record Matching &amp; Validation</a></li>
+<li><a href="#step-5--compare--analyze">Step 5 — Compare &amp; Analyze</a></li>
+<li><a href="#step-6--report">Step 6 — Report</a></li>
+<li><a href="#data-model">Data Model</a></li>
+<li><a href="#validation-checks-reference">Validation Checks Reference</a></li>
+<li><a href="#comparison-checks-reference">Comparison Checks Reference</a></li>
+<li><a href="#output-artifacts">Output Artifacts</a></li>
+</ol>
+<hr />
+<h2 id="pipeline-overview">Pipeline Overview</h2>
+<pre><code>CSV Files (old + new system)
+    │
+    ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Step 1: Receive &amp; Verify     — file discovery, checksums        │
+│  Step 2: Schema Validation    — header checks, file classification│
+│  Step 3: Ingest &amp; Profile     — DuckDB loading, column profiling │
+│  Step 4: Record Matching      — FULL OUTER JOIN, validation      │
+│  Step 5: Compare &amp; Analyze    — field-level diffs, aggregates    │
+│  Step 6: Report               — JSON data + HTML + CSV exports   │
+└──────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+reports/report_data.json        (canonical data artifact)
+reports/comparison_report.html  (interactive HTML report)
+reports/exports/*.csv           (raw diff tables)
+</code></pre>
+<p><strong>Execution model:</strong> Each step is a pure function <code>run(ctx: PipelineContext) -&gt; StepResult</code>. The runner (<code>src/runner.py</code>) calls them in sequence. If any step sets <code>ctx.halted = True</code>, the pipeline stops with a clear error message. The same functions run locally (sequential) or in AWS (Step Functions + Lambda).</p>
+<p><strong>Key types:</strong><br />
+- <code>PipelineContext</code> — carries the DuckDB connection, config, storage adapter, and accumulated results across steps.<br />
+- <code>StepResult</code> — returned by each step with <code>success</code>, <code>message</code>, <code>errors[]</code>, <code>warnings[]</code>, and step-specific data.</p>
+<hr />
+<h2 id="step-1-receive-verify">Step 1 — Receive &amp; Verify</h2>
+<p><strong>Source:</strong> <code>src/pipeline/step1_receive.py</code></p>
+<p><strong>Purpose:</strong> Discover input CSV files, verify integrity, build a complete file inventory.</p>
+<p><strong>Process:</strong><br />
+1. Scan <code>data/</code> directory (or S3 bucket via <code>StorageAdapter</code>) for CSV files matching glob patterns <code>*Beneficiary*</code> and <code>*Carrier*</code>.<br />
+2. If a <code>--new-data</code> path is provided, scan it separately for new system files.<br />
+3. Extract any <code>.zip</code> archives found.<br />
+4. Compute SHA-256 checksums for integrity verification.<br />
+5. Record file metadata: name, path, size (MB), checksum.</p>
+<p><strong>Outputs stored in <code>ctx.results["receive"]</code>:</strong></p>
+<pre><code class="language-python">{
+    &quot;old_system&quot;: {
+        &quot;source_dir&quot;: &quot;data/&quot;,
+        &quot;inventory&quot;: {
+            &quot;DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv&quot;: {
+                &quot;path&quot;: &quot;data/DE1_0_2008_Beneficiary_...&quot;,
+                &quot;size_mb&quot;: 28.4,
+                &quot;checksum&quot;: &quot;sha256:abc123...&quot;
+            },
+            ...
+        }
+    },
+    &quot;new_system&quot;: {
+        &quot;source_dir&quot;: &quot;data/new_claims_system_outputs/...&quot;,
+        &quot;inventory&quot;: { ... }
+    }
+}
+</code></pre>
+<p><strong>Halt condition:</strong> No CSV files found in the data directory.</p>
+<hr />
+<h2 id="step-2-schema-validation">Step 2 — Schema Validation</h2>
+<p><strong>Source:</strong> <code>src/pipeline/step2_schema.py</code></p>
+<p><strong>Purpose:</strong> Validate CSV headers before the expensive ingestion step. Fail fast on malformed input.</p>
+<p><strong>Process:</strong><br />
+1. Read only the first row (header) of each CSV — no full data scan.<br />
+2. Classify each file as <strong>beneficiary</strong> or <strong>carrier claims</strong> based on header fingerprints:<br />
+   - Beneficiary files contain <code>BENE_BIRTH_DT</code>, <code>BENE_SEX_IDENT_CD</code>, etc. (32 expected columns)<br />
+   - Carrier claims files contain <code>CLM_ID</code>, <code>CLM_FROM_DT</code>, <code>LINE_NCH_PMT_AMT_1</code>, etc. (141 expected columns)<br />
+3. Check for missing required columns and unexpected extra columns.<br />
+4. Report schema errors per file.</p>
+<p><strong>Outputs stored in <code>ctx.results["schema"]</code>:</strong></p>
+<pre><code class="language-python">{
+    &quot;validated_count&quot;: 10,
+    &quot;beneficiary_count&quot;: 6,
+    &quot;carrier_count&quot;: 4,
+    &quot;schema_errors&quot;: []
+}
+</code></pre>
+<p><strong>Halt condition:</strong> Any file has missing required columns.</p>
+<hr />
+<h2 id="step-3-ingest-profile">Step 3 — Ingest &amp; Profile</h2>
+<p><strong>Source:</strong> <code>src/pipeline/step3_ingest.py</code>, <code>src/ingest.py</code>, <code>src/profile.py</code></p>
+<p><strong>Purpose:</strong> Load all CSVs into DuckDB in-memory tables and compute column-level quality profiles.</p>
+<h3 id="ingestion-src-ingest-py">Ingestion (<code>src/ingest.py</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Tables Created</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ingest_beneficiary_summaries()</code></td>
+<td><code>beneficiary_summary</code></td>
+<td>Reads 3 yearly CSVs, adds <code>summary_year</code> column extracted from filename (e.g., <code>DE1_0_2008_...</code> → <code>2008</code>)</td>
+</tr>
+<tr>
+<td><code>ingest_carrier_claims()</code></td>
+<td><code>carrier_claims</code></td>
+<td>Reads 2 CSVs (Sample_1A + Sample_1B), <code>UNION ALL</code></td>
+</tr>
+<tr>
+<td><code>ingest_new_system()</code></td>
+<td><code>new_beneficiary_summary</code>, <code>new_carrier_claims</code></td>
+<td>Same logic, adds <code>summary_year</code> for beneficiary files</td>
+</tr>
+</tbody>
+</table>
+<p>All ingestion uses DuckDB's <code>read_csv_auto()</code> with <code>header=true</code> and automatic type inference.</p>
+<h3 id="profiling-src-profile-py">Profiling (<code>src/profile.py</code>)</h3>
+<p>For every column in every table, computes:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>null_count</code></td>
+<td>Number of NULL values</td>
+</tr>
+<tr>
+<td><code>null_pct</code></td>
+<td>Percentage NULL</td>
+</tr>
+<tr>
+<td><code>distinct_count</code></td>
+<td>Number of distinct values</td>
+</tr>
+<tr>
+<td><code>min_val</code></td>
+<td>Minimum value</td>
+</tr>
+<tr>
+<td><code>max_val</code></td>
+<td>Maximum value</td>
+</tr>
+<tr>
+<td><code>mean_val</code></td>
+<td>Mean (numeric columns only)</td>
+</tr>
+<tr>
+<td><code>dtype</code></td>
+<td>Inferred DuckDB data type</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Anomaly detection</strong> flags:<br />
+- Columns with &gt;50% NULL values (high-null)<br />
+- Zero-variance columns (all values identical)<br />
+- Potential outlier distributions</p>
+<p><strong>Outputs:</strong> <code>ctx.results["profiles"]</code> — a <code>dict[str, TableProfile]</code> mapping table names to their profiles.</p>
+<hr />
+<h2 id="step-4-record-matching-validation">Step 4 — Record Matching &amp; Validation</h2>
+<p><strong>Source:</strong> <code>src/pipeline/step4_match.py</code>, <code>src/validate.py</code></p>
+<p>This step does two things in parallel:<br />
+1. <strong>Record matching</strong> — joins old and new system tables<br />
+2. <strong>Internal validation</strong> — checks old system data quality</p>
+<h3 id="record-matching-step4match-py">Record Matching (<code>step4_match.py</code>)</h3>
+<p>For each table pair, performs a <code>FULL OUTER JOIN</code> on primary keys:</p>
+<table>
+<thead>
+<tr>
+<th>Table Pair</th>
+<th>Join Key</th>
+<th>Why This Key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>beneficiary_summary</code> ↔ <code>new_beneficiary_summary</code></td>
+<td><code>(DESYNPUF_ID, summary_year)</code></td>
+<td>Composite key — same beneficiary appears once per year</td>
+</tr>
+<tr>
+<td><code>carrier_claims</code> ↔ <code>new_carrier_claims</code></td>
+<td><code>CLM_ID</code></td>
+<td>Unique claim identifier</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key implementation detail:</strong> All join keys are <code>CAST(...  AS VARCHAR)</code> to handle type mismatches (e.g., <code>CLM_ID</code> is <code>BIGINT</code> in one table, <code>VARCHAR</code> in the other).</p>
+<p>Every record is classified into one of three categories:</p>
+<table>
+<thead>
+<tr>
+<th>Classification</th>
+<th>Meaning</th>
+<th>How Detected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>matched</code></td>
+<td>Exists in both systems</td>
+<td><code>COALESCE(old_key, new_key)</code> is not null on both sides</td>
+</tr>
+<tr>
+<td><code>old_only</code></td>
+<td>In old system, missing from new</td>
+<td><code>new_key IS NULL</code> after FULL OUTER JOIN</td>
+</tr>
+<tr>
+<td><code>new_only</code></td>
+<td>In new system, not in old</td>
+<td><code>old_key IS NULL</code> after FULL OUTER JOIN</td>
+</tr>
+</tbody>
+</table>
+<p>Results are stored in DuckDB tables <code>_match_beneficiary</code> and <code>_match_claims</code>.</p>
+<h3 id="internal-validation-src-validate-py">Internal Validation (<code>src/validate.py</code>)</h3>
+<p>Runs 11 checks organized into 4 categories against the <strong>old system data</strong> to establish a quality baseline. Each check is a standalone function that runs a SQL query, counts violations, and returns a <code>ValidationResult</code>.</p>
+<blockquote>
+<p><strong>See <a href="#validation-checks-reference">Validation Checks Reference</a> below for the complete check-by-check breakdown.</strong></p>
+</blockquote>
+<hr />
+<h2 id="step-5-compare-analyze">Step 5 — Compare &amp; Analyze</h2>
+<p><strong>Source:</strong> <code>src/pipeline/step5_compare.py</code>, <code>src/compare.py</code></p>
+<p><strong>Purpose:</strong> For every matched record pair, compare each field value between old and new systems. Quantify discrepancies by column, category, and financial impact.</p>
+<p>Runs 46 checks organized into 4 categories against two table pairs. Each check returns a <code>ComparisonResult</code>.</p>
+<blockquote>
+<p><strong>See <a href="#comparison-checks-reference">Comparison Checks Reference</a> below for the complete check-by-check breakdown.</strong></p>
+</blockquote>
+<h3 id="table-pair-configuration-compare-py-tablepairs">Table Pair Configuration (<code>compare.py → TABLE_PAIRS</code>)</h3>
+<pre><code class="language-python">TABLE_PAIRS = [
+    {
+        &quot;old&quot;: &quot;beneficiary_summary&quot;,
+        &quot;new&quot;: &quot;new_beneficiary_summary&quot;,
+        &quot;key&quot;: &quot;DESYNPUF_ID&quot;,
+        &quot;compare_cols&quot;: [
+            &quot;BENE_BIRTH_DT&quot;, &quot;BENE_DEATH_DT&quot;, &quot;BENE_SEX_IDENT_CD&quot;, &quot;BENE_RACE_CD&quot;,
+            &quot;SP_ALZHDMTA&quot;, &quot;SP_CHF&quot;, &quot;SP_CHRNKIDN&quot;, &quot;SP_CNCR&quot;, &quot;SP_COPD&quot;,
+            &quot;SP_DEPRESSN&quot;, &quot;SP_DIABETES&quot;, &quot;SP_ISCHMCHT&quot;, &quot;SP_OSTEOPRS&quot;, &quot;SP_RA_OA&quot;,
+            &quot;SP_STRKETIA&quot;,
+        ],
+        &quot;numeric_cols&quot;: [
+            &quot;MEDREIMB_IP&quot;, &quot;BENRES_IP&quot;, &quot;PPPYMT_IP&quot;,
+            &quot;MEDREIMB_OP&quot;, &quot;BENRES_OP&quot;, &quot;PPPYMT_OP&quot;,
+            &quot;MEDREIMB_CAR&quot;, &quot;BENRES_CAR&quot;, &quot;PPPYMT_CAR&quot;,
+        ],
+    },
+    {
+        &quot;old&quot;: &quot;carrier_claims&quot;,
+        &quot;new&quot;: &quot;new_carrier_claims&quot;,
+        &quot;key&quot;: &quot;CLM_ID&quot;,
+        &quot;compare_cols&quot;: [
+            &quot;DESYNPUF_ID&quot;, &quot;CLM_FROM_DT&quot;, &quot;CLM_THRU_DT&quot;,
+            &quot;ICD9_DGNS_CD_1&quot;, &quot;ICD9_DGNS_CD_2&quot;, &quot;HCPCS_CD_1&quot;,
+        ],
+        &quot;numeric_cols&quot;: [
+            &quot;LINE_NCH_PMT_AMT_1&quot;, &quot;LINE_BENE_PTB_DDCTBL_AMT_1&quot;,
+            &quot;LINE_COINSRNC_AMT_1&quot;, &quot;LINE_ALOWD_CHRG_AMT_1&quot;,
+        ],
+    },
+]
+</code></pre>
+<hr />
+<h2 id="step-6-report">Step 6 — Report</h2>
+<p><strong>Source:</strong> <code>src/pipeline/step6_report.py</code>, <code>src/report.py</code></p>
+<p><strong>Purpose:</strong> Generate the final deliverables from the accumulated pipeline results.</p>
+<h3 id="process">Process</h3>
+<ol>
+<li><strong><code>build_report_data()</code></strong> — assembles a canonical Python dict from all step results (profiles, validations, comparisons, file inventories, match rates, chart data series).</li>
+<li><strong>Write <code>report_data.json</code></strong> — the presentation-agnostic data layer (292 KB). Any frontend can consume this.</li>
+<li><strong>Render HTML</strong> — Jinja2 template + embedded chart data JSON → self-contained HTML file with client-side Plotly charts.</li>
+<li><strong>Export CSVs</strong> — raw diff tables dumped for external analysis.</li>
+</ol>
+<h3 id="data-presentation-separation">Data/Presentation Separation</h3>
+<pre><code>build_report_data()  →  report_data.json     ← canonical data artifact
+                     →  comparison_report.html ← presentation layer 1 (Plotly + Jinja2)
+                     →  React diff viewer      ← presentation layer 2 (reads JSON)
+                     →  CLI / PDF / API        ← presentation layer N (future)
+</code></pre>
+<h3 id="chart-data-series-in-json">Chart Data Series in JSON</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Contents</th>
+<th>Chart Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>chart_data.yoy_beneficiaries</code></td>
+<td><code>[{year, count}, ...]</code></td>
+<td>Bar chart</td>
+</tr>
+<tr>
+<td><code>chart_data.yoy_claims</code></td>
+<td><code>[{year, count}, ...]</code></td>
+<td>Bar chart</td>
+</tr>
+<tr>
+<td><code>chart_data.financial_trends</code></td>
+<td><code>[{year, inpatient, outpatient, carrier}, ...]</code></td>
+<td>Grouped bar</td>
+</tr>
+<tr>
+<td><code>chart_data.financial_distribution</code></td>
+<td><code>{medicare_reimb: [...], beneficiary_resp: [...], ...}</code></td>
+<td>Box plots</td>
+</tr>
+<tr>
+<td><code>chart_data.chronic_conditions</code></td>
+<td><code>{years: [...], conditions: [{condition, rates}, ...]}</code></td>
+<td>Multi-line</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="data-model">Data Model</h2>
+<h3 id="duckdb-tables-in-memory">DuckDB Tables (in-memory)</h3>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Source</th>
+<th>Rows</th>
+<th>Key Columns</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>beneficiary_summary</code></td>
+<td>Old system (3 yearly CSVs)</td>
+<td>343,644</td>
+<td><code>DESYNPUF_ID</code>, <code>summary_year</code></td>
+<td>Beneficiary demographics, coverage, chronic conditions, financials</td>
+</tr>
+<tr>
+<td><code>carrier_claims</code></td>
+<td>Old system (2 CSVs)</td>
+<td>4,741,335</td>
+<td><code>CLM_ID</code></td>
+<td>Carrier claims with 13 line items each (diagnoses, procedures, payments)</td>
+</tr>
+<tr>
+<td><code>new_beneficiary_summary</code></td>
+<td>New system</td>
+<td>343,644</td>
+<td><code>DESYNPUF_ID</code>, <code>summary_year</code></td>
+<td>Same schema as old, for comparison</td>
+</tr>
+<tr>
+<td><code>new_carrier_claims</code></td>
+<td>New system</td>
+<td>4,746,112</td>
+<td><code>CLM_ID</code></td>
+<td>Same schema as old, for comparison</td>
+</tr>
+<tr>
+<td><code>_match_beneficiary</code></td>
+<td>Step 4</td>
+<td>343,803</td>
+<td><code>DESYNPUF_ID</code>, <code>summary_year</code></td>
+<td>Match classification (matched/old_only/new_only)</td>
+</tr>
+<tr>
+<td><code>_match_claims</code></td>
+<td>Step 4</td>
+<td>4,746,112</td>
+<td><code>CLM_ID</code></td>
+<td>Match classification</td>
+</tr>
+<tr>
+<td><code>_discrepancy_detail</code></td>
+<td>Step 5</td>
+<td>343,485</td>
+<td><code>DESYNPUF_ID</code></td>
+<td>Row-level field diffs for matched beneficiaries</td>
+</tr>
+<tr>
+<td><code>_financial_recon</code></td>
+<td>Step 4</td>
+<td>262,017</td>
+<td><code>DESYNPUF_ID</code>, <code>summary_year</code></td>
+<td>Carrier reimbursement: reported vs computed from claim lines</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="validation-checks-reference">Validation Checks Reference</h2>
+<p>These 11 checks run against <strong>old system data</strong> in Step 4 to establish a quality baseline. Each is a standalone function in <code>src/validate.py</code> that executes a SQL query and returns a <code>ValidationResult</code>.</p>
+<h3 id="identity-checks-checkkeyintegrity">Identity Checks (<code>check_key_integrity</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Check Name</th>
+<th>SQL Logic</th>
+<th>What It Catches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>orphan_claims_beneficiaries</code></td>
+<td><code>LEFT JOIN carrier_claims → beneficiary_summary WHERE bs.DESYNPUF_ID IS NULL</code></td>
+<td>Claim records referencing beneficiary IDs that don't exist in any summary file</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>beneficiaries_without_claims</code></td>
+<td><code>LEFT JOIN beneficiary_summary → carrier_claims WHERE cc.DESYNPUF_ID IS NULL</code></td>
+<td>Beneficiaries who appear in summary files but have zero carrier claims</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>duplicate_claim_ids</code></td>
+<td><code>GROUP BY CLM_ID HAVING COUNT(*) &gt; 1</code></td>
+<td>Claim IDs that appear more than once (should be unique)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="temporal-checks-checktemporalconsistency">Temporal Checks (<code>check_temporal_consistency</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Check Name</th>
+<th>SQL Logic</th>
+<th>What It Catches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4</td>
+<td><code>claims_after_death</code></td>
+<td><code>JOIN on DESYNPUF_ID WHERE CLM_FROM_DT &gt; BENE_DEATH_DT</code></td>
+<td>Claims filed after the beneficiary's recorded death date</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>claim_date_inversion</code></td>
+<td><code>WHERE CLM_FROM_DT &gt; CLM_THRU_DT</code></td>
+<td>Claims where the start date is after the end date (impossible)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="demographic-checks-checkdemographicconsistency">Demographic Checks (<code>check_demographic_consistency</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Check Name</th>
+<th>SQL Logic</th>
+<th>What It Catches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6</td>
+<td><code>sex_change_across_years</code></td>
+<td><code>GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_SEX_IDENT_CD) &gt; 1</code></td>
+<td>Sex code changes between summary years (should be immutable)</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>race_change_across_years</code></td>
+<td><code>GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_RACE_CD) &gt; 1</code></td>
+<td>Race code changes between summary years (should be immutable)</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>dob_change_across_years</code></td>
+<td><code>GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_BIRTH_DT) &gt; 1</code></td>
+<td>Date of birth changes between summary years (should be immutable)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="financial-checks-checkfinancialreconciliation">Financial Checks (<code>check_financial_reconciliation</code>)</h3>
+<p>These checks verify that the <strong>summary-level financial totals</strong> on each beneficiary record match what you get when you <strong>recompute them from the individual claim line items</strong>. This is the most complex validation — it unpivots the 13 claim lines per claim, applies the CMS codebook filter (<code>LINE_PRCSG_IND_CD = 'A'</code> or approved overrides), and aggregates per beneficiary per year.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Check Name</th>
+<th>Formula Verified</th>
+<th>What It Catches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>9</td>
+<td><code>financial_recon_pppymt_car</code></td>
+<td><code>PPPYMT_CAR = SUM(LINE_BENE_PRMRY_PYR_PD_AMT)</code></td>
+<td>Primary payer amount: summary vs claim-line aggregate</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>financial_recon_medreimb_car</code></td>
+<td><code>MEDREIMB_CAR = SUM(LINE_NCH_PMT_AMT)</code></td>
+<td>Medicare reimbursement: summary vs claim-line aggregate</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>financial_recon_benres_car</code></td>
+<td><code>BENRES_CAR = SUM(LINE_BENE_PTB_DDCTBL_AMT + LINE_COINSRNC_AMT)</code></td>
+<td>Beneficiary responsibility: summary vs claim-line aggregate</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pass/fail rule:</strong> A check passes if <code>issues_found == 0</code>. No thresholds — any discrepancy &gt;$0.01 is counted as an issue.</p>
+<h3 id="result-dataclass">Result Dataclass</h3>
+<pre><code class="language-python">@dataclass
+class ValidationResult:
+    check_name: str        # e.g. &quot;claims_after_death&quot;
+    category: str          # identity | temporal | demographic | financial
+    description: str       # human-readable explanation
+    total_checked: int     # denominator (records examined)
+    issues_found: int      # numerator (records that violated the rule)
+    issue_pct: float       # issues_found / total_checked × 100
+    details: list[dict]    # optional extra context
+
+    @property
+    def passed(self) -&gt; bool:
+        return self.issues_found == 0
+</code></pre>
+<hr />
+<h2 id="comparison-checks-reference">Comparison Checks Reference</h2>
+<p>These 46 checks run in Step 5 when new system data is available. They compare <strong>old vs new</strong> across two table pairs. Each is a function in <code>src/compare.py</code> that returns a <code>ComparisonResult</code>.</p>
+<h3 id="check-categories">Check Categories</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Function</th>
+<th>Checks Per Pair</th>
+<th>What It Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>schema</strong></td>
+<td><code>compare_schemas()</code></td>
+<td>3</td>
+<td>Compares column names and data types between old and new tables</td>
+</tr>
+<tr>
+<td><strong>row_level</strong></td>
+<td><code>compare_row_counts()</code></td>
+<td>3</td>
+<td>Counts total rows, keys missing in new, keys extra in new</td>
+</tr>
+<tr>
+<td><strong>field_level</strong></td>
+<td><code>compare_field_values()</code></td>
+<td>15 (bene) + 6 (claims)</td>
+<td>For each configured column, counts value mismatches on matched rows</td>
+</tr>
+<tr>
+<td><strong>aggregate</strong></td>
+<td><code>compare_aggregates()</code></td>
+<td>9 (bene) + 4 (claims)</td>
+<td>Compares SUM and AVG of numeric columns between systems</td>
+</tr>
+</tbody>
+</table>
+<h3 id="schema-checks-3-per-table-pair-2-pairs-6">Schema Checks (3 per table pair × 2 pairs = 6)</h3>
+<table>
+<thead>
+<tr>
+<th>Check Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>missing_columns_in_new</code></td>
+<td>Columns present in old system but absent in new</td>
+</tr>
+<tr>
+<td><code>extra_columns_in_new</code></td>
+<td>Columns present in new system but absent in old</td>
+</tr>
+<tr>
+<td><code>type_mismatches</code></td>
+<td>Columns with different DuckDB data types between systems</td>
+</tr>
+</tbody>
+</table>
+<h3 id="row-level-checks-3-per-table-pair-2-pairs-6">Row-Level Checks (3 per table pair × 2 pairs = 6)</h3>
+<table>
+<thead>
+<tr>
+<th>Check Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>row_count_difference</code></td>
+<td>Absolute difference in total row counts</td>
+</tr>
+<tr>
+<td><code>keys_missing_in_new</code></td>
+<td>Distinct key values in old but not in new (data loss)</td>
+</tr>
+<tr>
+<td><code>keys_extra_in_new</code></td>
+<td>Distinct key values in new but not in old (phantom records)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="field-level-checks-15-beneficiary-6-claims-21">Field-Level Checks (15 beneficiary + 6 claims = 21)</h3>
+<p>For each column listed in <code>compare_cols</code>, runs:</p>
+<pre><code class="language-sql">SELECT COUNT(*) AS matched_rows,
+       SUM(CASE WHEN old.col::VARCHAR IS DISTINCT FROM new.col::VARCHAR
+           THEN 1 ELSE 0 END) AS mismatches
+FROM old_table INNER JOIN new_table ON key = key
+</code></pre>
+<p><strong>Beneficiary columns compared (15):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Category</th>
+<th>What It Represents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BENE_BIRTH_DT</code></td>
+<td>Demographic</td>
+<td>Date of birth</td>
+</tr>
+<tr>
+<td><code>BENE_DEATH_DT</code></td>
+<td>Demographic</td>
+<td>Date of death</td>
+</tr>
+<tr>
+<td><code>BENE_SEX_IDENT_CD</code></td>
+<td>Demographic</td>
+<td>Sex code</td>
+</tr>
+<tr>
+<td><code>BENE_RACE_CD</code></td>
+<td>Demographic</td>
+<td>Race code</td>
+</tr>
+<tr>
+<td><code>SP_ALZHDMTA</code></td>
+<td>Clinical</td>
+<td>Alzheimer's/dementia flag</td>
+</tr>
+<tr>
+<td><code>SP_CHF</code></td>
+<td>Clinical</td>
+<td>Congestive heart failure flag</td>
+</tr>
+<tr>
+<td><code>SP_CHRNKIDN</code></td>
+<td>Clinical</td>
+<td>Chronic kidney disease flag</td>
+</tr>
+<tr>
+<td><code>SP_CNCR</code></td>
+<td>Clinical</td>
+<td>Cancer flag</td>
+</tr>
+<tr>
+<td><code>SP_COPD</code></td>
+<td>Clinical</td>
+<td>COPD flag</td>
+</tr>
+<tr>
+<td><code>SP_DEPRESSN</code></td>
+<td>Clinical</td>
+<td>Depression flag</td>
+</tr>
+<tr>
+<td><code>SP_DIABETES</code></td>
+<td>Clinical</td>
+<td>Diabetes flag</td>
+</tr>
+<tr>
+<td><code>SP_ISCHMCHT</code></td>
+<td>Clinical</td>
+<td>Ischemic heart disease flag</td>
+</tr>
+<tr>
+<td><code>SP_OSTEOPRS</code></td>
+<td>Clinical</td>
+<td>Osteoporosis flag</td>
+</tr>
+<tr>
+<td><code>SP_RA_OA</code></td>
+<td>Clinical</td>
+<td>Rheumatoid arthritis / osteoarthritis flag</td>
+</tr>
+<tr>
+<td><code>SP_STRKETIA</code></td>
+<td>Clinical</td>
+<td>Stroke / TIA flag</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Carrier claims columns compared (6):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Category</th>
+<th>What It Represents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DESYNPUF_ID</code></td>
+<td>Identity</td>
+<td>Beneficiary identifier</td>
+</tr>
+<tr>
+<td><code>CLM_FROM_DT</code></td>
+<td>Temporal</td>
+<td>Claim start date</td>
+</tr>
+<tr>
+<td><code>CLM_THRU_DT</code></td>
+<td>Temporal</td>
+<td>Claim end date</td>
+</tr>
+<tr>
+<td><code>ICD9_DGNS_CD_1</code></td>
+<td>Clinical</td>
+<td>Primary diagnosis code</td>
+</tr>
+<tr>
+<td><code>ICD9_DGNS_CD_2</code></td>
+<td>Clinical</td>
+<td>Secondary diagnosis code</td>
+</tr>
+<tr>
+<td><code>HCPCS_CD_1</code></td>
+<td>Clinical</td>
+<td>Primary procedure code</td>
+</tr>
+</tbody>
+</table>
+<h3 id="aggregate-checks-9-beneficiary-4-claims-13">Aggregate Checks (9 beneficiary + 4 claims = 13)</h3>
+<p>For each column listed in <code>numeric_cols</code>, compares <code>SUM()</code> and <code>AVG()</code> between old and new tables. The <code>metric_value</code> is the absolute difference in sums.</p>
+<p><strong>Beneficiary numeric columns (9):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>What It Represents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MEDREIMB_IP</code></td>
+<td>Medicare reimbursement — inpatient</td>
+</tr>
+<tr>
+<td><code>BENRES_IP</code></td>
+<td>Beneficiary responsibility — inpatient</td>
+</tr>
+<tr>
+<td><code>PPPYMT_IP</code></td>
+<td>Primary payer payment — inpatient</td>
+</tr>
+<tr>
+<td><code>MEDREIMB_OP</code></td>
+<td>Medicare reimbursement — outpatient</td>
+</tr>
+<tr>
+<td><code>BENRES_OP</code></td>
+<td>Beneficiary responsibility — outpatient</td>
+</tr>
+<tr>
+<td><code>PPPYMT_OP</code></td>
+<td>Primary payer payment — outpatient</td>
+</tr>
+<tr>
+<td><code>MEDREIMB_CAR</code></td>
+<td>Medicare reimbursement — carrier</td>
+</tr>
+<tr>
+<td><code>BENRES_CAR</code></td>
+<td>Beneficiary responsibility — carrier</td>
+</tr>
+<tr>
+<td><code>PPPYMT_CAR</code></td>
+<td>Primary payer payment — carrier</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Carrier claims numeric columns (4):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>What It Represents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LINE_NCH_PMT_AMT_1</code></td>
+<td>Line 1 payment amount</td>
+</tr>
+<tr>
+<td><code>LINE_BENE_PTB_DDCTBL_AMT_1</code></td>
+<td>Line 1 beneficiary deductible</td>
+</tr>
+<tr>
+<td><code>LINE_COINSRNC_AMT_1</code></td>
+<td>Line 1 coinsurance amount</td>
+</tr>
+<tr>
+<td><code>LINE_ALOWD_CHRG_AMT_1</code></td>
+<td>Line 1 allowed charge amount</td>
+</tr>
+</tbody>
+</table>
+<h3 id="result-dataclass_1">Result Dataclass</h3>
+<pre><code class="language-python">@dataclass
+class ComparisonResult:
+    check_name: str       # e.g. &quot;field_mismatch_bene_birth_dt&quot;
+    category: str         # schema | row_level | field_level | aggregate
+    table_pair: str       # e.g. &quot;beneficiary_summary vs new_beneficiary_summary&quot;
+    description: str      # human-readable
+    metric_value: float   # the primary metric (count, dollar diff, etc.)
+    details: list[dict]   # optional context (old_sum, new_sum, etc.)
+</code></pre>
+<hr />
+<h2 id="output-artifacts">Output Artifacts</h2>
+<h3 id="report-files">Report Files</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reports/report_data.json</code></td>
+<td>Canonical data artifact — all pipeline results as structured JSON (~293 KB)</td>
+</tr>
+<tr>
+<td><code>reports/comparison_report.html</code></td>
+<td>Interactive HTML report with Plotly charts, sidebar nav, sortable tables (~1.5 MB)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-exports-csv-human-readable-excel-compatible">Data Exports (CSV — human-readable, Excel-compatible)</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reports/exports/_discrepancy_detail.csv</code></td>
+<td>Row-level field diffs for all matched beneficiary records</td>
+</tr>
+<tr>
+<td><code>reports/exports/_financial_recon.csv</code></td>
+<td>Per-beneficiary financial reconciliation (reported vs computed)</td>
+</tr>
+<tr>
+<td><code>reports/exports/_match_beneficiary.csv</code></td>
+<td>Match classification for every beneficiary record</td>
+</tr>
+<tr>
+<td><code>reports/exports/_match_claims.csv</code></td>
+<td>Match classification for every carrier claim record</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-exports-parquet-columnar-compressed-standard-interchange">Data Exports (Parquet — columnar, compressed, standard interchange)</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reports/exports/_discrepancy_detail.parquet</code></td>
+<td>Same data as CSV, in ZSTD-compressed Parquet format</td>
+</tr>
+<tr>
+<td><code>reports/exports/_financial_recon.parquet</code></td>
+<td>Same data as CSV, in ZSTD-compressed Parquet format</td>
+</tr>
+<tr>
+<td><code>reports/exports/_match_beneficiary.parquet</code></td>
+<td>Same data as CSV, in ZSTD-compressed Parquet format</td>
+</tr>
+<tr>
+<td><code>reports/exports/_match_claims.parquet</code></td>
+<td>Same data as CSV, in ZSTD-compressed Parquet format</td>
+</tr>
+</tbody>
+</table>
+<p>Parquet files are produced natively by DuckDB (no pyarrow dependency) and can be consumed by Spark, Pandas, Polars, BigQuery, Snowflake, or any tool that reads columnar data. ZSTD compression typically achieves 5–10× size reduction vs CSV.</p>
+<h3 id="persistent-datastore">Persistent Datastore</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data/db/cms_claims.duckdb</code></td>
+<td>Persistent DuckDB database with all 8 tables — queryable via CLI, Python, or any DuckDB binding</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="adding-a-new-check">Adding a New Check</h2>
+<p>To add a validation check:</p>
+<ol>
+<li>Write a function in <code>src/validate.py</code> that takes a DuckDB connection and returns <code>list[ValidationResult]</code>.</li>
+<li>Add a call to it in <code>validate.run()</code>.</li>
+<li>The report will automatically pick it up — no template changes needed.</li>
+</ol>
+<p>To add a comparison check:</p>
+<ol>
+<li>Add columns to <code>compare_cols</code> or <code>numeric_cols</code> in the <code>TABLE_PAIRS</code> config in <code>src/compare.py</code>.</li>
+<li>Or write a new comparison function and call it from <code>compare.run()</code>.</li>
+<li>The report will automatically pick it up.</li>
+</ol>
+</div>
+
+</body>
+</html>

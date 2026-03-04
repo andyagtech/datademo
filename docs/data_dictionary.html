@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Dictionary — CMS Claims Comparison Pipeline</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.7; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+
+  /* -- Sidebar TOC -- */
+  .sidebar {
+    position: fixed; top: 32px; left: 0; width: 240px; bottom: 0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 16px 12px; font-size: 0.75rem;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar .toc-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px;
+  }
+  .sidebar a {
+    display: block; padding: 4px 8px; margin: 1px 0; border-radius: 4px;
+    color: var(--muted); text-decoration: none; transition: all 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .sidebar a.depth-2 { padding-left: 20px; font-size: 0.7rem; }
+
+  /* -- Content -- */
+  .content {
+    margin-left: 240px; margin-top: 32px; padding: 32px 48px 80px;
+    max-width: 960px;
+  }
+  @media (max-width: 800px) {
+    .sidebar { display: none; }
+    .content { margin-left: 0; padding: 24px 20px 60px; }
+  }
+
+  /* -- Typography -- */
+  .content h1 {
+    font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;
+    color: var(--accent); border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .content h2 {
+    font-size: 1.15rem; font-weight: 700; margin-top: 2.2rem; margin-bottom: 0.6rem;
+    color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .content h3 {
+    font-size: 0.95rem; font-weight: 700; margin-top: 1.6rem; margin-bottom: 0.4rem;
+    color: var(--accent2);
+  }
+  .content h4 {
+    font-size: 0.85rem; font-weight: 700; margin-top: 1.2rem; margin-bottom: 0.3rem;
+    color: var(--muted);
+  }
+  .content p { margin-bottom: 0.9rem; font-size: 0.88rem; }
+  .content a { color: var(--accent); text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .content strong { color: var(--text); font-weight: 700; }
+  .content em { color: var(--muted); }
+  .content ul, .content ol { padding-left: 1.5em; margin-bottom: 1rem; font-size: 0.88rem; }
+  .content li { margin-bottom: 0.3rem; }
+  .content li > ul, .content li > ol { margin-top: 0.3rem; margin-bottom: 0; }
+
+  /* -- Code -- */
+  .content code {
+    font-family: var(--mono); font-size: 0.78rem;
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+    color: var(--orange);
+  }
+  .content pre {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; overflow-x: auto;
+    margin-bottom: 1.2rem;
+  }
+  .content pre code {
+    background: none; padding: 0; color: var(--text); font-size: 0.76rem;
+    line-height: 1.6;
+  }
+
+  /* -- Tables -- */
+  .content table {
+    width: 100%; border-collapse: collapse; margin-bottom: 1.2rem;
+    font-size: 0.8rem;
+  }
+  .content th {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 8px 12px; text-align: left; font-weight: 700;
+    color: var(--accent); font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .content td {
+    border: 1px solid var(--border); padding: 6px 12px;
+    vertical-align: top;
+  }
+  .content tr:nth-child(even) { background: rgba(26,29,39,0.5); }
+
+  /* -- Blockquote -- */
+  .content blockquote {
+    border-left: 3px solid var(--accent); margin: 1rem 0;
+    padding: 8px 16px; background: rgba(56,189,248,0.04);
+    font-size: 0.85rem; color: var(--muted);
+  }
+
+  /* -- HR -- */
+  .content hr {
+    border: none; height: 1px; background: var(--border);
+    margin: 2rem 0;
+  }
+
+  /* -- Source badge -- */
+  .source-badge {
+    display: inline-block; font-size: 0.65rem; padding: 2px 8px;
+    border-radius: 3px; background: rgba(56,189,248,0.1);
+    color: var(--accent); font-family: var(--mono); margin-bottom: 1.2rem;
+  }
+</style>
+</head>
+<body>
+
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="reports/comparison_report.html">Report</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html">Parquet</a>
+  <a href="sql_explorer.html">SQL</a>
+</nav>
+
+<nav class="sidebar" id="toc">
+  <div class="toc-title">Contents</div>
+  <a href="#data-dictionary" class="">Data Dictionary</a>
+  <a href="#table-of-contents" class="depth-2">Table of Contents</a>
+  <a href="#about-the-dataset" class="depth-2">About the Dataset</a>
+  <a href="#new-system-under-test" class="depth-2">New System Under Test</a>
+  <a href="#file-inventory" class="depth-3">File Inventory</a>
+  <a href="#key-observations" class="depth-3">Key Observations</a>
+  <a href="#beneficiary-summary-table" class="depth-2">Beneficiary Summary Table</a>
+  <a href="#chronic-condition-flags" class="depth-3">Chronic Condition Flags</a>
+  <a href="#financial-summary-columns" class="depth-3">Financial Summary Columns</a>
+  <a href="#carrier-claims-table" class="depth-2">Carrier Claims Table</a>
+  <a href="#claim-header-columns" class="depth-3">Claim Header Columns</a>
+  <a href="#claim-line-columns-13" class="depth-3">Claim Line Columns ×13</a>
+  <a href="#schema-comparison-old-vs-new" class="depth-2">Schema Comparison: Old vs New</a>
+  <a href="#beneficiary-summary" class="depth-3">Beneficiary Summary</a>
+  <a href="#carrier-claims" class="depth-3">Carrier Claims</a>
+  <a href="#discrepancies-found-by-the-pipeline" class="depth-3">Discrepancies Found by the Pipeline</a>
+  <a href="#derived-internal-tables" class="depth-2">Derived / Internal Tables</a>
+  <a href="#discrepancydetail-columns" class="depth-3">discrepancydetail Columns</a>
+  <a href="#using-other-cms-samples" class="depth-2">Using Other CMS Samples</a>
+  <a href="#extending-to-non-cms-data" class="depth-3">Extending to Non-CMS Data</a>
+  <a href="#codebook-reference" class="depth-2">Codebook Reference</a>
+</nav>
+
+<div class="content">
+  <span class="source-badge">Source: DATA_DICTIONARY.md</span>
+  <h1 id="data-dictionary">Data Dictionary</h1>
+<blockquote>
+<p>Overview of the CMS DE-SynPUF dataset used by this pipeline, including table schemas, column definitions, and guidance for using other samples.</p>
+</blockquote>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#about-the-dataset">About the Dataset</a></li>
+<li><a href="#new-system-under-test">New System (Under Test)</a></li>
+<li><a href="#beneficiary-summary-table">Beneficiary Summary Table</a></li>
+<li><a href="#carrier-claims-table">Carrier Claims Table</a></li>
+<li><a href="#schema-comparison-old-vs-new">Schema Comparison: Old vs New</a></li>
+<li><a href="#derived--internal-tables">Derived / Internal Tables</a></li>
+<li><a href="#using-other-cms-samples">Using Other CMS Samples</a></li>
+<li><a href="#codebook-reference">Codebook Reference</a></li>
+</ol>
+<hr />
+<h2 id="about-the-dataset">About the Dataset</h2>
+<p><strong>CMS DE-SynPUF</strong> (Data Entrepreneurs' Synthetic Public Use File) is a synthetic Medicare claims dataset published by the Centers for Medicare &amp; Medicaid Services (CMS). It was created to enable software development and research without exposing real patient data.</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Publisher</strong></td>
+<td>CMS (Centers for Medicare &amp; Medicaid Services)</td>
+</tr>
+<tr>
+<td><strong>Coverage</strong></td>
+<td>Calendar years 2008, 2009, 2010</td>
+</tr>
+<tr>
+<td><strong>Population</strong></td>
+<td>Synthetic Medicare beneficiaries (fee-for-service)</td>
+</tr>
+<tr>
+<td><strong>Samples</strong></td>
+<td>20 independent samples (Sample 1 through Sample 20), each ~115K beneficiaries</td>
+</tr>
+<tr>
+<td><strong>Download</strong></td>
+<td><a href="https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf">cms.gov DE-SynPUF page</a></td>
+</tr>
+<tr>
+<td><strong>Codebook</strong></td>
+<td><a href="https://www.cms.gov/files/document/de-10-codebook.pdf">DE-SynPUF Codebook (PDF)</a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>How the data was synthesized:</strong> CMS took real Medicare claims from 2008–2010, applied statistical disclosure limitation techniques (noise injection, field swapping, synthetic generation), and produced files that preserve the <em>statistical properties</em> of real data (distributions, correlations, claim patterns) without containing any actual patient records.</p>
+<p><strong>What this pipeline uses:</strong> Sample 1 only — 5 CSV files:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Table</th>
+<th>Records</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv</code></td>
+<td><code>beneficiary_summary</code></td>
+<td>~115K</td>
+<td>Year 2008 beneficiary demographics + financials</td>
+</tr>
+<tr>
+<td><code>DE1_0_2009_Beneficiary_Summary_File_Sample_1.csv</code></td>
+<td><code>beneficiary_summary</code></td>
+<td>~115K</td>
+<td>Year 2009</td>
+</tr>
+<tr>
+<td><code>DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv</code></td>
+<td><code>beneficiary_summary</code></td>
+<td>~113K</td>
+<td>Year 2010</td>
+</tr>
+<tr>
+<td><code>DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv</code></td>
+<td><code>carrier_claims</code></td>
+<td>~2.37M</td>
+<td>Carrier claims batch A</td>
+</tr>
+<tr>
+<td><code>DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv</code></td>
+<td><code>carrier_claims</code></td>
+<td>~2.37M</td>
+<td>Carrier claims batch B</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="new-system-under-test">New System (Under Test)</h2>
+<p>The new system is the replacement claims processing pipeline whose outputs are validated against the old system (ground truth). The new system data is provided as a password-protected zip file as part of the assessment.</p>
+<p><strong>Source:</strong> Assessment-provided zip file (password: <code>SlJxqMl9</code>)</p>
+<h3 id="file-inventory">File Inventory</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>DuckDB Table</th>
+<th>Records</th>
+<th>Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DE1_0_2008_Beneficiary_Summary_File_Sample_1_NEWSYSTEM.csv</code></td>
+<td><code>new_beneficiary_summary</code></td>
+<td>~116K</td>
+<td>14.6 MB</td>
+</tr>
+<tr>
+<td><code>DE1_0_2009_Beneficiary_Summary_File_Sample_1_NEWSYSTEM.csv</code></td>
+<td><code>new_beneficiary_summary</code></td>
+<td>~115K</td>
+<td>14.5 MB</td>
+</tr>
+<tr>
+<td><code>DE1_0_2010_Beneficiary_Summary_File_Sample_1_NEWSYSTEM.csv</code></td>
+<td><code>new_beneficiary_summary</code></td>
+<td>~113K</td>
+<td>14.1 MB</td>
+</tr>
+<tr>
+<td><code>DE1_0_2008_to_2010_Carrier_Claims_Sample_1A_NEWSYSTEM.csv</code></td>
+<td><code>new_carrier_claims</code></td>
+<td>~2.37M</td>
+<td>1.24 GB</td>
+</tr>
+<tr>
+<td><code>DE1_0_2008_to_2010_Carrier_Claims_Sample_1B_NEWSYSTEM.csv</code></td>
+<td><code>new_carrier_claims</code></td>
+<td>~2.37M</td>
+<td>1.24 GB</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-observations">Key Observations</h3>
+<p>The new system intentionally contains issues. At a high level:</p>
+<ul>
+<li><strong>Same file structure</strong> as the old system — 3 beneficiary summary files (one per year) + 2 carrier claims files</li>
+<li><strong>Same column names</strong> — all 33 beneficiary columns and 142 carrier claims columns are present</li>
+<li><strong>Row count differences</strong> — the new system produces 4,777 more carrier claims than the old system (phantom claims that exist only in the new system)</li>
+<li><strong>One type difference</strong> — <code>CLM_ID</code> is <code>BIGINT</code> in the old system and <code>VARCHAR</code> in the new system (handled automatically by DuckDB during matching via cast)</li>
+<li><strong>Intentional data discrepancies</strong> — detailed in the <a href="#schema-comparison-old-vs-new">Schema Comparison</a> section below</li>
+</ul>
+<p>The pipeline auto-detects these files by reading CSV headers — the <code>_NEWSYSTEM</code> filename suffix is not required.</p>
+<hr />
+<h2 id="beneficiary-summary-table">Beneficiary Summary Table</h2>
+<p><strong>DuckDB table name:</strong> <code>beneficiary_summary</code> (old system), <code>new_beneficiary_summary</code> (new system)</p>
+<p><strong>Grain:</strong> One row per beneficiary per calendar year.</p>
+<p><strong>Primary key:</strong> <code>(DESYNPUF_ID, summary_year)</code></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DESYNPUF_ID</code></td>
+<td>VARCHAR</td>
+<td>Unique beneficiary identifier (16-char hex)</td>
+<td><code>00013D2EFD8E45D1</code></td>
+</tr>
+<tr>
+<td><code>summary_year</code></td>
+<td>INTEGER</td>
+<td>Calendar year (derived from filename during ingestion)</td>
+<td><code>2008</code></td>
+</tr>
+<tr>
+<td><code>BENE_BIRTH_DT</code></td>
+<td>INTEGER</td>
+<td>Date of birth (YYYYMMDD format)</td>
+<td><code>19230501</code></td>
+</tr>
+<tr>
+<td><code>BENE_DEATH_DT</code></td>
+<td>INTEGER</td>
+<td>Date of death, 0 if alive (YYYYMMDD)</td>
+<td><code>0</code> or <code>20090715</code></td>
+</tr>
+<tr>
+<td><code>BENE_SEX_IDENT_CD</code></td>
+<td>INTEGER</td>
+<td>Sex: 1 = Male, 2 = Female</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>BENE_RACE_CD</code></td>
+<td>INTEGER</td>
+<td>Race: 1=White, 2=Black, 3=Other, 5=Hispanic</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>SP_STATE_CODE</code></td>
+<td>INTEGER</td>
+<td>State SSA code (1–53)</td>
+<td><code>26</code></td>
+</tr>
+<tr>
+<td><code>BENE_COUNTY_CD</code></td>
+<td>INTEGER</td>
+<td>County SSA code</td>
+<td><code>999</code></td>
+</tr>
+<tr>
+<td><code>BENE_HI_CVRAGE_TOT_MONS</code></td>
+<td>INTEGER</td>
+<td>Months of Part A (Hospital Insurance) coverage</td>
+<td><code>12</code></td>
+</tr>
+<tr>
+<td><code>BENE_SMI_CVRAGE_TOT_MONS</code></td>
+<td>INTEGER</td>
+<td>Months of Part B (Supplementary Medical Insurance) coverage</td>
+<td><code>12</code></td>
+</tr>
+<tr>
+<td><code>BENE_HMO_CVRAGE_TOT_MONS</code></td>
+<td>INTEGER</td>
+<td>Months of HMO coverage</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>PLAN_CVRG_MOS_NUM</code></td>
+<td>INTEGER</td>
+<td>Months of Part D (prescription drug) coverage</td>
+<td><code>12</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="chronic-condition-flags">Chronic Condition Flags</h3>
+<p>Each flag is <code>1</code> (condition present) or <code>2</code> (absent/unknown). The pipeline checks value <code>1</code> for prevalence.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SP_ALZHDMTA</code></td>
+<td>Alzheimer's Disease / Related Dementia</td>
+</tr>
+<tr>
+<td><code>SP_CHF</code></td>
+<td>Heart Failure</td>
+</tr>
+<tr>
+<td><code>SP_CHRNKIDN</code></td>
+<td>Chronic Kidney Disease</td>
+</tr>
+<tr>
+<td><code>SP_CNCR</code></td>
+<td>Cancer (Breast, Colorectal, Prostate, Lung, Endometrial)</td>
+</tr>
+<tr>
+<td><code>SP_COPD</code></td>
+<td>Chronic Obstructive Pulmonary Disease</td>
+</tr>
+<tr>
+<td><code>SP_DEPRESSN</code></td>
+<td>Depression</td>
+</tr>
+<tr>
+<td><code>SP_DIABETES</code></td>
+<td>Diabetes</td>
+</tr>
+<tr>
+<td><code>SP_ISCHMCHT</code></td>
+<td>Ischemic Heart Disease</td>
+</tr>
+<tr>
+<td><code>SP_OSTEOPRS</code></td>
+<td>Osteoporosis</td>
+</tr>
+<tr>
+<td><code>SP_RA_OA</code></td>
+<td>Rheumatoid Arthritis / Osteoarthritis</td>
+</tr>
+<tr>
+<td><code>SP_STRKETIA</code></td>
+<td>Stroke / Transient Ischemic Attack</td>
+</tr>
+</tbody>
+</table>
+<h3 id="financial-summary-columns">Financial Summary Columns</h3>
+<p>Annual reimbursement totals per beneficiary, broken down by service type. These should reconcile with the sum of individual claim line items (validated by the financial reconciliation checks).</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MEDREIMB_IP</code></td>
+<td>Medicare reimbursement — Inpatient</td>
+</tr>
+<tr>
+<td><code>BENRES_IP</code></td>
+<td>Beneficiary responsibility — Inpatient</td>
+</tr>
+<tr>
+<td><code>PPPYMT_IP</code></td>
+<td>Primary payer payment — Inpatient</td>
+</tr>
+<tr>
+<td><code>MEDREIMB_OP</code></td>
+<td>Medicare reimbursement — Outpatient</td>
+</tr>
+<tr>
+<td><code>BENRES_OP</code></td>
+<td>Beneficiary responsibility — Outpatient</td>
+</tr>
+<tr>
+<td><code>PPPYMT_OP</code></td>
+<td>Primary payer payment — Outpatient</td>
+</tr>
+<tr>
+<td><code>MEDREIMB_CAR</code></td>
+<td>Medicare reimbursement — Carrier</td>
+</tr>
+<tr>
+<td><code>BENRES_CAR</code></td>
+<td>Beneficiary responsibility — Carrier</td>
+</tr>
+<tr>
+<td><code>PPPYMT_CAR</code></td>
+<td>Primary payer payment — Carrier</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Financial reconciliation formula (per codebook):</strong></p>
+<pre><code>MEDREIMB_CAR = SUM(LINE_NCH_PMT_AMT) for lines where:
+  LINE_PRCSG_IND_CD = 'A'
+  OR (LINE_PRCSG_IND_CD IN ('R','S') AND LINE_ALOWD_CHRG_AMT &gt; 0)
+
+BENRES_CAR = SUM(LINE_BENE_PTB_DDCTBL_AMT + LINE_COINSRNC_AMT) [same filter]
+PPPYMT_CAR = SUM(LINE_BENE_PRMRY_PYR_PD_AMT) [same filter]
+</code></pre>
+<hr />
+<h2 id="carrier-claims-table">Carrier Claims Table</h2>
+<p><strong>DuckDB table name:</strong> <code>carrier_claims</code> (old system), <code>new_carrier_claims</code> (new system)</p>
+<p><strong>Grain:</strong> One row per carrier claim. Each claim can have up to 13 line items (denormalized — line item columns are suffixed <code>_1</code> through <code>_13</code>).</p>
+<p><strong>Primary key:</strong> <code>CLM_ID</code></p>
+<h3 id="claim-header-columns">Claim Header Columns</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DESYNPUF_ID</code></td>
+<td>VARCHAR</td>
+<td>Beneficiary ID (FK to beneficiary_summary)</td>
+<td><code>00013D2EFD8E45D1</code></td>
+</tr>
+<tr>
+<td><code>CLM_ID</code></td>
+<td>BIGINT/VARCHAR</td>
+<td>Unique claim identifier</td>
+<td><code>196661176960050</code></td>
+</tr>
+<tr>
+<td><code>CLM_FROM_DT</code></td>
+<td>INTEGER</td>
+<td>Claim start date (YYYYMMDD)</td>
+<td><code>20090812</code></td>
+</tr>
+<tr>
+<td><code>CLM_THRU_DT</code></td>
+<td>INTEGER</td>
+<td>Claim end date (YYYYMMDD)</td>
+<td><code>20090812</code></td>
+</tr>
+<tr>
+<td><code>ICD9_DGNS_CD_1</code> through <code>_8</code></td>
+<td>VARCHAR</td>
+<td>ICD-9 diagnosis codes (up to 8)</td>
+<td><code>4019</code></td>
+</tr>
+<tr>
+<td><code>PRF_PHYSN_NPI_1</code>, <code>_2</code></td>
+<td>VARCHAR</td>
+<td>Performing physician NPI</td>
+<td><code>0000000000</code></td>
+</tr>
+<tr>
+<td><code>TAX_NUM_1</code> through <code>_13</code></td>
+<td>VARCHAR</td>
+<td>Provider tax number per line</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="claim-line-columns-13">Claim Line Columns (×13)</h3>
+<p>Each of the following columns is repeated 13 times with suffix <code>_1</code> through <code>_13</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Column Pattern</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LINE_NCH_PMT_AMT_{n}</code></td>
+<td>DOUBLE</td>
+<td>Medicare payment amount for this line</td>
+</tr>
+<tr>
+<td><code>LINE_BENE_PTB_DDCTBL_AMT_{n}</code></td>
+<td>DOUBLE</td>
+<td>Beneficiary Part B deductible</td>
+</tr>
+<tr>
+<td><code>LINE_COINSRNC_AMT_{n}</code></td>
+<td>DOUBLE</td>
+<td>Beneficiary coinsurance amount</td>
+</tr>
+<tr>
+<td><code>LINE_ALOWD_CHRG_AMT_{n}</code></td>
+<td>DOUBLE</td>
+<td>Allowed charge amount</td>
+</tr>
+<tr>
+<td><code>LINE_BENE_PRMRY_PYR_PD_AMT_{n}</code></td>
+<td>DOUBLE</td>
+<td>Primary payer payment</td>
+</tr>
+<tr>
+<td><code>LINE_PRCSG_IND_CD_{n}</code></td>
+<td>VARCHAR</td>
+<td>Processing indicator: A=Allowed, R=Rejected, S=Secondary</td>
+</tr>
+<tr>
+<td><code>LINE_ICD9_DGNS_CD_{n}</code></td>
+<td>VARCHAR</td>
+<td>Line-level ICD-9 diagnosis code</td>
+</tr>
+<tr>
+<td><code>HCPCS_CD_{n}</code></td>
+<td>VARCHAR</td>
+<td>HCPCS procedure code</td>
+</tr>
+<tr>
+<td><code>LINE_PLACE_OF_SRVC_CD_{n}</code></td>
+<td>VARCHAR</td>
+<td>Place of service code</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why 142 columns:</strong> 8 diagnosis codes + 2 NPIs + 13 tax numbers + (13 lines × 9 columns per line) = 142 total. This is a denormalized layout — a normalized design would have a separate <code>claim_lines</code> table.</p>
+<hr />
+<h2 id="schema-comparison-old-vs-new">Schema Comparison: Old vs New</h2>
+<p>The pipeline's Step 2 (Schema Validate) and Step 5 (Compare) verify schema compatibility. Here is the full comparison:</p>
+<h3 id="beneficiary-summary">Beneficiary Summary</h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Old System</th>
+<th>New System</th>
+<th>Match?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Column count</strong></td>
+<td>33</td>
+<td>33</td>
+<td>✅ Identical</td>
+</tr>
+<tr>
+<td><strong>Column names</strong></td>
+<td>All 33 present</td>
+<td>All 33 present</td>
+<td>✅ Identical</td>
+</tr>
+<tr>
+<td><strong>Column types</strong></td>
+<td>All match</td>
+<td>All match</td>
+<td>✅ Identical</td>
+</tr>
+<tr>
+<td><strong>Row count</strong></td>
+<td>343,644</td>
+<td>343,644</td>
+<td>✅ Identical</td>
+</tr>
+<tr>
+<td><strong>Unique beneficiaries</strong></td>
+<td>~115K</td>
+<td>~115K</td>
+<td>✅ (3 years × ~115K)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="carrier-claims">Carrier Claims</h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Old System</th>
+<th>New System</th>
+<th>Match?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Column count</strong></td>
+<td>142</td>
+<td>142</td>
+<td>✅ Identical</td>
+</tr>
+<tr>
+<td><strong>Column names</strong></td>
+<td>All 142 present</td>
+<td>All 142 present</td>
+<td>✅ Identical</td>
+</tr>
+<tr>
+<td><strong>CLM_ID type</strong></td>
+<td><code>BIGINT</code></td>
+<td><code>VARCHAR</code></td>
+<td>⚠️ Type mismatch — cast during match</td>
+</tr>
+<tr>
+<td><strong>Row count</strong></td>
+<td>4,741,335</td>
+<td>4,746,112</td>
+<td>❌ +4,777 new-only (phantom claims)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="discrepancies-found-by-the-pipeline">Discrepancies Found by the Pipeline</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Count</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Beneficiary field mismatches</strong></td>
+<td>446 records</td>
+<td>At least one field differs between old and new</td>
+</tr>
+<tr>
+<td><strong>BENE_BIRTH_DT mismatches</strong></td>
+<td>178</td>
+<td>Largest single field — systematic date parsing bug</td>
+</tr>
+<tr>
+<td><strong>Financial column mismatches</strong></td>
+<td>47–46 per column</td>
+<td>MEDREIMB_OP, BENRES_CAR, PPPYMT_CAR, etc.</td>
+</tr>
+<tr>
+<td><strong>Claims payment mismatches</strong></td>
+<td>10,411 on LINE_NCH_PMT_AMT_1</td>
+<td>Primary payment amount — systematic calculation error</td>
+</tr>
+<tr>
+<td><strong>Phantom claims</strong></td>
+<td>4,777</td>
+<td>Exist in new system only, 0 lost from old system</td>
+</tr>
+<tr>
+<td><strong>Total financial divergence</strong></td>
+<td>$35,624.71</td>
+<td>All positive (new system overstates)</td>
+</tr>
+</tbody>
+</table>
+<p>For the full analysis of what these discrepancies mean, see the <a href="../reports/comparison_report.html">Key Findings narrative</a> in the HTML report and the <a href="SOLUTION.md#analysis-findings">Analysis Findings</a> section in SOLUTION.md.</p>
+<hr />
+<h2 id="derived-internal-tables">Derived / Internal Tables</h2>
+<p>These tables are created by the pipeline during execution and are available for querying in the DuckDB database.</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Created By</th>
+<th>Grain</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_match_beneficiary</code></td>
+<td>Step 4</td>
+<td>One row per unique beneficiary-year key</td>
+<td>FULL OUTER JOIN result: <code>match_status</code> = matched / old_only / new_only</td>
+</tr>
+<tr>
+<td><code>_match_claims</code></td>
+<td>Step 4</td>
+<td>One row per unique CLM_ID</td>
+<td>FULL OUTER JOIN result for claims</td>
+</tr>
+<tr>
+<td><code>_discrepancy_detail</code></td>
+<td>Step 5</td>
+<td>One row per matched beneficiary-year</td>
+<td>Field-by-field diff flags (<code>diff_*</code>), dollar deltas (<code>delta_*</code>), and <code>total_diffs</code> count</td>
+</tr>
+<tr>
+<td><code>_financial_recon</code></td>
+<td>Validation</td>
+<td>One row per beneficiary-year with claims</td>
+<td>Reported vs. computed financial amounts from claim line aggregation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="discrepancydetail-columns"><code>_discrepancy_detail</code> Columns</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DESYNPUF_ID</code></td>
+<td>VARCHAR</td>
+<td>Beneficiary ID</td>
+</tr>
+<tr>
+<td><code>summary_year</code></td>
+<td>INTEGER</td>
+<td>Calendar year</td>
+</tr>
+<tr>
+<td><code>SP_STATE_CODE</code></td>
+<td>INTEGER</td>
+<td>State code (for geographic analysis)</td>
+</tr>
+<tr>
+<td><code>diff_{field}</code></td>
+<td>INTEGER (0/1)</td>
+<td>1 if old value ≠ new value for this field</td>
+</tr>
+<tr>
+<td><code>delta_{financial_field}</code></td>
+<td>DOUBLE</td>
+<td>Dollar difference (new − old) for financial columns</td>
+</tr>
+<tr>
+<td><code>total_diffs</code></td>
+<td>INTEGER</td>
+<td>Count of fields with mismatches for this record</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="using-other-cms-samples">Using Other CMS Samples</h2>
+<p>The pipeline is designed to work with <strong>any DE-SynPUF sample</strong> (1–20). To use a different sample:</p>
+<ol>
+<li>
+<p><strong>Download</strong> the desired sample files from the <a href="https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf">CMS DE-SynPUF page</a>.</p>
+</li>
+<li>
+<p><strong>Place the CSVs</strong> in <code>data/raw/</code>:<br />
+<code>bash
+   mkdir -p data/raw
+   # Unzip the downloaded files
+   for f in *.zip; do unzip -o "$f" -d data/raw/; done</code></p>
+</li>
+<li>
+<p><strong>Run the pipeline</strong> — file detection is automatic (matches glob patterns <code>*Beneficiary*</code> and <code>*Carrier*</code>):<br />
+<code>bash
+   python -m src.main</code></p>
+</li>
+<li>
+<p><strong>For new system comparison</strong>, place the comparison CSVs in a separate directory:<br />
+<code>bash
+   python -m src.main --new-data path/to/new/csvs/</code></p>
+</li>
+</ol>
+<p><strong>Compatibility notes:</strong><br />
+- All 20 samples share the same schema (column names and types are identical).<br />
+- Sample sizes are roughly equal (~115K beneficiaries, ~4.7M claims per sample).<br />
+- Samples are independent — different synthetic beneficiaries, no overlap.<br />
+- The pipeline auto-detects file types from CSV headers, so filenames can vary.</p>
+<h3 id="extending-to-non-cms-data">Extending to Non-CMS Data</h3>
+<p>The pipeline can be adapted for other paired-CSV comparison use cases. The key requirements:<br />
+- Both systems produce CSVs with overlapping schemas.<br />
+- There is a joinable primary key across systems.<br />
+- Configuration changes needed: <code>TABLE_PAIRS</code> in <code>src/compare.py</code> (column lists) and <code>KEY_CONFIG</code> in <code>src/pipeline/step4_match.py</code> (join keys).</p>
+<hr />
+<h2 id="codebook-reference">Codebook Reference</h2>
+<p>The CMS DE-SynPUF Codebook provides the authoritative definitions for all columns, value codes, and business rules. Key sections used by this pipeline:</p>
+<table>
+<thead>
+<tr>
+<th>Codebook Section</th>
+<th>Pipeline Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Table 1: Beneficiary Summary</strong></td>
+<td>Column definitions, chronic condition flag values (1 = yes, 2 = no)</td>
+</tr>
+<tr>
+<td><strong>Table 4: Carrier Claims</strong></td>
+<td>Claim structure, line item layout, processing indicator codes</td>
+</tr>
+<tr>
+<td><strong>Financial Reconciliation Rules</strong></td>
+<td>How <code>MEDREIMB_CAR</code> is computed from <code>LINE_NCH_PMT_AMT</code> with <code>LINE_PRCSG_IND_CD</code> filter</td>
+</tr>
+<tr>
+<td><strong>SSA State Codes</strong></td>
+<td>Mapping of <code>SP_STATE_CODE</code> to U.S. states (used in geographic analysis)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Download:</strong> <a href="https://www.cms.gov/files/document/de-10-codebook.pdf">DE-SynPUF Codebook (PDF)</a></p>
+</div>
+
+</body>
+</html>
