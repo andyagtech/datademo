@@ -465,14 +465,38 @@ class ComparisonResult:
 
 ## Output Artifacts
 
-| File | Size | Description |
-|------|------|-------------|
-| `reports/report_data.json` | ~293 KB | Canonical data artifact — all pipeline results as structured JSON |
-| `reports/comparison_report.html` | ~1.5 MB | Interactive HTML report with 6 Plotly charts, sortable tables, collapsible profiles |
-| `reports/exports/_discrepancy_detail.csv` | — | Row-level field diffs for all matched beneficiary records |
-| `reports/exports/_financial_recon.csv` | — | Per-beneficiary financial reconciliation (reported vs computed) |
-| `reports/exports/_match_beneficiary.csv` | — | Match classification for every beneficiary record |
-| `reports/exports/_match_claims.csv` | — | Match classification for every carrier claim record |
+### Report Files
+
+| File | Description |
+|------|-------------|
+| `reports/report_data.json` | Canonical data artifact — all pipeline results as structured JSON (~293 KB) |
+| `reports/comparison_report.html` | Interactive HTML report with Plotly charts, sidebar nav, sortable tables (~1.5 MB) |
+
+### Data Exports (CSV — human-readable, Excel-compatible)
+
+| File | Description |
+|------|-------------|
+| `reports/exports/_discrepancy_detail.csv` | Row-level field diffs for all matched beneficiary records |
+| `reports/exports/_financial_recon.csv` | Per-beneficiary financial reconciliation (reported vs computed) |
+| `reports/exports/_match_beneficiary.csv` | Match classification for every beneficiary record |
+| `reports/exports/_match_claims.csv` | Match classification for every carrier claim record |
+
+### Data Exports (Parquet — columnar, compressed, standard interchange)
+
+| File | Description |
+|------|-------------|
+| `reports/exports/_discrepancy_detail.parquet` | Same data as CSV, in ZSTD-compressed Parquet format |
+| `reports/exports/_financial_recon.parquet` | Same data as CSV, in ZSTD-compressed Parquet format |
+| `reports/exports/_match_beneficiary.parquet` | Same data as CSV, in ZSTD-compressed Parquet format |
+| `reports/exports/_match_claims.parquet` | Same data as CSV, in ZSTD-compressed Parquet format |
+
+Parquet files are produced natively by DuckDB (no pyarrow dependency) and can be consumed by Spark, Pandas, Polars, BigQuery, Snowflake, or any tool that reads columnar data. ZSTD compression typically achieves 5–10× size reduction vs CSV.
+
+### Persistent Datastore
+
+| File | Description |
+|------|-------------|
+| `data/db/cms_claims.duckdb` | Persistent DuckDB database with all 8 tables — queryable via CLI, Python, or any DuckDB binding |
 
 ---
 

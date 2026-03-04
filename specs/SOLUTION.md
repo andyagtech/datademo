@@ -8,19 +8,21 @@ Compare outputs from two healthcare claims processing systems — an old (legacy
 
 ### Why DuckDB?
 
-The input data is large (2.4 GB of carrier claims CSVs, ~5M rows x 142 columns). The workload is analytical: scans, aggregations, joins. DuckDB is purpose-built for this:
+The input data is large (2.4 GB of carrier claims CSVs, ~5M rows × 142 columns). The workload is analytical: scans, aggregations, joins. DuckDB is purpose-built for this:
 
-- **Zero infrastructure.** No server, no configuration. A single `pip install` and a file on disk.
-- **Native CSV scanning.** Reads CSVs directly without a separate ETL step. Handles type inference, null detection, and parallel reads out of the box.
-- **Columnar engine.** Aggregations over 142-column tables are fast because it only reads the columns touched by each query.
-- **Embeddable.** Runs inside the Python process — no network hops, no connection pooling, no Docker-in-Docker complexity.
-- **Portable.** The `.duckdb` file can be copied to another machine and queried with the DuckDB CLI or any language binding.
+- **Zero infrastructure.** No server, no configuration. A single `pip install` and a file on disk. This is critical for a pipeline that needs to run in Docker, on a developer laptop, or inside an AWS Lambda function without provisioning a database server.
+- **Native CSV/Parquet I/O.** Reads CSVs directly with type inference, null detection, and parallel reads. Exports to Parquet natively — no pandas or pyarrow dependency needed for columnar output.
+- **Columnar engine.** Aggregations over 142-column tables are fast because DuckDB only reads the columns touched by each query. Our carrier claims table has 142 columns but most queries touch fewer than 10 — a columnar engine avoids reading the other 132.
+- **Embeddable.** Runs inside the Python process — no network hops, no connection pooling, no Docker-in-Docker complexity. The entire database is a single file.
+- **Portable.** The `.duckdb` file can be copied to another machine and queried with the DuckDB CLI, Python, R, Node.js, or any of DuckDB's 15+ language bindings.
 
-Alternatives considered:
-- **SQLite** — row-oriented, poor at analytical aggregations on wide tables.
-- **PostgreSQL** — requires a running server; overkill for a batch pipeline.
-- **Spark** — heavy setup for data that fits on a single machine.
-- **Pandas-only** — 2.4 GB of CSVs in memory is feasible but fragile; SQL is clearer for complex joins and aggregations.
+**Maturity and adoption:** DuckDB reached **v1.0 in June 2024**, marking a stable API and storage format guarantee. It is developed by DuckDB Labs, a company spun out of CWI Amsterdam (the same research institute that created MonetDB). DuckDB has 25K+ GitHub stars, is used in production by organizations including Google, MotherDuck (cloud DuckDB), and dbt Labs, and ships as a core component of tools like Evidence, Observable, and DBeaver. For this assessment, we use DuckDB ≥1.1.0 — a stable, production-grade release.
+
+**Why not the alternatives:**
+- **SQLite** — row-oriented storage engine, designed for OLTP (small reads/writes). Analytical aggregations on wide tables are 10-50× slower than DuckDB because SQLite reads entire rows even when a query only needs 2 columns.
+- **PostgreSQL** — excellent database, but requires a running server process, connection management, and configuration. For a self-contained batch pipeline that runs in Docker or Lambda, this is unnecessary complexity.
+- **Spark** — designed for distributed computing across clusters. Our data fits on a single machine (2.4 GB). Spark's JVM startup, driver/executor model, and configuration overhead add minutes of latency and gigabytes of dependencies for no benefit at this scale.
+- **Pandas-only** — 2.4 GB of CSVs in memory is feasible but fragile. SQL is clearer than chained DataFrame operations for the complex multi-table joins and aggregations in our comparison logic (FULL OUTER JOIN with 24 diff columns, financial reconciliation with GROUP BY + HAVING). Pandas also lacks native Parquet export without pyarrow.
 
 ### Why a 6-Step Pipeline?
 

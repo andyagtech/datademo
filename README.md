@@ -141,9 +141,11 @@ The pipeline auto-detects file types by reading CSV headers — it doesn't rely 
 
 | Output | Location | Description |
 |--------|----------|-------------|
-| **HTML Report** | `reports/comparison_report.html` | Interactive report with charts, sortable tables, collapsible sections |
+| **HTML Report** | `reports/comparison_report.html` | Interactive report with sidebar nav, Plotly charts, sortable tables |
+| **JSON Data** | `reports/report_data.json` | Canonical data artifact — all metrics as structured JSON |
 | **DuckDB Database** | `data/db/cms_claims.duckdb` | Persistent analytical database — query directly with DuckDB CLI |
-| **CSV Exports** | `reports/exports/` | Raw analysis tables (financial reconciliation, match results, discrepancy detail) |
+| **CSV Exports** | `reports/exports/*.csv` | Raw analysis tables — human-readable, Excel-compatible |
+| **Parquet Exports** | `reports/exports/*.parquet` | Same tables in ZSTD-compressed columnar format for downstream tools (Spark, Pandas, BigQuery) |
 
 ---
 

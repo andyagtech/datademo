@@ -4,7 +4,7 @@ STEP 6: REPORT — Generate the final HTML report from all pipeline results.
 Responsibilities:
   - Consume results from all prior steps
   - Generate interactive HTML report
-  - Export raw diff data as CSV for further analysis
+  - Export raw diff data as CSV and Parquet for further analysis
 """
 
 import logging
@@ -39,8 +39,9 @@ def run(ctx: PipelineContext) -> StepResult:
             errors=[str(e)],
         )
 
-    # Export raw diffs as CSV if discrepancy detail table exists
+    # Export raw diffs as CSV + Parquet if analysis tables exist
     csv_exports = []
+    parquet_exports = []
     if con:
         try:
             tables = [r[0] for r in con.execute(
@@ -52,22 +53,29 @@ def run(ctx: PipelineContext) -> StepResult:
             export_dir = report_path.parent / "exports"
             export_dir.mkdir(exist_ok=True)
             for t in tables:
+                # CSV — human-readable, Excel-compatible
                 csv_path = export_dir / f"{t}.csv"
                 con.execute(f"COPY {t} TO '{csv_path}' (HEADER, DELIMITER ',')")
                 csv_exports.append(str(csv_path))
-                logger.info(f"Exported {t} → {csv_path}")
+                # Parquet — columnar, compressed, standard interchange format
+                parquet_path = export_dir / f"{t}.parquet"
+                con.execute(f"COPY {t} TO '{parquet_path}' (FORMAT PARQUET, COMPRESSION ZSTD)")
+                parquet_exports.append(str(parquet_path))
+                logger.info(f"Exported {t} → CSV + Parquet")
         except Exception as e:
-            warnings.append(f"CSV export failed: {e}")
+            warnings.append(f"Data export failed: {e}")
 
+    total_exports = len(csv_exports) + len(parquet_exports)
     ctx.results["report"] = {
         "report_path": str(report_path),
         "csv_exports": csv_exports,
+        "parquet_exports": parquet_exports,
     }
 
     return StepResult(
         step_name="report",
         success=True,
-        message=f"Report: {report_path}. {len(csv_exports)} CSV exports.",
+        message=f"Report: {report_path}. {len(csv_exports)} CSV exports. {len(parquet_exports)} Parquet exports.",
         data=ctx.results["report"],
         errors=errors,
         warnings=warnings,
