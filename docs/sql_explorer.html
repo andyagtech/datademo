@@ -144,6 +144,7 @@
   }
   .query-status.error { color: var(--red); }
   .query-status.success { color: var(--green); }
+  .query-status.warning { color: var(--orange); }
   .example-queries {
     display: flex; gap: 6px; flex-wrap: wrap;
   }
@@ -223,7 +224,7 @@
   <!-- Editor + Results -->
   <div class="editor-panel">
     <div class="query-area">
-      <textarea class="query-editor" id="queryEditor" placeholder="SELECT * FROM table_name LIMIT 100" spellcheck="false">SELECT 'Loading pipeline exports...' AS message</textarea>
+      <textarea class="query-editor" id="queryEditor" placeholder="SELECT * FROM table_name LIMIT 100" spellcheck="false"></textarea>
       <div class="query-bar">
         <button class="run-btn" id="runBtn">&#9654; Run <kbd>&#8984;&#9166;</kbd></button>
         <span class="query-status" id="queryStatus"></span>
@@ -293,7 +294,7 @@ async function probeAndLoadExports() {
   EXPORTS_BASE = await detectExportsBase();
   if (!EXPORTS_BASE) {
     exportList.innerHTML = '<div style="color:var(--border);font-size:0.68rem;padding:4px">No exports found. Run pipeline or drop files below.</div>';
-    queryEditor.value = 'SELECT \'Drop a .parquet file to get started\' AS message';
+    queryEditor.value = '';
     return;
   }
   const available = [];
@@ -374,19 +375,30 @@ async function loadParquetFile(file) {
   }
 }
 
-async function loadParquetBuffer(arrayBuffer, tableName) {
+const MAX_ROWS = 500000; // Cap rows loaded into memory for browser safety
 
+async function loadParquetBuffer(arrayBuffer, tableName) {
   const metadata = await parquetMetadataAsync(arrayBuffer);
   const schema = parquetSchema(metadata);
   const columns = schema.children.map(c => c.element);
+  const totalRows = Number(metadata.num_rows);
+  const rowEnd = Math.min(totalRows, MAX_ROWS);
 
   const rows = [];
   await parquetRead({
     file: arrayBuffer,
     compressors,
+    rowStart: 0,
+    rowEnd,
     rowFormat: 'object',
-    onComplete: data => rows.push(...data),
+    onComplete: data => {
+      for (let i = 0; i < data.length; i++) rows.push(data[i]);
+    },
   });
+
+  if (totalRows > MAX_ROWS) {
+    setStatus(`${tableName}: loaded first ${MAX_ROWS.toLocaleString()} of ${totalRows.toLocaleString()} rows (capped for browser performance)`, 'warning');
+  }
 
   tables[tableName] = rows;
   tableSchemas[tableName] = columns.map(c => ({ name: c.name, type: getTypeName(c) }));
