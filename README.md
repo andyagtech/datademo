@@ -388,10 +388,11 @@ The local and cloud versions share all pipeline logic:
 │
 ├── reports/
 │   ├── comparison_report.html
-│   └── exports/              # CSV exports of analysis tables
+│   └── exports/              # CSV + Parquet exports of analysis tables
 │
 └── docs/
     ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook reference
     ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
-    └── architecture.html     # Interactive architecture diagrams (Mermaid.js)
+    ├── architecture.html     # Interactive architecture diagrams (Mermaid.js)
+    └── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
 ```

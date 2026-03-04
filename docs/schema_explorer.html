@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schema Explorer — CMS Claims Comparison Pipeline</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171; --pink: #f472b6;
+    --old: #3b82f6; --new: #10b981; --derived: #f59e0b;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
+
+  /* -- Top Bar -- */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    height: 56px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px; gap: 16px;
+  }
+  .topbar h1 { font-size: 0.95rem; font-weight: 700; white-space: nowrap; }
+  .topbar h1 span { color: var(--accent); }
+  .search-box {
+    flex: 1; max-width: 400px; position: relative;
+  }
+  .search-box input {
+    width: 100%; padding: 7px 12px 7px 32px; border-radius: 6px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    font-size: 0.82rem; font-family: var(--font); outline: none;
+  }
+  .search-box input:focus { border-color: var(--accent); }
+  .search-box svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); opacity: 0.4; }
+  .search-results {
+    position: absolute; top: 100%; left: 0; right: 0; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 6px; margin-top: 4px;
+    max-height: 300px; overflow-y: auto; display: none; z-index: 300;
+  }
+  .search-results.visible { display: block; }
+  .search-result {
+    padding: 8px 12px; cursor: pointer; font-size: 0.8rem; border-bottom: 1px solid var(--border);
+  }
+  .search-result:hover { background: rgba(56,189,248,0.08); }
+  .search-result .sr-table { color: var(--accent); font-weight: 600; }
+  .search-result .sr-col { color: var(--text); font-family: var(--mono); font-size: 0.78rem; }
+  .search-result .sr-type { color: var(--muted); font-size: 0.72rem; margin-left: 6px; }
+
+  .legend {
+    display: flex; gap: 16px; margin-left: auto; font-size: 0.75rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+  .legend-dot.old { background: var(--old); }
+  .legend-dot.new { background: var(--new); }
+  .legend-dot.derived { background: var(--derived); }
+
+  .zoom-controls {
+    display: flex; gap: 4px;
+  }
+  .zoom-btn {
+    width: 30px; height: 30px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* -- Canvas -- */
+  .canvas-container {
+    position: fixed; top: 56px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; cursor: grab;
+  }
+  .canvas-container.grabbing { cursor: grabbing; }
+  .canvas {
+    position: absolute; transform-origin: 0 0;
+    width: 3000px; height: 2000px;
+  }
+
+  /* -- SVG Relationships -- */
+  .rel-svg {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1;
+  }
+  .rel-line {
+    fill: none; stroke: var(--border); stroke-width: 1.5;
+    stroke-dasharray: 6 4; opacity: 0.5; transition: all 0.2s;
+  }
+  .rel-line.highlighted { stroke: var(--accent); stroke-width: 2.5; opacity: 1; stroke-dasharray: none; }
+  .rel-line.comparison { stroke: var(--pink); stroke-dasharray: 4 4; }
+  .rel-line.comparison.highlighted { stroke: var(--pink); stroke-width: 2.5; opacity: 1; stroke-dasharray: none; }
+  .rel-label {
+    font-size: 10px; fill: var(--muted); font-family: var(--mono); pointer-events: none;
+  }
+
+  /* -- Table Cards -- */
+  .table-card {
+    position: absolute; width: 260px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 10;
+    cursor: move; user-select: none; transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .table-card:hover { border-color: rgba(56,189,248,0.3); box-shadow: 0 6px 30px rgba(0,0,0,0.5); }
+  .table-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,0.2), 0 6px 30px rgba(0,0,0,0.5); }
+  .table-card.dimmed { opacity: 0.3; }
+  .table-card.search-hit { border-color: var(--orange); box-shadow: 0 0 0 2px rgba(245,158,11,0.3); }
+
+  .card-header {
+    padding: 12px 14px 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-category {
+    width: 4px; height: 28px; border-radius: 2px; flex-shrink: 0;
+  }
+  .card-category.old { background: var(--old); }
+  .card-category.new { background: var(--new); }
+  .card-category.derived { background: var(--derived); }
+
+  .card-title-area { flex: 1; min-width: 0; }
+  .card-title {
+    font-size: 0.85rem; font-weight: 700; font-family: var(--mono);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-meta {
+    font-size: 0.68rem; color: var(--muted); margin-top: 2px;
+    display: flex; gap: 10px;
+  }
+
+  .card-columns {
+    padding: 8px 14px 10px; max-height: 200px; overflow-y: auto;
+  }
+  .card-columns::-webkit-scrollbar { width: 4px; }
+  .card-columns::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .col-row {
+    display: flex; align-items: center; padding: 2px 0; font-size: 0.75rem;
+    gap: 6px;
+  }
+  .col-row.pk .col-name { color: var(--accent); font-weight: 600; }
+  .col-row.fk .col-name { color: var(--accent2); }
+  .col-row.search-match { background: rgba(245,158,11,0.15); border-radius: 3px; margin: 0 -4px; padding: 2px 4px; }
+  .col-icon { font-size: 0.6rem; width: 14px; text-align: center; flex-shrink: 0; }
+  .col-name { font-family: var(--mono); font-size: 0.73rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-type { font-size: 0.65rem; color: var(--muted); font-family: var(--mono); flex-shrink: 0; }
+  .col-more { font-size: 0.7rem; color: var(--muted); padding: 4px 0; cursor: pointer; }
+  .col-more:hover { color: var(--accent); }
+
+  /* -- Detail Panel -- */
+  .detail-panel {
+    position: fixed; top: 56px; right: -420px; width: 420px; bottom: 0;
+    background: var(--surface); border-left: 1px solid var(--border);
+    z-index: 100; transition: right 0.25s ease; overflow-y: auto;
+  }
+  .detail-panel.open { right: 0; }
+  .detail-close {
+    position: absolute; top: 12px; right: 12px; width: 28px; height: 28px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .detail-close:hover { color: var(--text); border-color: var(--accent); }
+  .detail-header { padding: 20px; border-bottom: 1px solid var(--border); }
+  .detail-title { font-size: 1.1rem; font-weight: 700; font-family: var(--mono); }
+  .detail-stats { display: flex; gap: 16px; margin-top: 8px; font-size: 0.78rem; color: var(--muted); }
+  .detail-stat b { color: var(--text); }
+
+  .detail-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .detail-section h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
+
+  .detail-col-row {
+    display: flex; align-items: center; padding: 5px 8px; margin: 0 -8px;
+    border-radius: 4px; font-size: 0.8rem; gap: 8px;
+  }
+  .detail-col-row:hover { background: rgba(56,189,248,0.05); }
+  .detail-col-row .col-icon { font-size: 0.65rem; width: 16px; }
+  .detail-col-row .col-name { font-family: var(--mono); font-size: 0.8rem; flex: 1; }
+  .detail-col-row .col-type { font-family: var(--mono); font-size: 0.72rem; color: var(--accent); }
+
+  .detail-rels { list-style: none; }
+  .detail-rels li {
+    padding: 6px 0; font-size: 0.8rem; display: flex; align-items: center; gap: 8px;
+  }
+  .detail-rels .rel-arrow { color: var(--accent); }
+
+  /* -- Help tooltip -- */
+  .help-tip {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 16px; font-size: 0.75rem; color: var(--muted); z-index: 50;
+    display: flex; gap: 16px; opacity: 0.8;
+  }
+  .help-tip kbd {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 3px;
+    padding: 1px 5px; font-size: 0.7rem; font-family: var(--mono);
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <h1><span>Schema</span> Explorer</h1>
+  <div class="search-box">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="searchInput" placeholder="Search tables and columns..." autocomplete="off">
+    <div class="search-results" id="searchResults"></div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot old"></div> Old System</div>
+    <div class="legend-item"><div class="legend-dot new"></div> New System</div>
+    <div class="legend-item"><div class="legend-dot derived"></div> Derived</div>
+  </div>
+  <div class="zoom-controls">
+    <button class="zoom-btn" onclick="zoomIn()" title="Zoom in">+</button>
+    <button class="zoom-btn" onclick="zoomOut()" title="Zoom out">&minus;</button>
+    <button class="zoom-btn" onclick="resetView()" title="Reset view">&#8634;</button>
+  </div>
+</div>
+
+<!-- Canvas -->
+<div class="canvas-container" id="canvasContainer">
+  <div class="canvas" id="canvas">
+    <svg class="rel-svg" id="relSvg"></svg>
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-panel" id="detailPanel">
+  <button class="detail-close" id="detailClose">&times;</button>
+  <div id="detailContent"></div>
+</div>
+
+<!-- Help Tips -->
+<div class="help-tip">
+  <span><kbd>Click</kbd> table for details</span>
+  <span><kbd>Drag</kbd> to move tables</span>
+  <span><kbd>Scroll</kbd> to zoom</span>
+  <span><kbd>Shift+Drag</kbd> pan canvas</span>
+</div>
+
+<script>
+// ============================================================
+// SCHEMA DATA (extracted from DuckDB)
+// ============================================================
+const SCHEMA = {
+  tables: {
+    beneficiary_summary: {
+      category: "old", label: "beneficiary_summary",
+      description: "Old system beneficiary demographics + financials",
+      row_count: 343644, pk: ["DESYNPUF_ID", "summary_year"],
+      columns: [
+        {name:"DESYNPUF_ID",type:"VARCHAR",pk:true},{name:"summary_year",type:"INTEGER",pk:true},
+        {name:"BENE_BIRTH_DT",type:"INTEGER"},{name:"BENE_DEATH_DT",type:"INTEGER"},
+        {name:"BENE_SEX_IDENT_CD",type:"INTEGER"},{name:"BENE_RACE_CD",type:"INTEGER"},
+        {name:"SP_STATE_CODE",type:"VARCHAR"},{name:"BENE_COUNTY_CD",type:"VARCHAR"},
+        {name:"BENE_HI_CVRAGE_TOT_MONS",type:"INTEGER"},{name:"BENE_SMI_CVRAGE_TOT_MONS",type:"INTEGER"},
+        {name:"BENE_HMO_CVRAGE_TOT_MONS",type:"INTEGER"},{name:"PLAN_CVRG_MOS_NUM",type:"INTEGER"},
+        {name:"SP_ALZHDMTA",type:"INTEGER"},{name:"SP_CHF",type:"INTEGER"},
+        {name:"SP_CHRNKIDN",type:"INTEGER"},{name:"SP_CNCR",type:"INTEGER"},
+        {name:"SP_COPD",type:"INTEGER"},{name:"SP_DEPRESSN",type:"INTEGER"},
+        {name:"SP_DIABETES",type:"INTEGER"},{name:"SP_ISCHMCHT",type:"INTEGER"},
+        {name:"SP_OSTEOPRS",type:"INTEGER"},{name:"SP_RA_OA",type:"INTEGER"},
+        {name:"SP_STRKETIA",type:"INTEGER"},
+        {name:"MEDREIMB_IP",type:"DOUBLE"},{name:"BENRES_IP",type:"DOUBLE"},
+        {name:"PPPYMT_IP",type:"DOUBLE"},{name:"MEDREIMB_OP",type:"DOUBLE"},
+        {name:"BENRES_OP",type:"DOUBLE"},{name:"PPPYMT_OP",type:"DOUBLE"},
+        {name:"MEDREIMB_CAR",type:"DOUBLE"},{name:"BENRES_CAR",type:"DOUBLE"},
+        {name:"PPPYMT_CAR",type:"DOUBLE"},{name:"BENE_ESRD_IND",type:"VARCHAR"}
+      ]
+    },
+    carrier_claims: {
+      category: "old", label: "carrier_claims",
+      description: "Old system carrier claims (denormalized, 13 line items per claim)",
+      row_count: 4741335, pk: ["CLM_ID"],
+      columns: [
+        {name:"DESYNPUF_ID",type:"VARCHAR",fk:"beneficiary_summary"},{name:"CLM_ID",type:"BIGINT",pk:true},
+        {name:"CLM_FROM_DT",type:"INTEGER"},{name:"CLM_THRU_DT",type:"INTEGER"},
+        {name:"ICD9_DGNS_CD_1",type:"VARCHAR"},{name:"ICD9_DGNS_CD_2",type:"VARCHAR"},
+        {name:"ICD9_DGNS_CD_3",type:"VARCHAR"},{name:"ICD9_DGNS_CD_4",type:"VARCHAR"},
+        {name:"ICD9_DGNS_CD_5",type:"VARCHAR"},{name:"ICD9_DGNS_CD_6",type:"VARCHAR"},
+        {name:"ICD9_DGNS_CD_7",type:"VARCHAR"},{name:"ICD9_DGNS_CD_8",type:"VARCHAR"},
+        {name:"PRF_PHYSN_NPI_1",type:"VARCHAR"},{name:"PRF_PHYSN_NPI_2",type:"VARCHAR"},
+        {name:"TAX_NUM_1",type:"VARCHAR"},{name:"...13 TAX_NUMs",type:"VARCHAR",virtual:true},
+        {name:"HCPCS_CD_1",type:"VARCHAR"},{name:"...13 HCPCS_CDs",type:"VARCHAR",virtual:true},
+        {name:"LINE_NCH_PMT_AMT_1",type:"DOUBLE"},{name:"...13 PMT_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_BENE_PTB_DDCTBL_AMT_1",type:"DOUBLE"},{name:"...13 DDCTBL_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_BENE_PRMRY_PYR_PD_AMT_1",type:"DOUBLE"},{name:"...13 PYR_PD_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_COINSRNC_AMT_1",type:"DOUBLE"},{name:"...13 COINSRNC_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_ALOWD_CHRG_AMT_1",type:"DOUBLE"},{name:"...13 ALOWD_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_PRCSG_IND_CD_1",type:"VARCHAR"},{name:"...13 PRCSG_INDs",type:"VARCHAR",virtual:true},
+        {name:"LINE_ICD9_DGNS_CD_1",type:"VARCHAR"},{name:"...13 LINE_ICD9s",type:"VARCHAR",virtual:true},
+        {name:"LINE_PLACE_OF_SRVC_CD_1",type:"VARCHAR"},{name:"...13 SRVC_CDs",type:"VARCHAR",virtual:true}
+      ],
+      full_col_count: 142
+    },
+    new_beneficiary_summary: {
+      category: "new", label: "new_beneficiary_summary",
+      description: "New system beneficiary demographics + financials",
+      row_count: 343644, pk: ["DESYNPUF_ID", "summary_year"],
+      columns: [
+        {name:"DESYNPUF_ID",type:"VARCHAR",pk:true},{name:"summary_year",type:"INTEGER",pk:true},
+        {name:"BENE_BIRTH_DT",type:"INTEGER"},{name:"BENE_DEATH_DT",type:"INTEGER"},
+        {name:"BENE_SEX_IDENT_CD",type:"INTEGER"},{name:"BENE_RACE_CD",type:"INTEGER"},
+        {name:"SP_STATE_CODE",type:"VARCHAR"},{name:"BENE_COUNTY_CD",type:"VARCHAR"},
+        {name:"BENE_HI_CVRAGE_TOT_MONS",type:"INTEGER"},{name:"BENE_SMI_CVRAGE_TOT_MONS",type:"INTEGER"},
+        {name:"BENE_HMO_CVRAGE_TOT_MONS",type:"INTEGER"},{name:"PLAN_CVRG_MOS_NUM",type:"INTEGER"},
+        {name:"SP_ALZHDMTA",type:"INTEGER"},{name:"SP_CHF",type:"INTEGER"},
+        {name:"SP_CHRNKIDN",type:"INTEGER"},{name:"SP_CNCR",type:"INTEGER"},
+        {name:"SP_COPD",type:"INTEGER"},{name:"SP_DEPRESSN",type:"INTEGER"},
+        {name:"SP_DIABETES",type:"INTEGER"},{name:"SP_ISCHMCHT",type:"INTEGER"},
+        {name:"SP_OSTEOPRS",type:"INTEGER"},{name:"SP_RA_OA",type:"INTEGER"},
+        {name:"SP_STRKETIA",type:"INTEGER"},
+        {name:"MEDREIMB_IP",type:"DOUBLE"},{name:"BENRES_IP",type:"DOUBLE"},
+        {name:"PPPYMT_IP",type:"DOUBLE"},{name:"MEDREIMB_OP",type:"DOUBLE"},
+        {name:"BENRES_OP",type:"DOUBLE"},{name:"PPPYMT_OP",type:"DOUBLE"},
+        {name:"MEDREIMB_CAR",type:"DOUBLE"},{name:"BENRES_CAR",type:"DOUBLE"},
+        {name:"PPPYMT_CAR",type:"DOUBLE"},{name:"BENE_ESRD_IND",type:"VARCHAR"}
+      ]
+    },
+    new_carrier_claims: {
+      category: "new", label: "new_carrier_claims",
+      description: "New system carrier claims (+4,777 phantom claims vs old)",
+      row_count: 4746112, pk: ["CLM_ID"],
+      columns: [
+        {name:"DESYNPUF_ID",type:"VARCHAR",fk:"new_beneficiary_summary"},{name:"CLM_ID",type:"VARCHAR",pk:true},
+        {name:"CLM_FROM_DT",type:"INTEGER"},{name:"CLM_THRU_DT",type:"INTEGER"},
+        {name:"ICD9_DGNS_CD_1",type:"VARCHAR"},{name:"ICD9_DGNS_CD_2",type:"VARCHAR"},
+        {name:"ICD9_DGNS_CD_3",type:"VARCHAR"},{name:"ICD9_DGNS_CD_4",type:"VARCHAR"},
+        {name:"ICD9_DGNS_CD_5",type:"VARCHAR"},{name:"ICD9_DGNS_CD_6",type:"VARCHAR"},
+        {name:"ICD9_DGNS_CD_7",type:"VARCHAR"},{name:"ICD9_DGNS_CD_8",type:"VARCHAR"},
+        {name:"PRF_PHYSN_NPI_1",type:"VARCHAR"},{name:"PRF_PHYSN_NPI_2",type:"VARCHAR"},
+        {name:"TAX_NUM_1",type:"VARCHAR"},{name:"...13 TAX_NUMs",type:"VARCHAR",virtual:true},
+        {name:"HCPCS_CD_1",type:"VARCHAR"},{name:"...13 HCPCS_CDs",type:"VARCHAR",virtual:true},
+        {name:"LINE_NCH_PMT_AMT_1",type:"DOUBLE"},{name:"...13 PMT_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_BENE_PTB_DDCTBL_AMT_1",type:"DOUBLE"},{name:"...13 DDCTBL_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_BENE_PRMRY_PYR_PD_AMT_1",type:"DOUBLE"},{name:"...13 PYR_PD_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_COINSRNC_AMT_1",type:"DOUBLE"},{name:"...13 COINSRNC_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_ALOWD_CHRG_AMT_1",type:"DOUBLE"},{name:"...13 ALOWD_AMTs",type:"DOUBLE",virtual:true},
+        {name:"LINE_PRCSG_IND_CD_1",type:"VARCHAR"},{name:"...13 PRCSG_INDs",type:"VARCHAR",virtual:true},
+        {name:"LINE_ICD9_DGNS_CD_1",type:"VARCHAR"},{name:"...13 LINE_ICD9s",type:"VARCHAR",virtual:true},
+        {name:"LINE_PLACE_OF_SRVC_CD_1",type:"VARCHAR"},{name:"...13 SRVC_CDs",type:"VARCHAR",virtual:true}
+      ],
+      full_col_count: 142
+    },
+    _match_beneficiary: {
+      category: "derived", label: "_match_beneficiary",
+      description: "FULL OUTER JOIN result for beneficiary records",
+      row_count: 343803, pk: ["DESYNPUF_ID", "summary_year"],
+      columns: [
+        {name:"DESYNPUF_ID",type:"VARCHAR",pk:true,fk:"beneficiary_summary"},
+        {name:"summary_year",type:"INTEGER",pk:true},
+        {name:"match_status",type:"VARCHAR"}
+      ]
+    },
+    _match_claims: {
+      category: "derived", label: "_match_claims",
+      description: "FULL OUTER JOIN result for carrier claims",
+      row_count: 4746112, pk: ["CLM_ID"],
+      columns: [
+        {name:"CLM_ID",type:"VARCHAR",pk:true,fk:"carrier_claims"},
+        {name:"match_status",type:"VARCHAR"}
+      ]
+    },
+    _discrepancy_detail: {
+      category: "derived", label: "_discrepancy_detail",
+      description: "Per-field diff flags and dollar deltas for matched beneficiary records",
+      row_count: 343485, pk: ["DESYNPUF_ID", "summary_year"],
+      columns: [
+        {name:"DESYNPUF_ID",type:"VARCHAR",pk:true,fk:"beneficiary_summary"},
+        {name:"summary_year",type:"INTEGER",pk:true},
+        {name:"SP_STATE_CODE",type:"VARCHAR"},
+        {name:"diff_medreimb_ip",type:"INTEGER"},{name:"diff_benres_ip",type:"INTEGER"},
+        {name:"diff_pppymt_ip",type:"INTEGER"},{name:"diff_medreimb_op",type:"INTEGER"},
+        {name:"diff_benres_op",type:"INTEGER"},{name:"diff_pppymt_op",type:"INTEGER"},
+        {name:"diff_medreimb_car",type:"INTEGER"},{name:"diff_benres_car",type:"INTEGER"},
+        {name:"diff_pppymt_car",type:"INTEGER"},
+        {name:"diff_bene_sex_ident_cd",type:"INTEGER"},{name:"diff_bene_race_cd",type:"INTEGER"},
+        {name:"diff_bene_birth_dt",type:"INTEGER"},{name:"diff_bene_death_dt",type:"INTEGER"},
+        {name:"diff_sp_alzhdmta",type:"INTEGER"},{name:"diff_sp_chf",type:"INTEGER"},
+        {name:"diff_sp_chrnkidn",type:"INTEGER"},{name:"diff_sp_cncr",type:"INTEGER"},
+        {name:"diff_sp_copd",type:"INTEGER"},{name:"diff_sp_depressn",type:"INTEGER"},
+        {name:"diff_sp_diabetes",type:"INTEGER"},{name:"diff_sp_ischmcht",type:"INTEGER"},
+        {name:"diff_sp_osteoprs",type:"INTEGER"},{name:"diff_sp_ra_oa",type:"INTEGER"},
+        {name:"diff_sp_strketia",type:"INTEGER"},
+        {name:"delta_medreimb_ip",type:"DOUBLE"},{name:"delta_benres_ip",type:"DOUBLE"},
+        {name:"delta_pppymt_ip",type:"DOUBLE"},{name:"delta_medreimb_op",type:"DOUBLE"},
+        {name:"delta_benres_op",type:"DOUBLE"},{name:"delta_pppymt_op",type:"DOUBLE"},
+        {name:"delta_medreimb_car",type:"DOUBLE"},{name:"delta_benres_car",type:"DOUBLE"},
+        {name:"delta_pppymt_car",type:"DOUBLE"},
+        {name:"total_diffs",type:"INTEGER"}
+      ]
+    },
+    _financial_recon: {
+      category: "derived", label: "_financial_recon",
+      description: "Reported vs computed financial amounts from claim line aggregation",
+      row_count: 262017, pk: ["DESYNPUF_ID", "summary_year"],
+      columns: [
+        {name:"DESYNPUF_ID",type:"VARCHAR",pk:true,fk:"beneficiary_summary"},
+        {name:"summary_year",type:"INTEGER",pk:true},
+        {name:"reported_medreimb_car",type:"DOUBLE"},{name:"computed_medreimb_car",type:"DOUBLE"},
+        {name:"medreimb_diff",type:"DOUBLE"},
+        {name:"reported_benres_car",type:"DOUBLE"},{name:"computed_benres_car",type:"DOUBLE"},
+        {name:"benres_diff",type:"DOUBLE"},
+        {name:"reported_pppymt_car",type:"DOUBLE"},{name:"computed_pppymt_car",type:"DOUBLE"},
+        {name:"pppymt_diff",type:"DOUBLE"}
+      ]
+    }
+  },
+
+  relationships: [
+    {from:"carrier_claims",fromCol:"DESYNPUF_ID",to:"beneficiary_summary",toCol:"DESYNPUF_ID",label:"FK",type:"fk"},
+    {from:"new_carrier_claims",fromCol:"DESYNPUF_ID",to:"new_beneficiary_summary",toCol:"DESYNPUF_ID",label:"FK",type:"fk"},
+    {from:"_match_beneficiary",fromCol:"DESYNPUF_ID",to:"beneficiary_summary",toCol:"DESYNPUF_ID",label:"match join",type:"fk"},
+    {from:"_match_claims",fromCol:"CLM_ID",to:"carrier_claims",toCol:"CLM_ID",label:"match join",type:"fk"},
+    {from:"_discrepancy_detail",fromCol:"DESYNPUF_ID",to:"beneficiary_summary",toCol:"DESYNPUF_ID",label:"diff source",type:"fk"},
+    {from:"_financial_recon",fromCol:"DESYNPUF_ID",to:"beneficiary_summary",toCol:"DESYNPUF_ID",label:"recon",type:"fk"},
+    {from:"beneficiary_summary",fromCol:"*",to:"new_beneficiary_summary",toCol:"*",label:"comparison pair",type:"comparison"},
+    {from:"carrier_claims",fromCol:"*",to:"new_carrier_claims",toCol:"*",label:"comparison pair",type:"comparison"},
+  ],
+
+  layout: {
+    beneficiary_summary:      {x: 120, y: 80},
+    carrier_claims:           {x: 120, y: 480},
+    new_beneficiary_summary:  {x: 560, y: 80},
+    new_carrier_claims:       {x: 560, y: 480},
+    _match_beneficiary:       {x: 1000, y: 80},
+    _match_claims:            {x: 1000, y: 480},
+    _discrepancy_detail:      {x: 1000, y: 240},
+    _financial_recon:         {x: 1000, y: 680},
+  }
+};
+
+// ============================================================
+// RENDERING
+// ============================================================
+const canvas = document.getElementById('canvas');
+const canvasContainer = document.getElementById('canvasContainer');
+const relSvg = document.getElementById('relSvg');
+const detailPanel = document.getElementById('detailPanel');
+const detailContent = document.getElementById('detailContent');
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+
+let scale = 1, panX = 0, panY = 0;
+let selectedTable = null;
+let cardElements = {};
+let isDragging = false, isPanning = false;
+let dragTarget = null, dragStartX = 0, dragStartY = 0, dragOffsetX = 0, dragOffsetY = 0;
+
+function fmt(n) { return n.toLocaleString(); }
+
+function createCard(name, table) {
+  const card = document.createElement('div');
+  card.className = 'table-card';
+  card.dataset.table = name;
+  card.style.left = table.layout.x + 'px';
+  card.style.top = table.layout.y + 'px';
+
+  const colCount = table.full_col_count || table.columns.length;
+  const previewCols = table.columns.slice(0, 12);
+
+  let colsHtml = previewCols.map(c => {
+    let cls = c.pk ? 'pk' : (c.fk ? 'fk' : '');
+    let icon = c.pk ? '<span style="color:var(--accent)">&#9670;</span>' : (c.fk ? '<span style="color:var(--accent2)">&#8594;</span>' : '');
+    let style = c.virtual ? 'font-style:italic;color:var(--muted)' : '';
+    return `<div class="col-row ${cls}" data-colname="${c.name.toLowerCase()}">
+      <span class="col-icon">${icon}</span>
+      <span class="col-name" style="${style}">${c.name}</span>
+      <span class="col-type">${c.type}</span>
+    </div>`;
+  }).join('');
+
+  if (table.columns.length > 12) {
+    colsHtml += `<div class="col-more">+ ${colCount - 12} more columns...</div>`;
+  }
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="card-category ${table.category}"></div>
+      <div class="card-title-area">
+        <div class="card-title">${name}</div>
+        <div class="card-meta">
+          <span>${colCount} cols</span>
+          <span>${fmt(table.row_count)} rows</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-columns">${colsHtml}</div>
+  `;
+
+  card.addEventListener('mousedown', onCardMouseDown);
+  card.addEventListener('click', function(e) {
+    if (!isDragging) selectTable(name);
+  });
+
+  canvas.appendChild(card);
+  cardElements[name] = card;
+}
+
+function drawRelationships() {
+  relSvg.innerHTML = '';
+  SCHEMA.relationships.forEach((rel, i) => {
+    const fromCard = cardElements[rel.from];
+    const toCard = cardElements[rel.to];
+    if (!fromCard || !toCard) return;
+
+    const fromRect = { x: parseInt(fromCard.style.left), y: parseInt(fromCard.style.top), w: fromCard.offsetWidth, h: fromCard.offsetHeight };
+    const toRect = { x: parseInt(toCard.style.left), y: parseInt(toCard.style.top), w: toCard.offsetWidth, h: toCard.offsetHeight };
+
+    // Find best connection points
+    let x1, y1, x2, y2;
+    const fromCx = fromRect.x + fromRect.w / 2;
+    const toCx = toRect.x + toRect.w / 2;
+
+    if (rel.type === 'comparison') {
+      // Horizontal connection between paired tables
+      x1 = fromRect.x + fromRect.w; y1 = fromRect.y + fromRect.h / 2;
+      x2 = toRect.x; y2 = toRect.y + toRect.h / 2;
+    } else if (toCx > fromCx + 100) {
+      // To is to the right
+      x1 = fromRect.x; y1 = fromRect.y + fromRect.h / 2;
+      x2 = toRect.x + toRect.w; y2 = toRect.y + toRect.h / 2;
+    } else if (fromCx > toCx + 100) {
+      x1 = fromRect.x + fromRect.w; y1 = fromRect.y + fromRect.h / 2;
+      x2 = toRect.x; y2 = toRect.y + toRect.h / 2;
+    } else {
+      // Vertically aligned
+      if (fromRect.y < toRect.y) {
+        x1 = fromRect.x + fromRect.w / 2; y1 = fromRect.y + fromRect.h;
+        x2 = toRect.x + toRect.w / 2; y2 = toRect.y;
+      } else {
+        x1 = fromRect.x + fromRect.w / 2; y1 = fromRect.y;
+        x2 = toRect.x + toRect.w / 2; y2 = toRect.y + toRect.h;
+      }
+    }
+
+    // Cubic bezier for smooth curves
+    const dx = Math.abs(x2 - x1) * 0.4;
+    const dy = Math.abs(y2 - y1) * 0.2;
+    let path;
+    if (Math.abs(x2 - x1) > Math.abs(y2 - y1)) {
+      const cx = (x1 + x2) / 2;
+      path = `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+    } else {
+      path = `M${x1},${y1} C${x1},${y1 + dy + 30} ${x2},${y2 - dy - 30} ${x2},${y2}`;
+    }
+
+    const cls = rel.type === 'comparison' ? 'rel-line comparison' : 'rel-line';
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('d', path);
+    pathEl.setAttribute('class', cls);
+    pathEl.dataset.from = rel.from;
+    pathEl.dataset.to = rel.to;
+    pathEl.dataset.relIndex = i;
+    relSvg.appendChild(pathEl);
+
+    // Label at midpoint
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 6;
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', mx);
+    label.setAttribute('y', my);
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('class', 'rel-label');
+    label.dataset.relIndex = i;
+    label.textContent = rel.label;
+    relSvg.appendChild(label);
+  });
+}
+
+function selectTable(name) {
+  selectedTable = name;
+  const table = SCHEMA.tables[name];
+
+  // Highlight card
+  Object.values(cardElements).forEach(c => {
+    c.classList.remove('selected', 'dimmed');
+  });
+  cardElements[name].classList.add('selected');
+
+  // Highlight relationships
+  const connectedTables = new Set([name]);
+  const relLines = relSvg.querySelectorAll('.rel-line');
+  relLines.forEach(line => {
+    const from = line.dataset.from, to = line.dataset.to;
+    if (from === name || to === name) {
+      line.classList.add('highlighted');
+      connectedTables.add(from);
+      connectedTables.add(to);
+    } else {
+      line.classList.remove('highlighted');
+    }
+  });
+
+  // Dim unrelated tables
+  Object.entries(cardElements).forEach(([tname, card]) => {
+    if (!connectedTables.has(tname)) card.classList.add('dimmed');
+  });
+
+  // Populate detail panel
+  const colCount = table.full_col_count || table.columns.length;
+  const rels = SCHEMA.relationships.filter(r => r.from === name || r.to === name);
+
+  let colsHtml = table.columns.map(c => {
+    let icon = c.pk ? '<span style="color:var(--accent)">&#9670;</span>' : (c.fk ? '<span style="color:var(--accent2)">&#8594;</span>' : '<span style="color:var(--border)">&bull;</span>');
+    let style = c.virtual ? 'font-style:italic;color:var(--muted)' : '';
+    return `<div class="detail-col-row">
+      <span class="col-icon">${icon}</span>
+      <span class="col-name" style="${style}">${c.name}</span>
+      <span class="col-type">${c.type}</span>
+    </div>`;
+  }).join('');
+
+  let relsHtml = rels.map(r => {
+    const other = r.from === name ? r.to : r.from;
+    const arrow = r.type === 'comparison' ? '&#8596;' : '&#8594;';
+    return `<li>
+      <span class="rel-arrow">${arrow}</span>
+      <span style="font-family:var(--mono);font-size:0.8rem;cursor:pointer;color:var(--accent)" onclick="selectTable('${other}')">${other}</span>
+      <span style="color:var(--muted);font-size:0.72rem">${r.label} (${r.fromCol})</span>
+    </li>`;
+  }).join('');
+
+  const catColors = {old:'var(--old)',new:'var(--new)',derived:'var(--derived)'};
+  const catLabels = {old:'Old System (Ground Truth)',new:'New System (Under Test)',derived:'Pipeline-Derived'};
+
+  detailContent.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-title" style="display:flex;align-items:center;gap:8px">
+        <span style="display:inline-block;width:4px;height:20px;border-radius:2px;background:${catColors[table.category]}"></span>
+        ${name}
+      </div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">${table.description}</div>
+      <div class="detail-stats">
+        <span><b>${colCount}</b> columns</span>
+        <span><b>${fmt(table.row_count)}</b> rows</span>
+        <span style="color:${catColors[table.category]}">${catLabels[table.category]}</span>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Columns</h3>
+      ${colsHtml}
+    </div>
+    ${rels.length ? `<div class="detail-section"><h3>Relationships</h3><ul class="detail-rels">${relsHtml}</ul></div>` : ''}
+  `;
+
+  detailPanel.classList.add('open');
+}
+
+function deselectTable() {
+  selectedTable = null;
+  Object.values(cardElements).forEach(c => c.classList.remove('selected', 'dimmed'));
+  relSvg.querySelectorAll('.rel-line').forEach(l => l.classList.remove('highlighted'));
+  detailPanel.classList.remove('open');
+}
+
+// ============================================================
+// DRAG & DROP
+// ============================================================
+function onCardMouseDown(e) {
+  if (e.button !== 0) return;
+  const card = e.currentTarget;
+  dragTarget = card;
+  isDragging = false;
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+  dragOffsetX = e.clientX / scale - parseInt(card.style.left) - panX / scale;
+  dragOffsetY = e.clientY / scale - parseInt(card.style.top) - panY / scale;
+  e.stopPropagation();
+}
+
+document.addEventListener('mousemove', function(e) {
+  if (dragTarget) {
+    const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isDragging = true;
+    if (isDragging) {
+      const newX = e.clientX / scale - dragOffsetX - panX / scale;
+      const newY = e.clientY / scale - dragOffsetY - panY / scale;
+      dragTarget.style.left = newX + 'px';
+      dragTarget.style.top = newY + 'px';
+      drawRelationships();
+      if (selectedTable) highlightSelected();
+    }
+  }
+  if (isPanning) {
+    panX += e.clientX - dragStartX;
+    panY += e.clientY - dragStartY;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    applyTransform();
+  }
+});
+
+document.addEventListener('mouseup', function() {
+  if (dragTarget && !isDragging) { /* click handled by click event */ }
+  dragTarget = null;
+  isPanning = false;
+  canvasContainer.classList.remove('grabbing');
+});
+
+function highlightSelected() {
+  if (!selectedTable) return;
+  const relLines = relSvg.querySelectorAll('.rel-line');
+  relLines.forEach(line => {
+    if (line.dataset.from === selectedTable || line.dataset.to === selectedTable) {
+      line.classList.add('highlighted');
+    }
+  });
+}
+
+// ============================================================
+// PAN & ZOOM
+// ============================================================
+canvasContainer.addEventListener('mousedown', function(e) {
+  if (e.target === canvasContainer || e.target === canvas || e.target === relSvg) {
+    if (e.shiftKey || e.button === 1) {
+      isPanning = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      canvasContainer.classList.add('grabbing');
+    } else {
+      deselectTable();
+    }
+  }
+});
+
+canvasContainer.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.max(0.3, Math.min(2.5, scale * delta));
+  // Zoom toward cursor
+  const rect = canvasContainer.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  panX = mx - (mx - panX) * (newScale / scale);
+  panY = my - (my - panY) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+}, {passive: false});
+
+function applyTransform() {
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+}
+
+function zoomIn() { scale = Math.min(2.5, scale * 1.2); applyTransform(); }
+function zoomOut() { scale = Math.max(0.3, scale * 0.8); applyTransform(); }
+function resetView() { scale = 1; panX = 0; panY = 0; applyTransform(); }
+
+// ============================================================
+// SEARCH
+// ============================================================
+searchInput.addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+
+  // Clear previous highlights
+  document.querySelectorAll('.search-match').forEach(el => el.classList.remove('search-match'));
+  document.querySelectorAll('.table-card.search-hit').forEach(el => el.classList.remove('search-hit'));
+
+  if (!q) { searchResults.classList.remove('visible'); return; }
+
+  let results = [];
+  Object.entries(SCHEMA.tables).forEach(([tname, table]) => {
+    if (tname.toLowerCase().includes(q)) {
+      results.push({table: tname, col: null, type: null, matchType: 'table'});
+    }
+    table.columns.forEach(c => {
+      if (c.name.toLowerCase().includes(q)) {
+        results.push({table: tname, col: c.name, type: c.type, matchType: 'column'});
+      }
+    });
+  });
+
+  // Show results dropdown
+  if (results.length > 0) {
+    searchResults.innerHTML = results.slice(0, 20).map(r =>
+      `<div class="search-result" data-table="${r.table}" data-col="${r.col || ''}">
+        <span class="sr-table">${r.table}</span>
+        ${r.col ? `<span class="sr-col"> &rarr; ${r.col}</span><span class="sr-type">${r.type}</span>` : ''}
+      </div>`
+    ).join('');
+    searchResults.classList.add('visible');
+
+    // Highlight matching cards
+    const matchedTables = new Set(results.map(r => r.table));
+    matchedTables.forEach(t => {
+      if (cardElements[t]) cardElements[t].classList.add('search-hit');
+    });
+
+    // Highlight matching columns in cards
+    results.forEach(r => {
+      if (r.col && cardElements[r.table]) {
+        const colEl = cardElements[r.table].querySelector(`[data-colname="${r.col.toLowerCase()}"]`);
+        if (colEl) colEl.classList.add('search-match');
+      }
+    });
+
+    // Click handler for results
+    searchResults.querySelectorAll('.search-result').forEach(el => {
+      el.addEventListener('click', function() {
+        selectTable(this.dataset.table);
+        searchResults.classList.remove('visible');
+        searchInput.blur();
+      });
+    });
+  } else {
+    searchResults.innerHTML = '<div class="search-result" style="color:var(--muted)">No matches found</div>';
+    searchResults.classList.add('visible');
+  }
+});
+
+searchInput.addEventListener('blur', function() {
+  setTimeout(() => searchResults.classList.remove('visible'), 200);
+});
+
+// ============================================================
+// DETAIL PANEL CLOSE
+// ============================================================
+document.getElementById('detailClose').addEventListener('click', deselectTable);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') deselectTable();
+});
+
+// ============================================================
+// INIT
+// ============================================================
+Object.entries(SCHEMA.tables).forEach(([name, table]) => {
+  table.layout = SCHEMA.layout[name];
+  createCard(name, table);
+});
+
+// Draw relationships after cards are rendered
+requestAnimationFrame(() => {
+  drawRelationships();
+  // Center the view
+  panX = 60;
+  panY = 20;
+  scale = 0.85;
+  applyTransform();
+});
+</script>
+
+</body>
+</html>
