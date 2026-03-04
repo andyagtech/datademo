@@ -116,6 +116,59 @@ Step Functions state machine (infra/statemachine.asl.json)
 
 **Scaling note:** For datasets >5 GB, the heavy steps (ingest, compare) can be moved to **Fargate** using the same container image. The SAM template would add an ECS task definition alongside the Lambda functions.
 
+## Analysis Findings
+
+### Summary
+
+The new system achieves **99.87% record-level accuracy** on beneficiary data (446 mismatched records out of 343,485 matched). Financial divergence totals **$35,624.71** on $1.24B in total reimbursements (0.003%). While the aggregate impact is small, the patterns reveal two distinct systematic bugs.
+
+### Finding 1: Date Migration Bug (BENE_BIRTH_DT)
+
+**178 beneficiary records** have different birth dates between systems — 34.2% of all field-level discrepancies, making it the single largest source of error. The count is stable across years (63 in 2008, 63 in 2009, 52 in 2010), indicating a systematic parsing or migration issue rather than random corruption.
+
+**Root cause hypothesis:** The new system likely has a date parsing bug that affects a specific date format or range. The consistency across years rules out a time-dependent regression.
+
+**Impact:** Demographic — no direct financial impact, but incorrect birth dates could affect age-based eligibility calculations downstream.
+
+### Finding 2: Payment Calculation Bias
+
+All 9 financial reimbursement columns show mismatches, and **every dollar delta is positive** (net = abs = $35,624.71). The new system consistently **overstates** reimbursement amounts — it never understates them. This one-directional pattern is a strong indicator of a systematic calculation bias, not random noise.
+
+Breakdown by service type:
+
+| Service Type | Divergence | Affected Records |
+|---|---|---|
+| Outpatient (OP) | $14,339.20 | 31–47 per column |
+| Inpatient (IP) | $12,363.99 | 32–38 per column |
+| Carrier (CAR) | $8,921.52 | 30–46 per column |
+
+**Root cause hypothesis:** The new system may be applying a rounding rule, fee schedule adjustment, or filter condition differently than the old system, causing small per-record overpayments that aggregate across affected records.
+
+### Finding 3: Phantom Claims
+
+The new system contains **4,777 carrier claims** that have no corresponding record in the old system. Zero claims are lost in the other direction (old-only = 0). This asymmetry suggests the new system is generating spurious claim records — possibly from a join expansion, duplicate processing, or an off-by-one error in batch boundaries.
+
+### Finding 4: Claims Payment Column Concentration
+
+On matched claims, **10,411** have mismatched `LINE_NCH_PMT_AMT_1` (primary payment amount) — roughly **5x more** than the next most-affected payment column (`LINE_ALOWD_CHRG_AMT_1` at 657). This concentration in a single column points to a targeted bug in the primary payment calculation logic rather than a broad data corruption issue.
+
+### Geographic Distribution
+
+Discrepancies are spread across **50 of 52 state codes** with no dramatic geographic concentration. The highest mismatch rate is State 02 (0.42%, 3 records) — statistically insignificant given the small sample. This confirms the issues are systemic (code-level) rather than geographic (data-level).
+
+### Trend Analysis
+
+Discrepancy rates are **stable across the three summary years** (2008: 0.12%, 2009: 0.14%, 2010: 0.12%). The slight 2009 uptick is within normal variance. This stability suggests the bugs are inherent to the migration/calculation logic and do not worsen with time or data volume.
+
+### Recommendation
+
+The new system is **not ready for production cutover**. While overall accuracy is high (99.87%), two systematic bugs should be fixed:
+
+1. **Date handling** — investigate BENE_BIRTH_DT parsing logic in the new system's beneficiary ingestion pipeline.
+2. **Payment calculation** — investigate the one-directional overpayment bias, particularly in LINE_NCH_PMT_AMT calculation. The 5x concentration in this column narrows the search area.
+
+After fixes, re-run this pipeline to verify the discrepancy rate drops to zero or near-zero.
+
 ## Testing
 
 54 tests covering:
