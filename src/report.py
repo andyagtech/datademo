@@ -96,14 +96,35 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }
   .summary-meta { margin-left: auto; font-size: 0.8rem; color: var(--muted); font-weight: 400; }
 
-  /* Nav anchors */
-  .nav { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2rem; }
-  .nav a {
-    padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem;
-    background: var(--surface); border: 1px solid var(--border);
-    color: var(--muted); text-decoration: none; transition: all 0.15s;
+  /* Sidebar nav */
+  .sidebar {
+    position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 1.25rem 0; overflow-y: auto; z-index: 100;
+    display: flex; flex-direction: column;
   }
-  .nav a:hover { color: var(--accent); border-color: var(--accent); }
+  .sidebar-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); padding: 0 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .sidebar a {
+    display: block; padding: 0.45rem 1rem 0.45rem 1.15rem;
+    font-size: 0.82rem; color: var(--muted); text-decoration: none;
+    border-left: 3px solid transparent; transition: all 0.15s;
+    line-height: 1.4;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(56, 189, 248, 0.05); }
+  .sidebar a.active {
+    color: var(--accent); border-left-color: var(--accent);
+    background: rgba(56, 189, 248, 0.08); font-weight: 600;
+  }
+  .sidebar-divider { height: 1px; background: var(--border); margin: 0.5rem 1rem; }
+  .container { margin-left: 220px; }
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .container { margin-left: 0; }
+  }
 </style>
 </head>
 <body>
@@ -111,17 +132,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <h1>CMS Claims Data Comparison Report</h1>
   <p class="subtitle">Generated {{ generated_at }}</p>
 
-  <!-- Quick Nav -->
-  <div class="nav">
-    <a href="#data-context">Data Context</a>
-    <a href="#summary">Summary</a>
-    <a href="#discrepancies">Discrepancies</a>
-    <a href="#validation">Validation</a>
-    <a href="#trends">Trends</a>
-    <a href="#financial">Financial</a>
-    <a href="#comparison">Comparison</a>
-    <a href="#profiles">Data Profiles</a>
-  </div>
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-title">Report Sections</div>
+    <a href="#data-context" data-section="data-context">Data Context</a>
+    <a href="#summary" data-section="summary">Executive Summary</a>
+    <a href="#discrepancies" data-section="discrepancies">Discrepancies</a>
+    <div class="sidebar-divider"></div>
+    <a href="#validation" data-section="validation">Validation</a>
+    <a href="#trends" data-section="trends">YoY Trends</a>
+    <a href="#financial" data-section="financial">Financial Analysis</a>
+    <div class="sidebar-divider"></div>
+    <a href="#comparison" data-section="comparison">System Comparison</a>
+    <a href="#profiles" data-section="profiles">Data Profiles</a>
+  </nav>
 
   <!-- ============================================================ -->
   <!-- 0. DATA CONTEXT — what exactly is being compared              -->
@@ -381,22 +405,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="section" id="comparison">
     <h2>System Comparison</h2>
     {% if comparisons %}
-    <table>
-      <thead>
-        <tr><th>Check</th><th>Category</th><th>Table Pair</th><th>Description</th><th>Metric</th></tr>
-      </thead>
-      <tbody>
-        {% for c in comparisons %}
-        <tr>
-          <td>{{ c.check_name }}</td>
-          <td><span class="badge badge-info">{{ c.category }}</span></td>
-          <td>{{ c.table_pair }}</td>
-          <td>{{ c.description }}</td>
-          <td>{{ c.metric_value }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <details open>
+      <summary>
+        All Comparison Checks
+        <span class="summary-meta">{{ comparisons|length }} checks across schema, row-level, field-level, and aggregate categories</span>
+      </summary>
+      <div class="details-content">
+        <table>
+          <thead>
+            <tr><th>Check</th><th>Category</th><th>Table Pair</th><th>Description</th><th>Metric</th></tr>
+          </thead>
+          <tbody>
+            {% for c in comparisons %}
+            <tr>
+              <td>{{ c.check_name }}</td>
+              <td><span class="badge badge-info">{{ c.category }}</span></td>
+              <td>{{ c.table_pair }}</td>
+              <td>{{ c.description }}</td>
+              <td>{{ c.metric_value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
     {% else %}
     <div class="card card-yellow">
       <div class="card-label">Awaiting New System Data</div>
@@ -729,6 +761,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     Plotly.newPlot('chart-chronic',ccTraces,
       Object.assign({},dark,{title:'Chronic Condition Prevalence by Year (%)',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Prevalence (%)',gridcolor:gridColor},legend:{bgcolor:'rgba(0,0,0,0)',font:{size:10}},height:400}),{responsive:true});
+  }
+
+  /* -- Sidebar active section highlighting (IntersectionObserver) -- */
+  var sidebarLinks = document.querySelectorAll('#sidebar a[data-section]');
+  var sectionIds = Array.from(sidebarLinks).map(function(a){return a.getAttribute('data-section');});
+  var sectionEls = sectionIds.map(function(id){return document.getElementById(id);}).filter(Boolean);
+
+  if (sectionEls.length && 'IntersectionObserver' in window) {
+    var currentActive = null;
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          var id = entry.target.id;
+          if (currentActive !== id) {
+            currentActive = id;
+            sidebarLinks.forEach(function(a) {
+              a.classList.toggle('active', a.getAttribute('data-section') === id);
+            });
+          }
+        }
+      });
+    }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+    sectionEls.forEach(function(el) { observer.observe(el); });
   }
 
   /* -- Table sorting -- */
