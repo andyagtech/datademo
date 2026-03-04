@@ -330,7 +330,12 @@ async function probeAndLoadExports() {
 async function loadExport(el) {
   const file = el.dataset.file;
   const tableName = file.replace(/\.parq(uet)?$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
-  if (tables[tableName]) return; // already loaded
+  if (tables[tableName]) {
+    // Already loaded — just set query and run preview
+    queryEditor.value = `SELECT *\nFROM ${tableName}\nLIMIT 100`;
+    runQuery();
+    return;
+  }
 
   el.querySelector('.ei-status').textContent = '...';
   el.style.opacity = '0.5';
@@ -562,22 +567,22 @@ function updateExampleQueries() {
 
   const first = names[0];
   const examples = [
-    { label: 'Preview', sql: `SELECT * FROM ${first} LIMIT 100` },
-    { label: 'Count', sql: `SELECT COUNT(*) AS total FROM ${first}` },
+    { label: 'Preview', sql: `SELECT *\nFROM ${first}\nLIMIT 100` },
+    { label: 'Count', sql: `SELECT COUNT(*) AS total\nFROM ${first}` },
   ];
 
   // If we have discrepancy detail, add useful queries
   if (tables['_discrepancy_detail']) {
-    examples.push({ label: 'Top mismatches', sql: `SELECT DESYNPUF_ID, summary_year, diff_bene_birth_dt, diff_medreimb_ip, diff_benres_ip\nFROM _discrepancy_detail\nWHERE diff_bene_birth_dt = 1 OR diff_medreimb_ip = 1\nLIMIT 50` });
+    examples.push({ label: 'Top mismatches', sql: `SELECT DESYNPUF_ID, summary_year,\n  diff_bene_birth_dt, diff_medreimb_ip, diff_benres_ip\nFROM _discrepancy_detail\nWHERE diff_bene_birth_dt = 1 OR diff_medreimb_ip = 1\nLIMIT 50` });
   }
   if (tables['_financial_recon']) {
-    examples.push({ label: 'Financial summary', sql: `SELECT summary_year, \n  ROUND(SUM(medreimb_diff), 2) AS total_medreimb_diff,\n  ROUND(SUM(benres_diff), 2) AS total_benres_diff,\n  COUNT(*) AS records\nFROM _financial_recon\nGROUP BY summary_year\nORDER BY summary_year` });
+    examples.push({ label: 'Financial summary', sql: `SELECT summary_year,\n  SUM(medreimb_diff) AS total_medreimb_diff,\n  SUM(benres_diff) AS total_benres_diff,\n  COUNT(*) AS records\nFROM _financial_recon\nGROUP BY summary_year\nORDER BY summary_year` });
   }
   if (tables['_match_beneficiary']) {
     examples.push({ label: 'Match status', sql: `SELECT match_status, COUNT(*) AS cnt\nFROM _match_beneficiary\nGROUP BY match_status` });
   }
-  if (names.length >= 2) {
-    examples.push({ label: 'Join tables', sql: `SELECT a.*, b.*\nFROM ${names[0]} a\nINNER JOIN ${names[1]} b ON a.DESYNPUF_ID = b.DESYNPUF_ID\nLIMIT 50` });
+  if (tables['_match_claims']) {
+    examples.push({ label: 'Claims status', sql: `SELECT match_status, COUNT(*) AS cnt\nFROM _match_claims\nGROUP BY match_status` });
   }
 
   exampleQueries.innerHTML = examples.map(e =>
