@@ -7,11 +7,13 @@
 ## Table of Contents
 
 1. [About the Dataset](#about-the-dataset)
-2. [Beneficiary Summary Table](#beneficiary-summary-table)
-3. [Carrier Claims Table](#carrier-claims-table)
-4. [Derived / Internal Tables](#derived--internal-tables)
-5. [Using Other CMS Samples](#using-other-cms-samples)
-6. [Codebook Reference](#codebook-reference)
+2. [New System (Under Test)](#new-system-under-test)
+3. [Beneficiary Summary Table](#beneficiary-summary-table)
+4. [Carrier Claims Table](#carrier-claims-table)
+5. [Schema Comparison: Old vs New](#schema-comparison-old-vs-new)
+6. [Derived / Internal Tables](#derived--internal-tables)
+7. [Using Other CMS Samples](#using-other-cms-samples)
+8. [Codebook Reference](#codebook-reference)
 
 ---
 
@@ -39,6 +41,36 @@
 | `DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv` | `beneficiary_summary` | ~113K | Year 2010 |
 | `DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv` | `carrier_claims` | ~2.37M | Carrier claims batch A |
 | `DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv` | `carrier_claims` | ~2.37M | Carrier claims batch B |
+
+---
+
+## New System (Under Test)
+
+The new system is the replacement claims processing pipeline whose outputs are validated against the old system (ground truth). The new system data is provided as a password-protected zip file as part of the assessment.
+
+**Source:** Assessment-provided zip file (password: `SlJxqMl9`)
+
+### File Inventory
+
+| File | DuckDB Table | Records | Size |
+|---|---|---|---|
+| `DE1_0_2008_Beneficiary_Summary_File_Sample_1_NEWSYSTEM.csv` | `new_beneficiary_summary` | ~116K | 14.6 MB |
+| `DE1_0_2009_Beneficiary_Summary_File_Sample_1_NEWSYSTEM.csv` | `new_beneficiary_summary` | ~115K | 14.5 MB |
+| `DE1_0_2010_Beneficiary_Summary_File_Sample_1_NEWSYSTEM.csv` | `new_beneficiary_summary` | ~113K | 14.1 MB |
+| `DE1_0_2008_to_2010_Carrier_Claims_Sample_1A_NEWSYSTEM.csv` | `new_carrier_claims` | ~2.37M | 1.24 GB |
+| `DE1_0_2008_to_2010_Carrier_Claims_Sample_1B_NEWSYSTEM.csv` | `new_carrier_claims` | ~2.37M | 1.24 GB |
+
+### Key Observations
+
+The new system intentionally contains issues. At a high level:
+
+- **Same file structure** as the old system — 3 beneficiary summary files (one per year) + 2 carrier claims files
+- **Same column names** — all 33 beneficiary columns and 142 carrier claims columns are present
+- **Row count differences** — the new system produces 4,777 more carrier claims than the old system (phantom claims that exist only in the new system)
+- **One type difference** — `CLM_ID` is `BIGINT` in the old system and `VARCHAR` in the new system (handled automatically by DuckDB during matching via cast)
+- **Intentional data discrepancies** — detailed in the [Schema Comparison](#schema-comparison-old-vs-new) section below
+
+The pipeline auto-detects these files by reading CSV headers — the `_NEWSYSTEM` filename suffix is not required.
 
 ---
 
@@ -148,6 +180,44 @@ Each of the following columns is repeated 13 times with suffix `_1` through `_13
 | `LINE_PLACE_OF_SRVC_CD_{n}` | VARCHAR | Place of service code |
 
 **Why 142 columns:** 8 diagnosis codes + 2 NPIs + 13 tax numbers + (13 lines × 9 columns per line) = 142 total. This is a denormalized layout — a normalized design would have a separate `claim_lines` table.
+
+---
+
+## Schema Comparison: Old vs New
+
+The pipeline's Step 2 (Schema Validate) and Step 5 (Compare) verify schema compatibility. Here is the full comparison:
+
+### Beneficiary Summary
+
+| Property | Old System | New System | Match? |
+|---|---|---|---|
+| **Column count** | 33 | 33 | ✅ Identical |
+| **Column names** | All 33 present | All 33 present | ✅ Identical |
+| **Column types** | All match | All match | ✅ Identical |
+| **Row count** | 343,644 | 343,644 | ✅ Identical |
+| **Unique beneficiaries** | ~115K | ~115K | ✅ (3 years × ~115K) |
+
+### Carrier Claims
+
+| Property | Old System | New System | Match? |
+|---|---|---|---|
+| **Column count** | 142 | 142 | ✅ Identical |
+| **Column names** | All 142 present | All 142 present | ✅ Identical |
+| **CLM_ID type** | `BIGINT` | `VARCHAR` | ⚠️ Type mismatch — cast during match |
+| **Row count** | 4,741,335 | 4,746,112 | ❌ +4,777 new-only (phantom claims) |
+
+### Discrepancies Found by the Pipeline
+
+| Category | Count | Description |
+|---|---|---|
+| **Beneficiary field mismatches** | 446 records | At least one field differs between old and new |
+| **BENE_BIRTH_DT mismatches** | 178 | Largest single field — systematic date parsing bug |
+| **Financial column mismatches** | 47–46 per column | MEDREIMB_OP, BENRES_CAR, PPPYMT_CAR, etc. |
+| **Claims payment mismatches** | 10,411 on LINE_NCH_PMT_AMT_1 | Primary payment amount — systematic calculation error |
+| **Phantom claims** | 4,777 | Exist in new system only, 0 lost from old system |
+| **Total financial divergence** | $35,624.71 | All positive (new system overstates) |
+
+For the full analysis of what these discrepancies mean, see the [Key Findings narrative](../reports/comparison_report.html) in the HTML report and the [Analysis Findings](../specs/SOLUTION.md#analysis-findings) section in SOLUTION.md.
 
 ---
 
