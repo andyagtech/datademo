@@ -275,8 +275,8 @@
 // ============================================================
 // IMPORTS — hyparquet + compressors from CDN (ESM)
 // ============================================================
-import { parquetMetadataAsync, parquetRead, parquetSchema } from 'https://cdn.jsdelivr.net/npm/hyparquet@1/src/hyparquet.min.js';
-import { compressors } from 'https://cdn.jsdelivr.net/npm/hyparquet-compressors@1/src/index.js';
+import { parquetMetadataAsync, parquetRead, parquetSchema } from 'https://esm.sh/hyparquet@1';
+import { compressors } from 'https://esm.sh/hyparquet-compressors@1';
 
 const app = document.getElementById('app');
 const dropZone = document.getElementById('dropZone');

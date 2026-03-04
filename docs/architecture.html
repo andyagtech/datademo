@@ -100,16 +100,16 @@
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart LR
     subgraph INPUT["📁 Input"]
-        OLD["Old System CSVs\n(3 Beneficiary + 2 Carrier)"]
-        NEW["New System CSVs\n(3 Beneficiary + 2 Carrier)"]
+        OLD["Old System CSVs<br/>(3 Beneficiary + 2 Carrier)"]
+        NEW["New System CSVs<br/>(3 Beneficiary + 2 Carrier)"]
     end
 
-    S1["1\nReceive\n& Verify"]
-    S2["2\nSchema\nValidation"]
-    S3["3\nIngest\n& Profile"]
-    S4["4\nRecord\nMatching"]
-    S5["5\nCompare\n& Analyze"]
-    S6["6\nReport"]
+    S1["1<br/>Receive<br/>& Verify"]
+    S2["2<br/>Schema<br/>Validation"]
+    S3["3<br/>Ingest<br/>& Profile"]
+    S4["4<br/>Record<br/>Matching"]
+    S5["5<br/>Compare<br/>& Analyze"]
+    S6["6<br/>Report"]
 
     subgraph OUTPUT["📊 Output"]
         JSON["report_data.json"]
@@ -146,22 +146,22 @@ flowchart LR
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart TB
     subgraph SOURCES["Data Sources"]
-        LOCAL["Local Filesystem\n<code>data/</code>"]
-        CLOUD["Cloud Storage\n(S3 via StorageAdapter)"]
-        NEWDIR["New System Dir\n<code>--new-data path/</code>"]
+        LOCAL["Local Filesystem<br/><code>data/</code>"]
+        CLOUD["Cloud Storage<br/>(S3 via StorageAdapter)"]
+        NEWDIR["New System Dir<br/><code>--new-data path/</code>"]
     end
 
-    DISCOVER["File Discovery\nGlob: *Beneficiary*, *Carrier*"]
-    ZIP["Zip Extraction\n(if .zip detected)"]
-    CHECKSUM["SHA-256 Checksum\nIntegrity Verification"]
-    INVENTORY["Build Inventory\n{name, path, size_mb, checksum}"]
+    DISCOVER["File Discovery<br/>Glob: *Beneficiary*, *Carrier*"]
+    ZIP["Zip Extraction<br/>(if .zip detected)"]
+    CHECKSUM["SHA-256 Checksum<br/>Integrity Verification"]
+    INVENTORY["Build Inventory<br/>{name, path, size_mb, checksum}"]
 
     SOURCES --> DISCOVER
     DISCOVER --> ZIP
     ZIP --> CHECKSUM
     CHECKSUM --> INVENTORY
 
-    INVENTORY --> RES["StepResult\n• old_system.inventory\n• new_system.inventory\n• file_count"]
+    INVENTORY --> RES["StepResult<br/>• old_system.inventory<br/>• new_system.inventory<br/>• file_count"]
 
     style DISCOVER fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
     style ZIP fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
@@ -203,16 +203,16 @@ flowchart TB
       <pre class="mermaid">
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart LR
-    INV["File Inventory\nfrom Step 1"] --> READ["Read CSV Headers\n(first row only)"]
-    READ --> CLASS["Classify File Type\nBeneficiary vs Carrier"]
+    INV["File Inventory<br/>from Step 1"] --> READ["Read CSV Headers<br/>(first row only)"]
+    READ --> CLASS["Classify File Type<br/>Beneficiary vs Carrier"]
 
-    CLASS --> BENE["Beneficiary Schema\n32 expected columns\nDESYNPUF_ID, BENE_BIRTH_DT, ..."]
-    CLASS --> CARR["Carrier Schema\n141 expected columns\nDESYNPUF_ID, CLM_ID, ..."]
+    CLASS --> BENE["Beneficiary Schema<br/>32 expected columns<br/>DESYNPUF_ID, BENE_BIRTH_DT, ..."]
+    CLASS --> CARR["Carrier Schema<br/>141 expected columns<br/>DESYNPUF_ID, CLM_ID, ..."]
 
-    BENE --> CHECK["Column Validation\n• Missing columns?\n• Extra columns?\n• Name mismatches?"]
+    BENE --> CHECK["Column Validation<br/>• Missing columns?<br/>• Extra columns?<br/>• Name mismatches?"]
     CARR --> CHECK
 
-    CHECK --> RES["StepResult\n• validated_count\n• beneficiary_count\n• carrier_count\n• schema_errors[]"]
+    CHECK --> RES["StepResult<br/>• validated_count<br/>• beneficiary_count<br/>• carrier_count<br/>• schema_errors[]"]
 
     style READ fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
     style CLASS fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
@@ -256,23 +256,23 @@ flowchart LR
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart TB
     subgraph INGEST["Ingestion"]
-        CSV_OLD["Old System CSVs"] --> DUCK_OLD["DuckDB Tables\n• beneficiary_summary\n• carrier_claims"]
-        CSV_NEW["New System CSVs"] --> DUCK_NEW["DuckDB Tables\n• new_beneficiary_summary\n• new_carrier_claims"]
+        CSV_OLD["Old System CSVs"] --> DUCK_OLD["DuckDB Tables<br/>• beneficiary_summary<br/>• carrier_claims"]
+        CSV_NEW["New System CSVs"] --> DUCK_NEW["DuckDB Tables<br/>• new_beneficiary_summary<br/>• new_carrier_claims"]
     end
 
     subgraph ENRICH["Enrichment"]
-        DUCK_OLD --> YEAR["Add summary_year\n(extracted from filename)"]
-        DUCK_NEW --> YEAR_N["Add summary_year\n(extracted from filename)"]
+        DUCK_OLD --> YEAR["Add summary_year<br/>(extracted from filename)"]
+        DUCK_NEW --> YEAR_N["Add summary_year<br/>(extracted from filename)"]
     end
 
     subgraph PROFILE["Profiling (per table)"]
-        COLS["For each column:\n• null_count, null_pct\n• distinct_count\n• min, max, mean\n• dtype detection"]
-        ANOMALY["Anomaly Detection\n• High null columns (>50%)\n• Zero-variance columns\n• Outlier distributions"]
+        COLS["For each column:<br/>• null_count, null_pct<br/>• distinct_count<br/>• min, max, mean<br/>• dtype detection"]
+        ANOMALY["Anomaly Detection<br/>• High null columns (>50%)<br/>• Zero-variance columns<br/>• Outlier distributions"]
     end
 
     ENRICH --> PROFILE
 
-    PROFILE --> RES["StepResult\n• profiles{table → TableProfile}\n• anomalies[]\n• row counts"]
+    PROFILE --> RES["StepResult<br/>• profiles{table → TableProfile}<br/>• anomalies[]<br/>• row counts"]
 
     style DUCK_OLD fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
     style DUCK_NEW fill:#1e293b,stroke:#4ade80,color:#e2e8f0
@@ -316,20 +316,20 @@ flowchart TB
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart TB
     subgraph TABLES["DuckDB Tables"]
-        OLD_B["beneficiary_summary\n343,644 rows"]
-        NEW_B["new_beneficiary_summary\n343,644 rows"]
-        OLD_C["carrier_claims\n4,741,335 rows"]
-        NEW_C["new_carrier_claims\n4,746,112 rows"]
+        OLD_B["beneficiary_summary<br/>343,644 rows"]
+        NEW_B["new_beneficiary_summary<br/>343,644 rows"]
+        OLD_C["carrier_claims<br/>4,741,335 rows"]
+        NEW_C["new_carrier_claims<br/>4,746,112 rows"]
     end
 
     subgraph KEYS["Key Identification"]
-        K1["Beneficiary Key:\nDESYNPUF_ID + summary_year"]
-        K2["Claims Key:\nCLM_ID"]
+        K1["Beneficiary Key:<br/>DESYNPUF_ID + summary_year"]
+        K2["Claims Key:<br/>CLM_ID"]
     end
 
     subgraph JOIN["FULL OUTER JOIN"]
-        J1["CAST keys to VARCHAR\n(handle type mismatches)"]
-        J1 --> CLASSIFY["Classify Records\n• COALESCE(old, new) not null → matched\n• new IS NULL → old_only\n• old IS NULL → new_only"]
+        J1["CAST keys to VARCHAR<br/>(handle type mismatches)"]
+        J1 --> CLASSIFY["Classify Records<br/>• COALESCE(old, new) not null → matched<br/>• new IS NULL → old_only<br/>• old IS NULL → new_only"]
     end
 
     subgraph VALIDATE["Internal Validation"]
@@ -342,10 +342,10 @@ flowchart TB
     TABLES --> KEYS --> JOIN
     TABLES --> VALIDATE
 
-    JOIN --> MATCH_T["_match_beneficiary\n_match_claims"]
-    CLASSIFY --> RATES["Match Rates\nBene: 99.91%\nClaims: 99.9%"]
+    JOIN --> MATCH_T["_match_beneficiary<br/>_match_claims"]
+    CLASSIFY --> RATES["Match Rates<br/>Bene: 99.91%<br/>Claims: 99.9%"]
 
-    VALIDATE --> VRES["ValidationResults\n7 passed, 4 failed"]
+    VALIDATE --> VRES["ValidationResults<br/>7 passed, 4 failed"]
 
     style OLD_B fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
     style NEW_B fill:#1e293b,stroke:#4ade80,color:#e2e8f0
@@ -391,15 +391,15 @@ flowchart TB
       <pre class="mermaid">
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart TB
-    MATCHED["Matched Records\nfrom Step 4"] --> COMPARE["Field-by-Field Comparison\nFor each column:\nold_value != new_value?"]
+    MATCHED["Matched Records<br/>from Step 4"] --> COMPARE["Field-by-Field Comparison<br/>For each column:<br/>old_value != new_value?"]
 
-    COMPARE --> AGG["Aggregate Discrepancies\n• By column (which fields differ?)\n• By category (demographic, financial, etc.)\n• By severity (count + percentage)"]
+    COMPARE --> AGG["Aggregate Discrepancies<br/>• By column (which fields differ?)<br/>• By category (demographic, financial, etc.)<br/>• By severity (count + percentage)"]
 
-    COMPARE --> DETAIL["Discrepancy Detail Table\n_discrepancy_detail\n343,485 rows × 37 cols"]
+    COMPARE --> DETAIL["Discrepancy Detail Table<br/>_discrepancy_detail<br/>343,485 rows × 37 cols"]
 
-    COMPARE --> FINREC["Financial Reconciliation\n_financial_recon\n262,017 rows × 11 cols"]
+    COMPARE --> FINREC["Financial Reconciliation<br/>_financial_recon<br/>262,017 rows × 11 cols"]
 
-    AGG --> CHECKS["46 ComparisonResults\n• check_name\n• category\n• table_pair\n• metric_value"]
+    AGG --> CHECKS["46 ComparisonResults<br/>• check_name<br/>• category<br/>• table_pair<br/>• metric_value"]
 
     subgraph METRICS["Key Metrics"]
         M1["446 beneficiaries mismatched (0.13%)"]
@@ -451,22 +451,22 @@ flowchart TB
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart TB
     subgraph INPUTS["Inputs from Steps 1-5"]
-        PROF["TableProfiles\n(8 tables)"]
-        VAL["ValidationResults\n(11 checks)"]
-        COMP["ComparisonResults\n(46 checks)"]
-        CTX["PipelineContext\n(file inventories, match rates)"]
-        CHART_Q["Chart Data Queries\n(DuckDB → aggregations)"]
+        PROF["TableProfiles<br/>(8 tables)"]
+        VAL["ValidationResults<br/>(11 checks)"]
+        COMP["ComparisonResults<br/>(46 checks)"]
+        CTX["PipelineContext<br/>(file inventories, match rates)"]
+        CHART_Q["Chart Data Queries<br/>(DuckDB → aggregations)"]
     end
 
-    BUILD["build_report_data()\nAssemble canonical dict"]
+    BUILD["build_report_data()<br/>Assemble canonical dict"]
 
     INPUTS --> BUILD
 
-    BUILD --> JSON["report_data.json\n292 KB\n(presentation-agnostic)"]
+    BUILD --> JSON["report_data.json<br/>292 KB<br/>(presentation-agnostic)"]
 
-    BUILD --> RENDER["Jinja2 Template\n+ Embedded chart_data JSON"]
+    BUILD --> RENDER["Jinja2 Template<br/>+ Embedded chart_data JSON"]
 
-    RENDER --> HTML["comparison_report.html\n• Data Context section\n• Executive Summary\n• 6 Plotly charts (client-side)\n• Sortable tables\n• Collapsible profiles"]
+    RENDER --> HTML["comparison_report.html<br/>• Data Context section<br/>• Executive Summary<br/>• 6 Plotly charts (client-side)<br/>• Sortable tables<br/>• Collapsible profiles"]
 
     BUILD --> EXPORT["CSV Exports"]
     EXPORT --> CSV1["_discrepancy_detail.csv"]
@@ -474,8 +474,8 @@ flowchart TB
     EXPORT --> CSV3["_match_beneficiary.csv"]
     EXPORT --> CSV4["_match_claims.csv"]
 
-    JSON -.->|"fetch()"|REACT["React Diff Viewer\n(separate app)"]
-    JSON -.->|"Any consumer"|OTHER["CLI / PDF / API\n(future)"]
+    JSON -.->|"fetch()"|REACT["React Diff Viewer<br/>(separate app)"]
+    JSON -.->|"Any consumer"|OTHER["CLI / PDF / API<br/>(future)"]
 
     style BUILD fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
     style JSON fill:#1e293b,stroke:#4ade80,color:#e2e8f0
@@ -519,8 +519,8 @@ flowchart TB
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart TB
     subgraph DISK["Disk (Input)"]
-        F1["data/*.csv\n(old system)"]
-        F2["data/new_claims_system_outputs/*.csv\n(new system)"]
+        F1["data/*.csv<br/>(old system)"]
+        F2["data/new_claims_system_outputs/*.csv<br/>(new system)"]
     end
 
     subgraph DUCKDB["DuckDB In-Memory"]
