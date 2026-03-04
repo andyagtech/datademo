@@ -117,6 +117,8 @@ Python 3.13 also works if that's what you have locally. The codebase uses no 3.1
 
 ### What You Provide
 
+> **Detailed reference:** See [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md) for full column definitions, table schemas, and instructions for using other CMS samples.
+
 | Input | Description | Format |
 |-------|-------------|--------|
 | **Old system data** | CMS DE-SynPUF files from cms.gov | 5 CSVs: 3 beneficiary summary (2008-2010) + 2 carrier claims |
@@ -373,6 +375,7 @@ The local and cloud versions share all pipeline logic:
 │   └── exports/              # CSV exports of analysis tables
 │
 └── docs/
+    ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook reference
     ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
     └── architecture.html     # Interactive architecture diagrams (Mermaid.js)
 ```
