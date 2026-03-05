@@ -90,12 +90,19 @@ def compare_schemas(
     return results
 
 
+def _key_join(key_cols: list[str]) -> str:
+    """Build a JOIN condition from a list of key columns."""
+    return " AND ".join(f"o.{k} = n.{k}" for k in key_cols)
+
+
 def compare_row_counts(
-    con: duckdb.DuckDBPyConnection, old_table: str, new_table: str, key_col: str
+    con: duckdb.DuckDBPyConnection, old_table: str, new_table: str, key_cols: list[str]
 ) -> list[ComparisonResult]:
     """Compare row presence between old and new by key."""
     results = []
     pair = f"{old_table} vs {new_table}"
+    join_cond = _key_join(key_cols)
+    first_key = key_cols[0]
 
     old_count = con.execute(f"SELECT COUNT(*) FROM {old_table}").fetchone()[0]
     new_count = con.execute(f"SELECT COUNT(*) FROM {new_table}").fetchone()[0]
@@ -111,32 +118,33 @@ def compare_row_counts(
 
     # Rows in old but not new
     missing = con.execute(f"""
-        SELECT COUNT(DISTINCT o.{key_col})
+        SELECT COUNT(DISTINCT o.{first_key})
         FROM {old_table} o
-        LEFT JOIN {new_table} n ON o.{key_col} = n.{key_col}
-        WHERE n.{key_col} IS NULL
+        LEFT JOIN {new_table} n ON {join_cond}
+        WHERE n.{first_key} IS NULL
     """).fetchone()[0]
 
     # Rows in new but not old
     extra = con.execute(f"""
-        SELECT COUNT(DISTINCT n.{key_col})
+        SELECT COUNT(DISTINCT n.{first_key})
         FROM {new_table} n
-        LEFT JOIN {old_table} o ON n.{key_col} = o.{key_col}
-        WHERE o.{key_col} IS NULL
+        LEFT JOIN {old_table} o ON {join_cond}
+        WHERE o.{first_key} IS NULL
     """).fetchone()[0]
 
+    key_label = ', '.join(key_cols)
     results.append(ComparisonResult(
         check_name="keys_missing_in_new",
         category="row_level",
         table_pair=pair,
-        description=f"Distinct {key_col} values in old but not in new",
+        description=f"Distinct ({key_label}) values in old but not in new",
         metric_value=missing,
     ))
     results.append(ComparisonResult(
         check_name="keys_extra_in_new",
         category="row_level",
         table_pair=pair,
-        description=f"Distinct {key_col} values in new but not in old",
+        description=f"Distinct ({key_label}) values in new but not in old",
         metric_value=extra,
     ))
 
@@ -147,12 +155,13 @@ def compare_field_values(
     con: duckdb.DuckDBPyConnection,
     old_table: str,
     new_table: str,
-    key_col: str,
+    key_cols: list[str],
     compare_cols: list[str],
 ) -> list[ComparisonResult]:
     """Compare specific field values on matched rows."""
     results = []
     pair = f"{old_table} vs {new_table}"
+    join_cond = _key_join(key_cols)
 
     for col in compare_cols:
         safe_col = f'"{col}"'
@@ -162,7 +171,7 @@ def compare_field_values(
                 SUM(CASE WHEN o.{safe_col}::VARCHAR IS DISTINCT FROM n.{safe_col}::VARCHAR
                     THEN 1 ELSE 0 END) AS mismatches
             FROM {old_table} o
-            INNER JOIN {new_table} n ON o.{key_col} = n.{key_col}
+            INNER JOIN {new_table} n ON {join_cond}
         """).fetchone()
         assert r is not None
         matched, mismatches = r
@@ -232,7 +241,7 @@ class _TablePairConfig(TypedDict):
     """Configuration for comparing an old/new table pair."""
     old: str
     new: str
-    key: str
+    key: list[str]
     compare_cols: list[str]
     numeric_cols: list[str]
 
@@ -241,7 +250,7 @@ TABLE_PAIRS: list[_TablePairConfig] = [
     {
         "old": "beneficiary_summary",
         "new": "new_beneficiary_summary",
-        "key": "DESYNPUF_ID",
+        "key": ["DESYNPUF_ID", "summary_year"],
         "compare_cols": [
             "BENE_BIRTH_DT", "BENE_DEATH_DT", "BENE_SEX_IDENT_CD", "BENE_RACE_CD",
             "SP_ALZHDMTA", "SP_CHF", "SP_CHRNKIDN", "SP_CNCR", "SP_COPD",
@@ -257,7 +266,7 @@ TABLE_PAIRS: list[_TablePairConfig] = [
     {
         "old": "carrier_claims",
         "new": "new_carrier_claims",
-        "key": "CLM_ID",
+        "key": ["CLM_ID"],
         "compare_cols": [
             "DESYNPUF_ID", "CLM_FROM_DT", "CLM_THRU_DT",
             "ICD9_DGNS_CD_1", "ICD9_DGNS_CD_2",

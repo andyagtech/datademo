@@ -25,7 +25,7 @@ class TestSchemaComparison:
 class TestRowCounts:
     def test_row_count_difference(self, con_with_new):
         results = compare_row_counts(
-            con_with_new, "beneficiary_summary", "new_beneficiary_summary", "DESYNPUF_ID"
+            con_with_new, "beneficiary_summary", "new_beneficiary_summary", ["DESYNPUF_ID"]
         )
         count_diff = next(r for r in results if r.check_name == "row_count_difference")
         # Old: 5 rows (BENE_A x2, B, C, D), New: 5 rows (BENE_A x2, B, C, BENE_NEW)
@@ -33,7 +33,7 @@ class TestRowCounts:
 
     def test_keys_missing_in_new(self, con_with_new):
         results = compare_row_counts(
-            con_with_new, "beneficiary_summary", "new_beneficiary_summary", "DESYNPUF_ID"
+            con_with_new, "beneficiary_summary", "new_beneficiary_summary", ["DESYNPUF_ID"]
         )
         missing = next(r for r in results if r.check_name == "keys_missing_in_new")
         # BENE_D is in old but not in new
@@ -41,7 +41,7 @@ class TestRowCounts:
 
     def test_keys_extra_in_new(self, con_with_new):
         results = compare_row_counts(
-            con_with_new, "beneficiary_summary", "new_beneficiary_summary", "DESYNPUF_ID"
+            con_with_new, "beneficiary_summary", "new_beneficiary_summary", ["DESYNPUF_ID"]
         )
         extra = next(r for r in results if r.check_name == "keys_extra_in_new")
         # BENE_NEW is in new but not in old
@@ -52,7 +52,7 @@ class TestFieldValues:
     def test_detects_race_mismatch(self, con_with_new):
         results = compare_field_values(
             con_with_new, "beneficiary_summary", "new_beneficiary_summary",
-            "DESYNPUF_ID", ["BENE_RACE_CD"]
+            ["DESYNPUF_ID"], ["BENE_RACE_CD"]
         )
         race = next(r for r in results if r.check_name == "field_mismatch_bene_race_cd")
         # BENE_C: race 3 -> 5

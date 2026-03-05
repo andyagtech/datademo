@@ -2,9 +2,9 @@
 
 ## Duration
 
-Approximately 6 hours coding and another hour for writing and taking screenshots.
+Approximately 6 hours coding and another two hours for writing and taking screenshots.
 
-I have a component from another personal project that I considered adding in here.
+I have a chat component from another personal project that I considered adding in here.
 
 I also added a bit more to the data exploration part than was originally asked for - showing the use of an in-browser Parquet viewer and query engine that was made by someone I know.
 
