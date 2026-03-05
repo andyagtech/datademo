@@ -111,6 +111,26 @@
     return r ? r.url : 'docs/sql_explorer.html';
   }
 
+  // Clipboard helper with fallback for non-HTTPS sites
+  function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    // Fallback: textarea + execCommand for HTTP sites
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy') ? resolve() : reject();
+      } catch (e) { reject(e); }
+      ta.remove();
+    });
+  }
+
   // ── Inject CSS ──
   var style = document.createElement('style');
   style.textContent = [
@@ -179,9 +199,10 @@
     '.chat-history-card .h-nosql{font-size:.68rem;color:#475569;font-style:italic}',
     '.chat-history-clear{display:block;width:100%;padding:8px;margin-top:4px;background:none;border:1px solid #334155;border-radius:6px;color:#f87171;font-size:.75rem;cursor:pointer;text-align:center}',
     '.chat-history-clear:hover{background:#1e293b;border-color:#f87171}',
-    '.chat-sql-copy{position:absolute;top:4px;right:4px;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;border-radius:4px;padding:2px 6px;font-size:.6rem;cursor:pointer;font-family:inherit;opacity:0;transition:opacity .15s}',
+    '.chat-sql-copy{position:absolute;top:4px;right:4px;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:.65rem;cursor:pointer;font-family:inherit;opacity:.7;transition:opacity .15s;z-index:2}',
     '.chat-msg.assistant pre:hover .chat-sql-copy{opacity:1}',
-    '.chat-sql-copy.copied{background:rgba(74,222,128,0.2);border-color:rgba(74,222,128,0.4);color:#4ade80}',
+    '.chat-sql-copy:hover{opacity:1;background:rgba(56,189,248,0.25)}',
+    '.chat-sql-copy.copied{background:rgba(74,222,128,0.2);border-color:rgba(74,222,128,0.4);color:#4ade80;opacity:1}',
     '.chat-nav-pill{display:inline-block;margin-top:6px}',
     '.chat-nav-pill button{background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:12px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-family:inherit}',
     '.chat-nav-pill button:hover{background:rgba(56,189,248,0.25)}',
@@ -477,7 +498,8 @@
       copyBtn.textContent = 'Copy';
       copyBtn.addEventListener('click', function (e) {
         e.stopPropagation();
-        navigator.clipboard.writeText(text).then(function () {
+        e.preventDefault();
+        copyToClipboard(text).then(function () {
           copyBtn.textContent = 'Copied!';
           copyBtn.classList.add('copied');
           setTimeout(function () { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500);
@@ -486,12 +508,25 @@
       pre.style.position = 'relative';
       pre.appendChild(copyBtn);
 
-      // Double-click → navigate to SQL Explorer with query pre-filled
+      // Double-click → fill SQL Explorer directly if on that page, otherwise navigate
       pre.style.cursor = 'pointer';
-      pre.title = 'Double-click to open in SQL Explorer';
+      pre.title = 'Double-click to run in SQL Explorer';
       pre.addEventListener('dblclick', function () {
-        sessionStorage.setItem('cms_prefill_sql', text);
-        window.location.href = getSqlExplorerUrl();
+        var onSqlPage = window.location.pathname.indexOf('sql_explorer') !== -1;
+        if (onSqlPage) {
+          // Already on SQL Explorer — fill editor directly
+          var editor = document.getElementById('queryEditor');
+          if (editor) {
+            editor.value = text;
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+            // Try to trigger run
+            var runBtn = document.getElementById('runBtn');
+            if (runBtn && !runBtn.disabled) runBtn.click();
+          }
+        } else {
+          sessionStorage.setItem('cms_prefill_sql', text);
+          window.location.href = getSqlExplorerUrl();
+        }
       });
     });
   }
