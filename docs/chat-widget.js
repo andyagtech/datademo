@@ -205,11 +205,23 @@
     '.chat-send{width:38px;height:38px;border-radius:50%;border:none;background:#38bdf8;color:#0f172a;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0}',
     '.chat-send:hover{background:#60ccf8}.chat-send:disabled{opacity:.4;cursor:not-allowed}',
     '.chat-send svg{width:18px;height:18px}',
-    '.chat-config{display:flex;align-items:center;gap:6px;padding:6px 16px;background:#0f172a;border-top:1px solid #334155;flex-shrink:0;font-size:.7rem;color:#64748b}',
+    '.chat-config-drawer{flex-shrink:0;position:relative}',
+    '.chat-config-handle{height:8px;background:#0f172a;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:0 0 16px 16px}',
+    '.chat-config-handle::after{content:"";width:28px;height:2px;background:#334155;border-radius:1px;transition:background .2s}',
+    '.chat-config-drawer:hover .chat-config-handle::after{background:#64748b}',
+    '.chat-config{display:flex;align-items:center;gap:6px;padding:0 16px;background:#0f172a;flex-shrink:0;font-size:.7rem;color:#64748b;max-height:0;overflow:hidden;transition:max-height .25s ease,padding .25s ease}',
+    '.chat-config-drawer:hover .chat-config{max-height:30px;padding:5px 16px}',
     '.chat-config input{flex:1;background:#1e293b;border:1px solid #334155;border-radius:4px;color:#94a3b8;padding:3px 6px;font-size:.7rem;font-family:monospace;outline:none}',
     '.chat-config input:focus{border-color:#38bdf8}',
     '.chat-config .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}',
     '.chat-config .dot.connected{background:#4ade80}.chat-config .dot.disconnected{background:#f87171}',
+    '.chat-suggest{display:none;max-height:0;overflow:hidden;transition:max-height .2s ease;background:#0f172a;border-top:1px solid #334155}',
+    '.chat-suggest.open{display:block;max-height:180px;overflow-y:auto}',
+    '.chat-suggest-item{padding:7px 16px;font-size:.78rem;color:#94a3b8;cursor:pointer;transition:all .1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.chat-suggest-item:hover,.chat-suggest-item.active{background:rgba(56,189,248,0.08);color:#e2e8f0}',
+    '.chat-suggest-item .suggest-match{color:#38bdf8}',
+    '.chat-suggest-hint{padding:3px 16px;font-size:.58rem;color:#475569;display:flex;align-items:center;gap:4px}',
+    '.chat-suggest-hint kbd{background:#1e293b;border:1px solid #334155;border-radius:3px;padding:0 4px;font-size:.56rem;font-family:inherit;color:#64748b}',
     '.chat-history-overlay{display:none;position:absolute;inset:0;z-index:10;background:#0f172af0;flex-direction:column}',
     '.chat-history-overlay.open{display:flex}',
     '.chat-history-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #334155;flex-shrink:0}',
@@ -270,14 +282,18 @@
     '  <button data-q="What is the 0.90 payment ratio pattern?">0.90 ratio pattern</button>',
     '  <button data-q="Suggest SQL queries to investigate further">SQL queries</button>',
     '</div>',
+    '<div class="chat-suggest" id="chatSuggest"></div>',
     '<div class="chat-input-area">',
     '  <textarea id="chatInput" rows="1" placeholder="Ask about the report findings..." maxlength="2000"></textarea>',
     '  <button class="chat-send" id="chatSend" title="Send"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/></svg></button>',
     '</div>',
-    '<div class="chat-config">',
-    '  <span class="dot disconnected" id="chatDot"></span>',
-    '  <span>API:</span>',
-    '  <input type="text" id="chatApiUrl" value="' + LAMBDA_URL + '" placeholder="' + LAMBDA_URL + '">',
+    '<div class="chat-config-drawer">',
+    '  <div class="chat-config" id="chatConfig">',
+    '    <span class="dot disconnected" id="chatDot"></span>',
+    '    <span>API:</span>',
+    '    <input type="text" id="chatApiUrl" value="' + LAMBDA_URL + '" placeholder="' + LAMBDA_URL + '">',
+    '  </div>',
+    '  <div class="chat-config-handle" title="API settings"></div>',
     '</div>',
     '<div class="chat-history-overlay" id="chatHistoryOverlay">',
     '  <div class="chat-history-header"><h4>Query History</h4><button id="chatHistoryClose" title="Close history"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>',
@@ -301,9 +317,60 @@
   var historyOverlay = document.getElementById('chatHistoryOverlay');
   var historyCloseBtn = document.getElementById('chatHistoryClose');
   var historyListEl = document.getElementById('chatHistoryList');
+  var suggestEl = document.getElementById('chatSuggest');
 
   var conversationHistory = [];
   var isLoading = false;
+
+  // ── Suggested questions for autocomplete ──
+  var SUGGESTIONS = [
+    'What are the most critical findings?',
+    'Explain the payment discrepancy between systems',
+    'How many beneficiaries have data mismatches?',
+    'What is the overall accuracy rate?',
+    'Which fields have the most mismatches?',
+    'What are the phantom records in the new system?',
+    'Why are there extra claims in the new system?',
+    'What is the BENE_BIRTH_DT mismatch pattern?',
+    'Explain the 0.90 payment ratio pattern',
+    'What are the ZZ fabricated beneficiaries?',
+    'Which validation checks failed?',
+    'What is the total financial divergence amount?',
+    'How does accuracy vary by year?',
+    'Which reimbursement columns have the largest differences?',
+    'What are the top mismatched fields?',
+    'Is the discrepancy rate stable across years?',
+    'How many claims have payment changes?',
+    'What does the payment distribution look like?',
+    'Are there any chronic condition trends?',
+    'What is the record matching rate?',
+    'How many beneficiaries are affected by changes?',
+    'What is the dollar impact per beneficiary?',
+    'Which system overstates reimbursements?',
+    'Are there schema differences between systems?',
+    'What are the injected test records?',
+    'How do inpatient vs outpatient payments compare?',
+    'What is the carrier claims discrepancy?',
+    'Suggest SQL queries to investigate further',
+    'What bugs should be fixed before production cutover?',
+    'How does Medicare reimbursement compare by year?',
+    'What is the beneficiary discrepancy trend?',
+    'Are there geographic patterns in the discrepancies?',
+    'What is the LINE_NCH_PMT_AMT_1 issue?',
+    'How many records are in each system?',
+    'What data quality checks were performed?',
+    'What is the risk assessment for the new system?',
+    'How does the new system compare overall?',
+    'What is the total reimbursement amount?',
+    'Are discrepancies random or systematic?',
+    'What are the two distinct bugs mentioned?',
+    'Show me a SQL query for beneficiary mismatches',
+    'What is the new system readiness status?',
+    'Summarize the executive summary',
+    'What does the financial reconciliation show?',
+    'How are claims matched between systems?'
+  ];
+  var suggestActiveIdx = -1;
 
   // ── Session persistence (survives page navigation) ──
   function saveSession() {
@@ -472,14 +539,91 @@
     }
   });
 
+  // ── Autocomplete helpers ──
+  function filterSuggestions(query) {
+    if (!query || query.length < 2) return [];
+    var q = query.toLowerCase();
+    var words = q.split(/\s+/);
+    return SUGGESTIONS.filter(function (s) {
+      var sl = s.toLowerCase();
+      return words.every(function (w) { return sl.indexOf(w) !== -1; });
+    }).slice(0, 5);
+  }
+
+  function highlightMatch(text, query) {
+    if (!query) return text;
+    var words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    var result = text;
+    words.forEach(function (w) {
+      var regex = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      result = result.replace(regex, '<span class="suggest-match">$1</span>');
+    });
+    return result;
+  }
+
+  function showSuggestions(matches) {
+    if (!matches.length) { hideSuggestions(); return; }
+    suggestActiveIdx = -1;
+    var html = matches.map(function (m, i) {
+      return '<div class="chat-suggest-item" data-idx="' + i + '">' + highlightMatch(m, inputEl.value) + '</div>';
+    }).join('');
+    html += '<div class="chat-suggest-hint"><kbd>Tab</kbd> to complete &middot; <kbd>\u2191\u2193</kbd> to navigate</div>';
+    suggestEl.innerHTML = html;
+    suggestEl.classList.add('open');
+    suggestEl.querySelectorAll('.chat-suggest-item').forEach(function (item) {
+      item.addEventListener('click', function () {
+        inputEl.value = matches[parseInt(item.dataset.idx)];
+        hideSuggestions();
+        inputEl.focus();
+      });
+    });
+  }
+
+  function hideSuggestions() {
+    suggestEl.classList.remove('open');
+    suggestEl.innerHTML = '';
+    suggestActiveIdx = -1;
+  }
+
   // ── Input handling ──
   inputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputEl.value); }
+    // Autocomplete navigation
+    var items = suggestEl.querySelectorAll('.chat-suggest-item');
+    if (items.length && suggestEl.classList.contains('open')) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var idx = suggestActiveIdx >= 0 ? suggestActiveIdx : 0;
+        inputEl.value = items[idx].textContent;
+        hideSuggestions();
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        suggestActiveIdx = (suggestActiveIdx + 1) % items.length;
+        items.forEach(function (it, i) { it.classList.toggle('active', i === suggestActiveIdx); });
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        suggestActiveIdx = suggestActiveIdx <= 0 ? items.length - 1 : suggestActiveIdx - 1;
+        items.forEach(function (it, i) { it.classList.toggle('active', i === suggestActiveIdx); });
+        return;
+      }
+      if (e.key === 'Escape') { hideSuggestions(); return; }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); hideSuggestions(); sendMessage(inputEl.value); }
   });
-  sendBtn.addEventListener('click', function () { sendMessage(inputEl.value); });
+  sendBtn.addEventListener('click', function () { hideSuggestions(); sendMessage(inputEl.value); });
   inputEl.addEventListener('input', function () {
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+    // Autocomplete
+    var matches = filterSuggestions(inputEl.value.trim());
+    showSuggestions(matches);
+  });
+  inputEl.addEventListener('blur', function () {
+    // Delay to allow click on suggestion
+    setTimeout(hideSuggestions, 150);
   });
 
   // ── Core functions ──
