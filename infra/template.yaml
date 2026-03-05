@@ -261,6 +261,47 @@ Resources:
       DockerContext: ../
       Dockerfile: cloud/Dockerfile
 
+  # ---------------------------------------------------------------------------
+  # AI Chat — Lambda + API Gateway for report assistant with DuckDB access
+  # ---------------------------------------------------------------------------
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-chat-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_chat"]
+      MemorySize: 4096
+      Timeout: 120
+      EphemeralStorage:
+        Size: 10240
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+        - SSMParameterReadPolicy:
+            ParameterName: "cms-pipeline/openai-api-key"
+      Environment:
+        Variables:
+          OPENAI_API_KEY_SSM: "/cms-pipeline/openai-api-key"
+          DB_S3_KEY: !Sub "runs/latest/cms_claims.duckdb"
+      Events:
+        ChatPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PipelineApi
+            Path: /api/chat
+            Method: POST
+        ChatOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PipelineApi
+            Path: /api/chat
+            Method: OPTIONS
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
 # ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
@@ -284,3 +325,7 @@ Outputs:
   DocsSiteBucketName:
     Description: S3 bucket for the static documentation site
     Value: !Ref DocsSiteBucket
+
+  ChatApiEndpoint:
+    Description: API Gateway endpoint for the AI chat assistant
+    Value: !Sub "https://${PipelineApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/api/chat"

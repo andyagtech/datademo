@@ -319,3 +319,337 @@ def _snapshot_db(ctx: PipelineContext, event: dict[str, Any]) -> None:
 
     # Re-open for any further use in this invocation
     ctx.con = duckdb.connect(str(ctx.db_path))
+
+
+# ---------------------------------------------------------------------------
+# AI Chat handler — Lambda behind API Gateway
+# ---------------------------------------------------------------------------
+
+# Module-level caches (persist across warm Lambda invocations)
+_cached_api_key: str | None = None
+_cached_db_path: Path | None = None
+
+_MAX_ROWS = 50
+_MAX_TOOL_ROUNDS = 5
+
+
+def _get_openai_api_key() -> str:
+    """Retrieve OpenAI API key from SSM Parameter Store (cached)."""
+    global _cached_api_key
+    if _cached_api_key:
+        return _cached_api_key
+
+    ssm = boto3.client("ssm")
+    param_name = os.environ.get("OPENAI_API_KEY_SSM", "/cms-pipeline/openai-api-key")
+    resp = ssm.get_parameter(Name=param_name, WithDecryption=True)
+    _cached_api_key = resp["Parameter"]["Value"]
+    return _cached_api_key
+
+
+def _ensure_db_local(event: dict[str, Any]) -> Path:
+    """Download DuckDB snapshot from S3 to /tmp if not already cached."""
+    global _cached_db_path
+
+    # Check for an explicit db_s3_key in the event, otherwise use latest run
+    db_s3_key = os.environ.get("DB_S3_KEY", "")
+    if not db_s3_key:
+        db_s3_key = event.get("db_s3_key", "")
+    if not db_s3_key:
+        # Fallback: try the results dict from the pipeline
+        db_s3_key = event.get("results", {}).get("db_s3_key", "")
+
+    local_path = Path(tempfile.gettempdir()) / "chat_cms_claims.duckdb"
+
+    # Re-download if key changed or file doesn't exist
+    if _cached_db_path and _cached_db_path.exists() and str(_cached_db_path) == str(local_path):
+        logger.info("Using cached DuckDB file")
+        return _cached_db_path
+
+    if db_s3_key:
+        storage = _get_storage()
+        db_bytes = storage.read_bytes(db_s3_key)
+        local_path.write_bytes(db_bytes)
+        logger.info(f"Downloaded DuckDB from {db_s3_key} ({len(db_bytes) / 1024 / 1024:.1f} MB)")
+        _cached_db_path = local_path
+        return local_path
+
+    raise RuntimeError("No DuckDB snapshot available. Run the pipeline first.")
+
+
+def _chat_execute_query(db_path: Path, sql: str) -> dict:
+    """Execute a read-only SQL query against the DuckDB database."""
+    sql_stripped = sql.strip().rstrip(";").strip()
+    first_word = sql_stripped.split()[0].upper() if sql_stripped else ""
+    if first_word not in ("SELECT", "WITH", "EXPLAIN"):
+        return {"error": f"Only SELECT/WITH/EXPLAIN queries are allowed. Got: {first_word}"}
+
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+        try:
+            result = con.execute(sql_stripped)
+            columns = [desc[0] for desc in result.description]
+            rows = result.fetchmany(_MAX_ROWS + 1)
+            truncated = len(rows) > _MAX_ROWS
+            if truncated:
+                rows = rows[:_MAX_ROWS]
+            clean_rows = []
+            for row in rows:
+                clean_row = []
+                for val in row:
+                    if val is None:
+                        clean_row.append(None)
+                    elif isinstance(val, (int, float, bool, str)):
+                        clean_row.append(val)
+                    else:
+                        clean_row.append(str(val))
+                clean_rows.append(clean_row)
+            return {
+                "columns": columns,
+                "rows": clean_rows,
+                "row_count": len(clean_rows),
+                "truncated": truncated,
+            }
+        finally:
+            con.close()
+    except Exception as e:
+        return {"error": f"Query failed: {str(e)}"}
+
+
+def _build_chat_findings(db_path: Path) -> str:
+    """Build findings context by querying the database directly."""
+    lines = []
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+        try:
+            # Basic counts
+            bene_count = con.execute("SELECT COUNT(*) FROM beneficiary_summary").fetchone()[0]
+            claim_count = con.execute("SELECT COUNT(*) FROM carrier_claims").fetchone()[0]
+            lines.append(f"- Total beneficiaries (old): {bene_count:,}")
+            lines.append(f"- Total carrier claims (old): {claim_count:,}")
+
+            # Check for new system tables
+            try:
+                new_bene = con.execute("SELECT COUNT(*) FROM new_beneficiary_summary").fetchone()[0]
+                new_claims = con.execute("SELECT COUNT(*) FROM new_carrier_claims").fetchone()[0]
+                lines.append(f"- Total beneficiaries (new): {new_bene:,}")
+                lines.append(f"- Total carrier claims (new): {new_claims:,}")
+            except Exception:
+                lines.append("- New system tables not available")
+
+            # Discrepancy summary
+            try:
+                disc = con.execute("SELECT COUNT(*), SUM(total_diffs) FROM _discrepancy_detail WHERE total_diffs > 0").fetchone()
+                lines.append(f"- Beneficiaries with discrepancies: {disc[0]:,} ({disc[1]:,} total diffs)")
+            except Exception:
+                pass
+
+            # Match status
+            try:
+                match_stats = con.execute("""
+                    SELECT match_status, COUNT(*) as cnt
+                    FROM _match_beneficiary
+                    GROUP BY match_status
+                """).fetchall()
+                for status, cnt in match_stats:
+                    lines.append(f"- Beneficiary match '{status}': {cnt:,}")
+            except Exception:
+                pass
+
+        finally:
+            con.close()
+    except Exception as e:
+        lines.append(f"- Could not query database for findings: {e}")
+
+    return "\n".join(lines) if lines else "Database available but no summary could be built."
+
+
+# System prompt (same as web/server.py but loaded here for Lambda)
+_LAMBDA_SYSTEM_PROMPT = """You are a data analysis assistant embedded in the CMS Claims Comparison Report.
+You help reviewers understand the findings from comparing an old Medicare claims processing
+system (CMS DE-SynPUF) against a new replacement system.
+
+You have deep knowledge of:
+- Medicare beneficiary summary data (demographics, chronic conditions, coverage months, financials)
+- Carrier claims data (diagnosis codes, procedure codes, provider NPIs, payment line items)
+- Data quality validation checks (key integrity, temporal consistency, demographic consistency, financial reconciliation)
+
+## Key Findings
+{findings_context}
+
+## Database Access
+You have direct access to the DuckDB database via the `query_database` tool.
+Use SELECT queries only — the database is read-only. Always add LIMIT (max 50).
+
+### Database Schema
+**beneficiary_summary** / **new_beneficiary_summary** (33 cols each):
+  Key: DESYNPUF_ID + summary_year. Demographics, chronic conditions, financials.
+
+**carrier_claims** / **new_carrier_claims** (142 cols each):
+  Key: CLM_ID (BIGINT old / VARCHAR new), DESYNPUF_ID. Diagnoses, procedures, payments (13 lines each).
+
+**_discrepancy_detail** (37 cols): Per-beneficiary diffs. diff_* (1=mismatch), delta_* (dollars), total_diffs.
+**_financial_recon** (11 cols): reported_* vs calc_* with *_diff columns.
+**_match_beneficiary** / **_match_claims**: match_status (matched/old_only/new_only).
+
+### Notes
+- "ZZ" prefix = fabricated test records from new system
+- Join old/new claims on CLM_ID::VARCHAR
+- 0.90 payment ratio pattern: new payments = old * 0.90
+
+## Guidelines
+1. Be concise and data-driven. Query the database to verify.
+2. Show SQL and summarize results in markdown tables.
+3. Explain technical terms in plain language.
+"""
+
+_LAMBDA_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "query_database",
+        "description": "Execute a read-only SQL SELECT query against the CMS claims DuckDB database. Always include LIMIT (max 50).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "SQL SELECT query to execute."},
+                "explanation": {"type": "string", "description": "Brief explanation of what this query investigates."}
+            },
+            "required": ["sql"]
+        }
+    }
+}
+
+
+def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """
+    Lambda handler for AI chat — triggered by API Gateway POST /api/chat.
+
+    Reads OpenAI key from SSM, downloads DuckDB from S3, runs function-calling
+    loop with query_database tool.
+    """
+    import openai as openai_mod
+
+    # Parse API Gateway event
+    body = event.get("body", "{}")
+    if isinstance(body, str):
+        body = json.loads(body)
+
+    message = body.get("message", "").strip()
+    conversation_history = body.get("conversationHistory", [])
+    model = body.get("model", "gpt-4o")
+
+    if not message:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({"error": "message is required"}),
+        }
+
+    try:
+        api_key = _get_openai_api_key()
+        db_path = _ensure_db_local(event)
+    except Exception as e:
+        logger.exception("Chat setup failed")
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({"error": str(e)}),
+        }
+
+    # Build system prompt
+    findings = _build_chat_findings(db_path)
+    system_prompt = _LAMBDA_SYSTEM_PROMPT.format(findings_context=findings)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *[{"role": m["role"], "content": m["content"]} for m in conversation_history],
+        {"role": "user", "content": message},
+    ]
+
+    try:
+        client = openai_mod.OpenAI(api_key=api_key)
+        tools = [_LAMBDA_TOOL]
+        sql_queries_run = []
+
+        for _round in range(_MAX_TOOL_ROUNDS):
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                max_tokens=2000,
+                temperature=0.4,
+            )
+
+            choice = response.choices[0]
+
+            if choice.finish_reason != "tool_calls" or not choice.message.tool_calls:
+                content = choice.message.content or ""
+                return {
+                    "statusCode": 200,
+                    "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                    "body": json.dumps({
+                        "content": content,
+                        "model": response.model or model,
+                        "queries": sql_queries_run,
+                    }),
+                }
+
+            messages.append(choice.message)
+
+            for tool_call in choice.message.tool_calls:
+                if tool_call.function.name == "query_database":
+                    try:
+                        args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {"sql": ""}
+
+                    sql = args.get("sql", "")
+                    explanation = args.get("explanation", "")
+                    logger.info(f"[chat] SQL: {sql[:200]}")
+
+                    result = _chat_execute_query(db_path, sql)
+                    sql_queries_run.append({
+                        "sql": sql,
+                        "explanation": explanation,
+                        "result_preview": {
+                            "columns": result.get("columns", []),
+                            "row_count": result.get("row_count", 0),
+                            "truncated": result.get("truncated", False),
+                            "error": result.get("error"),
+                        }
+                    })
+
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result, default=str),
+                    })
+                else:
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps({"error": f"Unknown tool: {tool_call.function.name}"}),
+                    })
+
+        # Exhausted tool rounds — final answer
+        response = client.chat.completions.create(
+            model=model, messages=messages, max_tokens=2000, temperature=0.4,
+        )
+        content = response.choices[0].message.content or ""
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({
+                "content": content,
+                "model": response.model or model,
+                "queries": sql_queries_run,
+            }),
+        }
+
+    except Exception as e:
+        logger.exception("Chat API error")
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({"error": f"Chat failed: {str(e)}"}),
+        }
