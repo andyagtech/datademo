@@ -12,20 +12,24 @@ Usage:
 import markdown
 from pathlib import Path
 
-DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DOCS_DIR = PROJECT_ROOT / "docs"
 
 # Which .md files to render (filename → page title)
+# Files are looked up in DOCS_DIR first, then PROJECT_ROOT.
 MD_FILES = {
     "SOLUTION.md": "Solution Design",
     "PIPELINE.md": "Pipeline Reference",
     "DATA_DICTIONARY.md": "Data Dictionary",
     "REQUIREMENTS_TRACEABILITY.md": "Requirements Traceability",
+    "REVIEWER_README.md": "Reviewer Walkthrough",
 }
 
 NAV_BAR = """\
 <nav class="project-nav">
-  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <a href="index.html" class="nav-home">Project Docs Index</a>
   <span class="nav-sep">|</span>
+  <a href="reviewer_readme.html">Reviewer Guide</a>
   <a href="reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
   <a href="schema_explorer.html">Schema</a>
@@ -253,7 +257,10 @@ def main():
     """Render all configured Markdown docs to HTML in the docs/ directory."""
     rendered = 0
     for filename, title in MD_FILES.items():
+        # Look in docs/ first, then project root
         md_path = DOCS_DIR / filename
+        if not md_path.exists():
+            md_path = PROJECT_ROOT / filename
         if not md_path.exists():
             print(f"  SKIP  {filename} (not found)")
             continue

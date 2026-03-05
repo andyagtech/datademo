@@ -146,8 +146,9 @@
 <body>
 
 <nav class="project-nav">
-  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <a href="index.html" class="nav-home">Project Docs Index</a>
   <span class="nav-sep">|</span>
+  <a href="reviewer_readme.html">Reviewer Guide</a>
   <a href="reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
   <a href="schema_explorer.html">Schema</a>
@@ -164,7 +165,7 @@
   <a href="#why-a-6-step-pipeline" class="depth-3">Why a 6-Step Pipeline?</a>
   <a href="#why-docker" class="depth-3">Why Docker?</a>
   <a href="#report-design" class="depth-3">Report Design</a>
-  <a href="#record-matching-strategy" class="depth-3">Record Matching Strategy</a>
+  <a href="#match-validate-strategy" class="depth-3">Match & Validate Strategy</a>
   <a href="#deployment-strategy" class="depth-2">Deployment Strategy</a>
   <a href="#local-current" class="depth-3">Local current</a>
   <a href="#cloud-aws-implemented" class="depth-3">Cloud AWS — implemented</a>
@@ -215,7 +216,7 @@
 <ul>
 <li><strong>DuckDB versions matter.</strong> Database files are not guaranteed compatible across major versions.</li>
 <li><strong>Python version matters.</strong> We use type unions (<code>int | str</code>) and other 3.10+ features.</li>
-<li><strong>Reproducibility.</strong> <code>python:3.14-slim</code> pins the latest stable Python release (October 2025). All dependencies — including DuckDB's compiled C extensions — ship binary wheels for 3.14. The image runs identically on macOS, Linux, and Windows (via Docker Desktop).</li>
+<li><strong>Reproducibility.</strong> <code>python:3.14-slim</code> pins the current stable Python release (October 2025). All dependencies — including DuckDB's compiled C extensions — ship binary wheels for 3.14. The image runs identically on macOS, Linux, and Windows (via Docker Desktop).</li>
 <li><strong>Data stays outside.</strong> CSVs and the DuckDB file are volume-mounted, not baked into the image. This keeps the image small and the data portable.</li>
 </ul>
 <h3 id="report-design">Report Design</h3>
@@ -226,7 +227,7 @@
 <li><strong>Collapsible sections.</strong> Data profiles (which can be hundreds of rows for the 142-column carrier claims table) are collapsed by default. The header shows row/column counts and high-null warnings without needing to expand.</li>
 <li><strong>Charts before tables.</strong> Plotly charts for year-over-year trends, financial distributions, and chronic condition prevalence give a visual overview before the drill-down tables.</li>
 </ol>
-<h3 id="record-matching-strategy">Record Matching Strategy</h3>
+<h3 id="match-validate-strategy">Match &amp; Validate Strategy</h3>
 <p>When new system data is available, Step 4 performs a FULL OUTER JOIN:</p>
 <ul>
 <li><strong>Beneficiaries:</strong> matched on <code>(DESYNPUF_ID, summary_year)</code> — composite key because the same beneficiary appears once per year.</li>
@@ -331,10 +332,11 @@ Step Functions state machine (infra/statemachine.asl.json)
 <h2 id="testing">Testing</h2>
 <p>87 tests covering:</p>
 <ul>
-<li><strong>Unit tests</strong> for each original module (profile, validate, compare, report)</li>
+<li><strong>54 unit/integration tests</strong> using synthetic data (in-memory DuckDB + temp files) — no real data needed, run in ~3 seconds</li>
+<li><strong>33 real-data validation tests</strong> — verify actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.</li>
+<li><strong>Unit tests</strong> for each core module (profile, validate, compare, report)</li>
 <li><strong>Pipeline step tests</strong> for receive, schema validate, and record matching</li>
-<li><strong>Integration tests</strong> using in-memory DuckDB with synthetic sample data</li>
-<li>All tests run in &lt;5 seconds with no external dependencies</li>
+<li><strong>Integration tests</strong> for end-to-end report generation</li>
 </ul>
 <pre><code class="language-bash">pytest tests/ -v
 </code></pre>

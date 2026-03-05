@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reviewer Walkthrough — CMS Claims Comparison Pipeline</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.7; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+
+  /* -- Sidebar TOC -- */
+  .sidebar {
+    position: fixed; top: 32px; left: 0; width: 240px; bottom: 0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 16px 12px; font-size: 0.75rem;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar .toc-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px;
+  }
+  .sidebar a {
+    display: block; padding: 4px 8px; margin: 1px 0; border-radius: 4px;
+    color: var(--muted); text-decoration: none; transition: all 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .sidebar a.depth-2 { padding-left: 20px; font-size: 0.7rem; }
+
+  /* -- Content -- */
+  .content {
+    margin-left: 240px; margin-top: 32px; padding: 32px 48px 80px;
+    max-width: 960px;
+  }
+  @media (max-width: 800px) {
+    .sidebar { display: none; }
+    .content { margin-left: 0; padding: 24px 20px 60px; }
+  }
+
+  /* -- Typography -- */
+  .content h1 {
+    font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;
+    color: var(--accent); border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .content h2 {
+    font-size: 1.15rem; font-weight: 700; margin-top: 2.2rem; margin-bottom: 0.6rem;
+    color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .content h3 {
+    font-size: 0.95rem; font-weight: 700; margin-top: 1.6rem; margin-bottom: 0.4rem;
+    color: var(--accent2);
+  }
+  .content h4 {
+    font-size: 0.85rem; font-weight: 700; margin-top: 1.2rem; margin-bottom: 0.3rem;
+    color: var(--muted);
+  }
+  .content p { margin-bottom: 0.9rem; font-size: 0.88rem; }
+  .content a { color: var(--accent); text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .content strong { color: var(--text); font-weight: 700; }
+  .content em { color: var(--muted); }
+  .content ul, .content ol { padding-left: 1.5em; margin-bottom: 1rem; font-size: 0.88rem; }
+  .content li { margin-bottom: 0.3rem; }
+  .content li > ul, .content li > ol { margin-top: 0.3rem; margin-bottom: 0; }
+
+  /* -- Code -- */
+  .content code {
+    font-family: var(--mono); font-size: 0.78rem;
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+    color: var(--orange);
+  }
+  .content pre {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; overflow-x: auto;
+    margin-bottom: 1.2rem;
+  }
+  .content pre code {
+    background: none; padding: 0; color: var(--text); font-size: 0.76rem;
+    line-height: 1.6;
+  }
+
+  /* -- Tables -- */
+  .content table {
+    width: 100%; border-collapse: collapse; margin-bottom: 1.2rem;
+    font-size: 0.8rem;
+  }
+  .content th {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 8px 12px; text-align: left; font-weight: 700;
+    color: var(--accent); font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .content td {
+    border: 1px solid var(--border); padding: 6px 12px;
+    vertical-align: top;
+  }
+  .content tr:nth-child(even) { background: rgba(26,29,39,0.5); }
+
+  /* -- Blockquote -- */
+  .content blockquote {
+    border-left: 3px solid var(--accent); margin: 1rem 0;
+    padding: 8px 16px; background: rgba(56,189,248,0.04);
+    font-size: 0.85rem; color: var(--muted);
+  }
+
+  /* -- HR -- */
+  .content hr {
+    border: none; height: 1px; background: var(--border);
+    margin: 2rem 0;
+  }
+
+  /* -- Source badge -- */
+  .source-badge {
+    display: inline-block; font-size: 0.65rem; padding: 2px 8px;
+    border-radius: 3px; background: rgba(56,189,248,0.1);
+    color: var(--accent); font-family: var(--mono); margin-bottom: 1.2rem;
+  }
+</style>
+</head>
+<body>
+
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">Project Docs Index</a>
+  <span class="nav-sep">|</span>
+  <a href="reviewer_readme.html">Reviewer Guide</a>
+  <a href="reports/comparison_report.html">Report</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html">Parquet</a>
+  <a href="sql_explorer.html">SQL</a>
+</nav>
+
+<nav class="sidebar" id="toc">
+  <div class="toc-title">Contents</div>
+  <a href="#reviewer-walkthrough" class="">Reviewer Walkthrough</a>
+  <a href="#0-data-setup-before-running-anything" class="depth-2">0. Data Setup before running anything</a>
+  <a href="#1-running-the-pipeline-terminal" class="depth-2">1. Running the Pipeline Terminal</a>
+  <a href="#local" class="">Local</a>
+  <a href="#or-docker-fully-containerized-no-python-install-required" class="">Or Docker fully containerized, no Python install required</a>
+  <a href="#2-test-suite" class="depth-2">2. Test Suite</a>
+  <a href="#3-the-report" class="depth-2">3. The Report</a>
+  <a href="#executive-summary" class="depth-3">Executive Summary</a>
+  <a href="#key-findings" class="depth-3">Key Findings</a>
+  <a href="#validation-results" class="depth-3">Validation Results</a>
+  <a href="#financial-reconciliation" class="depth-3">Financial Reconciliation</a>
+  <a href="#system-comparison-old-vs-new" class="depth-3">System Comparison Old vs New</a>
+  <a href="#year-over-year-trends" class="depth-3">Year-over-Year Trends</a>
+  <a href="#4-documentation-hub" class="depth-2">4. Documentation Hub</a>
+  <a href="#landing-page" class="depth-3">Landing Page</a>
+  <a href="#interactive-tools" class="depth-3">Interactive Tools</a>
+  <a href="#code-reading-order" class="depth-2">Code Reading Order</a>
+  <a href="#assessment-requirements-mapping" class="depth-2">Assessment Requirements Mapping</a>
+  <a href="#key-design-decisions" class="depth-2">Key Design Decisions</a>
+</nav>
+
+<div class="content">
+  <span class="source-badge">Source: REVIEWER_README.md</span>
+  <h1 id="reviewer-walkthrough">Reviewer Walkthrough</h1>
+<p>A guided tour of the CMS Claims Comparison Pipeline — what to look at, in what order, and why it matters.</p>
+<hr />
+<h2 id="0-data-setup-before-running-anything">0. Data Setup (before running anything)</h2>
+<p>The pipeline requires CMS data files on disk. See <a href="README.md#data-setup">README.md → Data Setup</a> for full details, but in short:</p>
+<p><strong>Old system data (required):</strong> Download <a href="https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf/de10-sample-1">CMS DE-SynPUF Sample 1</a> — 3 Beneficiary Summary ZIPs + 2 Carrier Claims ZIPs. Place them in <code>data/original_downloads/</code> (auto-extracted) or extract CSVs directly into <code>data/old_system/</code>.</p>
+<p><strong>New system data (for comparison):</strong> Unzip the assessment-provided <code>New Claims System Outputs.zip</code> into <code>data/new_system/</code>.</p>
+<pre><code>data/
+├── original_downloads/   # Place ZIPs here (auto-extracted by Step 1)
+├── old_system/           # Or place extracted CSVs here directly (5 files)
+├── new_system/           # New system CSVs for comparison
+└── database/             # Auto-created by pipeline
+</code></pre>
+<p>The <code>-v "$(pwd)/data:/app/data"</code> flag in the Docker commands below <strong>mounts your local <code>data/</code> folder</strong> into the container so the pipeline can read your CSV files.</p>
+<hr />
+<h2 id="1-running-the-pipeline-terminal">1. Running the Pipeline (Terminal)</h2>
+<p>The pipeline runs end-to-end with a single command. No configuration needed — it auto-discovers CSV files by reading their headers.</p>
+<pre><code class="language-bash"># Local
+python -m src.main --new-data data/new_system/
+
+# Or Docker (fully containerized, no Python install required)
+docker build -t cms-pipeline .
+docker run --rm -p 8888:8888 \
+  -v &quot;$(pwd)/data:/app/data&quot; \
+  -v &quot;$(pwd)/reports:/app/reports&quot; \
+  cms-pipeline
+</code></pre>
+<p>All 6 pipeline steps execute in sequence with gate logic — Steps 1-2 halt early on bad input before expensive processing begins.</p>
+<p><img alt="Pipeline Run Output" src="screenshots/screenshot_1.png" /></p>
+<hr />
+<h2 id="2-test-suite">2. Test Suite</h2>
+<p>The project has <strong>87 tests</strong> across two categories:</p>
+<ul>
+<li><strong>54 unit/integration tests</strong> — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.</li>
+<li><strong>33 real-data tests</strong> — validate the actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.</li>
+</ul>
+<pre><code class="language-bash">pytest tests/ -v
+</code></pre>
+<p><img alt="Test Suite Passing" src="screenshots/screenshot_2.png" /></p>
+<hr />
+<h2 id="3-the-report">3. The Report</h2>
+<p>Open <code>reports/comparison_report.html</code> in a browser. This is the primary deliverable. It's designed for progressive disclosure: KPIs first, then narrative, then detailed charts, then raw data.</p>
+<h3 id="executive-summary">Executive Summary</h3>
+<p>The top of the report shows key metrics at a glance: total beneficiaries, total claims, matched/unmatched counts, and pass/fail indicators for each validation category.</p>
+<p>A reviewer should be able to answer "what's wrong and how bad is it" within 10 seconds of opening the report.</p>
+<p><img alt="Executive Summary" src="screenshots/screenshot_3.png" /></p>
+<h3 id="key-findings">Key Findings</h3>
+<p>Below the KPIs is an interpretive narrative — not just numbers, but what they mean. This includes root cause hypotheses, risk assessment, and a clear recommendation on whether the new system is ready for cutover.</p>
+<p>This section demonstrates domain understanding: the analysis is informed by the CMS codebook, not just the data structure.</p>
+<p><img alt="Key Findings" src="screenshots/screenshot_4.png" /></p>
+<h3 id="validation-results">Validation Results</h3>
+<p>Internal consistency checks on the old system data. The bar chart shows issues found per check across four categories:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>What it checks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Identity</strong></td>
+<td>Orphan claims, beneficiaries without claims, duplicate claim IDs</td>
+</tr>
+<tr>
+<td><strong>Temporal</strong></td>
+<td>Claims after death, date inversions (start &gt; end)</td>
+</tr>
+<tr>
+<td><strong>Demographic</strong></td>
+<td>Sex/race/DOB changes across years for the same beneficiary</td>
+</tr>
+<tr>
+<td><strong>Financial</strong></td>
+<td>Carrier reimbursement reconciliation (MEDREIMB_CAR, BENRES_CAR, PPPYMT_CAR)</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Validation Results" src="screenshots/screenshot_5.png" /></p>
+<h3 id="financial-reconciliation">Financial Reconciliation</h3>
+<p>The financial reconciliation section deserves special attention. It compares beneficiary summary reimbursement totals against the sum of individual claim line items — the logic is derived from the CMS codebook (filtering on <code>LINE_PRCSG_IND_CD</code> values, summing <code>LINE_NCH_PMT_AMT</code> across 13 line items per claim).</p>
+<p>This directly addresses the assessment requirement: "Total number of Claims whose payments don't match."</p>
+<p><img alt="Financial Reconciliation" src="screenshots/screenshot_6.png" /></p>
+<h3 id="system-comparison-old-vs-new">System Comparison (Old vs New)</h3>
+<p>When new system data is loaded, the report adds a comparison dashboard:</p>
+<ul>
+<li><strong>Schema comparison</strong> — missing/extra columns, type mismatches</li>
+<li><strong>Row-level diffs</strong> — records in old but not new (and vice versa), matched by key</li>
+<li><strong>Field-level mismatches</strong> — per-field value diffs on matched records</li>
+<li><strong>Aggregate divergence</strong> — sum/mean differences in financial columns</li>
+</ul>
+<p><img alt="System Comparison" src="screenshots/screenshot_7.png" /></p>
+<h3 id="year-over-year-trends">Year-over-Year Trends</h3>
+<p>Interactive Plotly charts show how metrics change across 2008–2010. The assessment specifically asks to "identify any trends" — these charts surface patterns like increasing beneficiary attrition, financial drift, and seasonal claim volume shifts.</p>
+<p><img alt="Year-over-Year Trends" src="screenshots/screenshot_8.png" /></p>
+<hr />
+<h2 id="4-documentation-hub">4. Documentation Hub</h2>
+<p>The project includes a documentation site with interactive tools and design documentation. When running via Docker, it's served at <code>http://localhost:8888</code>. Otherwise, open <code>docs/index.html</code> directly.</p>
+<h3 id="landing-page">Landing Page</h3>
+<p>The hub links to everything: the comparison report, interactive tools, design documentation, and CMS reference materials (codebook, FAQ, data users guide).</p>
+<p><img alt="Documentation Hub" src="screenshots/screenshot_9.png" /></p>
+<h3 id="interactive-tools">Interactive Tools</h3>
+<p>The project includes several in-browser tools that require no server:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Schema Explorer</strong></td>
+<td>Drag-and-drop ERD viewer for all DuckDB tables. Click for column details.</td>
+</tr>
+<tr>
+<td><strong>Parquet Viewer</strong></td>
+<td>In-browser Parquet file viewer (powered by hyparquet). Drag and drop any <code>.parquet</code> export.</td>
+</tr>
+<tr>
+<td><strong>SQL Explorer</strong></td>
+<td>Run SQL queries on Parquet files in the browser. No server needed.</td>
+</tr>
+<tr>
+<td><strong>Architecture Diagrams</strong></td>
+<td>Interactive Mermaid.js diagrams of the pipeline, data flow, and cloud deployment.</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Interactive Tools" src="screenshots/screenshot_10.png" /></p>
+<hr />
+<h2 id="code-reading-order">Code Reading Order</h2>
+<p>For reviewers who want to understand the code:</p>
+<table>
+<thead>
+<tr>
+<th>Order</th>
+<th>File</th>
+<th>Lines</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>README.md</code></td>
+<td>—</td>
+<td>Entry point: Quick Start, architecture, project structure</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>FEEDBACK.md</code></td>
+<td>—</td>
+<td>Approach rationale, skills demonstrated</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>src/pipeline/__init__.py</code></td>
+<td>~50</td>
+<td>Defines <code>PipelineContext</code> and <code>StepResult</code> — the pipeline's data model</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>src/pipeline/runner.py</code></td>
+<td>~40</td>
+<td>The 6-step orchestrator with gate logic</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>src/validate.py</code></td>
+<td>—</td>
+<td>Deepest analytical work: financial reconciliation SQL, temporal checks</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>src/compare.py</code></td>
+<td>—</td>
+<td>Old-vs-new comparison engine</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>src/report.py</code></td>
+<td>—</td>
+<td>HTML report generation with Plotly charts</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>tests/conftest.py</code></td>
+<td>~160</td>
+<td>How test data is designed with intentional edge cases</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>docs/SOLUTION.md</code></td>
+<td>—</td>
+<td>Design decisions explained in prose</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>docs/REQUIREMENTS_TRACEABILITY.md</code></td>
+<td>—</td>
+<td>Maps every spec requirement to its implementation</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="assessment-requirements-mapping">Assessment Requirements Mapping</h2>
+<table>
+<thead>
+<tr>
+<th>Spec Requirement</th>
+<th>Where to Find It</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ingest and clean the data</td>
+<td><code>src/ingest.py</code>, pipeline Step 3</td>
+</tr>
+<tr>
+<td>Build a simple ETL pipeline</td>
+<td>6-step pipeline (<code>src/pipeline/</code>), DuckDB (<code>data/database/</code>)</td>
+</tr>
+<tr>
+<td>Identify and quantify discrepancies</td>
+<td>Report: Validation Results, System Comparison</td>
+</tr>
+<tr>
+<td>Identifiable trends</td>
+<td>Report: Year-over-Year Trend Charts</td>
+</tr>
+<tr>
+<td>Total number of Beneficiaries whose data does not match</td>
+<td>Report: Executive Summary KPIs</td>
+</tr>
+<tr>
+<td>Total number of Claims whose payments don't match</td>
+<td>Report: Financial Reconciliation</td>
+</tr>
+<tr>
+<td>Generate a report</td>
+<td><code>reports/comparison_report.html</code> — interactive HTML with charts</td>
+</tr>
+<tr>
+<td>Source code</td>
+<td>All in <code>src/</code>, <code>tests/</code>, <code>cloud/</code>, <code>infra/</code></td>
+</tr>
+<tr>
+<td>Screenshots</td>
+<td><code>screenshots/</code> directory</td>
+</tr>
+<tr>
+<td>README.md</td>
+<td>This file + <code>README.md</code></td>
+</tr>
+<tr>
+<td>FEEDBACK.md</td>
+<td><code>FEEDBACK.md</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="key-design-decisions">Key Design Decisions</h2>
+<ol>
+<li>
+<p><strong>DuckDB over Pandas</strong> — SQL is clearer for the complex joins and aggregations in financial reconciliation. DuckDB handles the 2.4 GB carrier claims files without memory pressure and requires no server.</p>
+</li>
+<li>
+<p><strong>6-step pipeline with gate logic</strong> — each step is independently testable and can halt early. This mirrors production data pipeline design.</p>
+</li>
+<li>
+<p><strong>Report for communication</strong> — executive summary and failed checks upfront, interactive charts for trends, data profiles as reference material. Designed for both technical and non-technical audiences.</p>
+</li>
+<li>
+<p><strong>Docker for portability</strong> — <code>docker build &amp;&amp; docker run</code> runs everything on any machine.</p>
+</li>
+<li>
+<p><strong>87 tests</strong> — 54 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.</p>
+</li>
+<li>
+<p><strong>Flexible file discovery</strong> — the pipeline discovers CSVs by column headers, not filenames. Works with any of the 20 CMS DE-SynPUF samples without code changes.</p>
+</li>
+</ol>
+</div>
+
+</body>
+</html>

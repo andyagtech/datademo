@@ -146,8 +146,9 @@
 <body>
 
 <nav class="project-nav">
-  <a href="index.html" class="nav-home">&#9671; Docs</a>
+  <a href="index.html" class="nav-home">Project Docs Index</a>
   <span class="nav-sep">|</span>
+  <a href="reviewer_readme.html">Reviewer Guide</a>
   <a href="reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
   <a href="schema_explorer.html">Schema</a>
@@ -161,11 +162,11 @@
   <a href="#table-of-contents" class="depth-2">Table of Contents</a>
   <a href="#pipeline-overview" class="depth-2">Pipeline Overview</a>
   <a href="#step-1-receive-verify" class="depth-2">Step 1 — Receive & Verify</a>
-  <a href="#step-2-schema-validation" class="depth-2">Step 2 — Schema Validation</a>
+  <a href="#step-2-schema-validate" class="depth-2">Step 2 — Schema Validate</a>
   <a href="#step-3-ingest-profile" class="depth-2">Step 3 — Ingest & Profile</a>
   <a href="#ingestion-src-ingest-py" class="depth-3">Ingestion src/ingest.py</a>
   <a href="#profiling-src-profile-py" class="depth-3">Profiling src/profile.py</a>
-  <a href="#step-4-record-matching-validation" class="depth-2">Step 4 — Record Matching & Validation</a>
+  <a href="#step-4-match-validate" class="depth-2">Step 4 — Match & Validate</a>
   <a href="#record-matching-step4match-py" class="depth-3">Record Matching step4match.py</a>
   <a href="#internal-validation-src-validate-py" class="depth-3">Internal Validation src/validate.py</a>
   <a href="#step-5-compare-analyze" class="depth-2">Step 5 — Compare & Analyze</a>
@@ -210,9 +211,9 @@ For design rationale, see <a href="SOLUTION.md"><code>docs/SOLUTION.md</code></a
 <ol>
 <li><a href="#pipeline-overview">Pipeline Overview</a></li>
 <li><a href="#step-1--receive--verify">Step 1 — Receive &amp; Verify</a></li>
-<li><a href="#step-2--schema-validation">Step 2 — Schema Validation</a></li>
+<li><a href="#step-2--schema-validate">Step 2 — Schema Validate</a></li>
 <li><a href="#step-3--ingest--profile">Step 3 — Ingest &amp; Profile</a></li>
-<li><a href="#step-4--record-matching--validation">Step 4 — Record Matching &amp; Validation</a></li>
+<li><a href="#step-4--match--validate">Step 4 — Match &amp; Validate</a></li>
 <li><a href="#step-5--compare--analyze">Step 5 — Compare &amp; Analyze</a></li>
 <li><a href="#step-6--report">Step 6 — Report</a></li>
 <li><a href="#data-model">Data Model</a></li>
@@ -227,9 +228,9 @@ For design rationale, see <a href="SOLUTION.md"><code>docs/SOLUTION.md</code></a
     ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │  Step 1: Receive &amp; Verify     — file discovery, checksums        │
-│  Step 2: Schema Validation    — header checks, file classification│
+│  Step 2: Schema Validate      — header checks, file classification│
 │  Step 3: Ingest &amp; Profile     — DuckDB loading, column profiling │
-│  Step 4: Record Matching      — FULL OUTER JOIN, validation      │
+│  Step 4: Match &amp; Validate     — FULL OUTER JOIN, consistency     │
 │  Step 5: Compare &amp; Analyze    — field-level diffs, aggregates    │
 │  Step 6: Report               — JSON data + HTML + CSV exports   │
 └──────────────────────────────────────────────────────────────────┘
@@ -248,7 +249,7 @@ reports/exports/*.csv           (raw diff tables)
 <p><strong>Source:</strong> <code>src/pipeline/step1_receive.py</code></p>
 <p><strong>Purpose:</strong> Discover input CSV files, verify integrity, build a complete file inventory.</p>
 <p><strong>Process:</strong><br />
-1. Scan <code>data/</code> directory (or S3 bucket via <code>StorageAdapter</code>) for CSV files matching glob patterns <code>*Beneficiary*</code> and <code>*Carrier*</code>.<br />
+1. Scan <code>data/original_downloads/</code> for ZIP archives and <code>data/old_system/</code> for extracted CSVs (or S3 bucket via <code>StorageAdapter</code>).<br />
 2. If a <code>--new-data</code> path is provided, scan it separately for new system files.<br />
 3. Extract any <code>.zip</code> archives found.<br />
 4. Compute SHA-256 checksums for integrity verification.<br />
@@ -267,15 +268,15 @@ reports/exports/*.csv           (raw diff tables)
         }
     },
     &quot;new_system&quot;: {
-        &quot;source_dir&quot;: &quot;data/new_claims_system_outputs/...&quot;,
+        &quot;source_dir&quot;: &quot;data/new_system/...&quot;,
         &quot;inventory&quot;: { ... }
     }
 }
 </code></pre>
 <p><strong>Halt condition:</strong> No CSV files found in the data directory.</p>
 <hr />
-<h2 id="step-2-schema-validation">Step 2 — Schema Validation</h2>
-<p><strong>Source:</strong> <code>src/pipeline/step2_schema.py</code></p>
+<h2 id="step-2-schema-validate">Step 2 — Schema Validate</h2>
+<p><strong>Source:</strong> <code>src/pipeline/step2_schema_validate.py</code></p>
 <p><strong>Purpose:</strong> Validate CSV headers before the expensive ingestion step. Fail fast on malformed input.</p>
 <p><strong>Process:</strong><br />
 1. Read only the first row (header) of each CSV — no full data scan.<br />
@@ -284,7 +285,7 @@ reports/exports/*.csv           (raw diff tables)
    - Carrier claims files contain <code>CLM_ID</code>, <code>CLM_FROM_DT</code>, <code>LINE_NCH_PMT_AMT_1</code>, etc. (141 expected columns)<br />
 3. Check for missing required columns and unexpected extra columns.<br />
 4. Report schema errors per file.</p>
-<p><strong>Outputs stored in <code>ctx.results["schema"]</code>:</strong></p>
+<p><strong>Outputs stored in <code>ctx.results["schema_validate"]</code>:</strong></p>
 <pre><code class="language-python">{
     &quot;validated_count&quot;: 10,
     &quot;beneficiary_count&quot;: 6,
@@ -371,7 +372,7 @@ reports/exports/*.csv           (raw diff tables)
 - Potential outlier distributions</p>
 <p><strong>Outputs:</strong> <code>ctx.results["profiles"]</code> — a <code>dict[str, TableProfile]</code> mapping table names to their profiles.</p>
 <hr />
-<h2 id="step-4-record-matching-validation">Step 4 — Record Matching &amp; Validation</h2>
+<h2 id="step-4-match-validate">Step 4 — Match &amp; Validate</h2>
 <p><strong>Source:</strong> <code>src/pipeline/step4_match.py</code>, <code>src/validate.py</code></p>
 <p>This step does two things in parallel:<br />
 1. <strong>Record matching</strong> — joins old and new system tables<br />
