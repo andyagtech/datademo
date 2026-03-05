@@ -32,8 +32,6 @@ Thumbs.db
 # Not needed in runtime image
 viewer/
 screenshots/
-cloud/
-infra/
 
 # Symlinks (recreated in Dockerfile)
 docs/exports
