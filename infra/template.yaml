@@ -266,7 +266,9 @@ Resources:
       Dockerfile: cloud/Dockerfile
 
   # ---------------------------------------------------------------------------
-  # AI Chat — Lambda + API Gateway for report assistant with DuckDB access
+  # AI Chat — Lambda for DuckDB report assistant
+  # Uses Lambda Function URL (created via CLI) to bypass API Gateway 29s timeout.
+  # Function URL: see ChatFunctionUrl output
   # ---------------------------------------------------------------------------
   ChatFunction:
     Type: AWS::Serverless::Function
@@ -331,6 +333,6 @@ Outputs:
     Description: S3 bucket for the static documentation site
     Value: !Ref DocsSiteBucket
 
-  ChatApiEndpoint:
-    Description: API Gateway endpoint for the AI chat assistant
-    Value: !Sub "https://${PipelineApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/api/chat"
+  ChatFunctionUrl:
+    Description: Lambda Function URL for the AI chat assistant
+    Value: !GetAtt ChatFunctionUrl.FunctionUrl

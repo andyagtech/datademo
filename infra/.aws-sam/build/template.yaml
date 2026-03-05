@@ -338,21 +338,17 @@ Resources:
             Ref: ExistingDataBucket
           OPENAI_API_KEY_SSM: /cms-pipeline/openai-api-key
           DB_S3_KEY: runs/latest/cms_claims.duckdb
-      Events:
-        ChatPost:
-          Type: Api
-          Properties:
-            RestApiId:
-              Ref: PipelineApi
-            Path: /api/chat
-            Method: POST
-        ChatOptions:
-          Type: Api
-          Properties:
-            RestApiId:
-              Ref: PipelineApi
-            Path: /api/chat
-            Method: OPTIONS
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+          - '*'
+          AllowMethods:
+          - POST
+          - OPTIONS
+          AllowHeaders:
+          - Content-Type
+          MaxAge: 86400
       ImageUri: receivefunction:latest
     Metadata:
       DockerContext: /Users/andy/assesment_1
@@ -382,7 +378,9 @@ Outputs:
     Description: S3 bucket for the static documentation site
     Value:
       Ref: DocsSiteBucket
-  ChatApiEndpoint:
-    Description: API Gateway endpoint for the AI chat assistant
+  ChatFunctionUrl:
+    Description: Lambda Function URL for the AI chat assistant
     Value:
-      Fn::Sub: https://${PipelineApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/api/chat
+      Fn::GetAtt:
+      - ChatFunctionUrl
+      - FunctionUrl
