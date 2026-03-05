@@ -18,11 +18,18 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 # ── App setup ──────────────────────────────────────────────────────
 app = FastAPI(title="CMS Claims Comparison Pipeline", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 logger = logging.getLogger("web")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
@@ -226,6 +233,131 @@ async def delete_run(run_id: str):
         shutil.rmtree(workspace)
     del _runs[run_id]
     return {"deleted": run_id}
+
+
+# ── AI Chat endpoint ──────────────────────────────────────────────
+
+_CMS_SYSTEM_PROMPT = """You are a data analysis assistant embedded in the CMS Claims Comparison Report.
+You help reviewers understand the findings from comparing an old Medicare claims processing
+system (CMS DE-SynPUF) against a new replacement system.
+
+You have deep knowledge of:
+- Medicare beneficiary summary data (demographics, chronic conditions, coverage months, financials)
+- Carrier claims data (diagnosis codes, procedure codes, provider NPIs, payment line items)
+- Data quality validation checks (key integrity, temporal consistency, demographic consistency, financial reconciliation)
+- The specific discrepancies found in this comparison
+
+## Key Findings You Know About
+{findings_context}
+
+## Guidelines
+1. Be concise and data-driven. Reference specific numbers from the report when possible.
+2. Explain technical terms (ICD-9, HCPCS, NPI, etc.) in plain language when asked.
+3. Help reviewers understand the *impact* of each discrepancy — what would go wrong downstream.
+4. When discussing financial figures, note whether they affect Medicare reimbursement, beneficiary cost-sharing, or provider payments.
+5. If asked about something outside the report data, say so honestly.
+6. Format responses with markdown for readability.
+7. You can suggest SQL queries the reviewer could run against the DuckDB database to investigate further.
+"""
+
+
+def _build_findings_context() -> str:
+    """Load report_data.json and build a condensed findings summary for the system prompt."""
+    report_json = Path(__file__).resolve().parent.parent / "reports" / "report_data.json"
+    if not report_json.exists():
+        return "No report data available yet. The pipeline has not been run."
+
+    try:
+        data = json.loads(report_json.read_text())
+    except Exception:
+        return "Report data could not be loaded."
+
+    lines = []
+    s = data.get("summary", {})
+    lines.append(f"- Total beneficiaries: {s.get('total_beneficiaries', 'N/A')}")
+    lines.append(f"- Total carrier claims: {s.get('total_claims', 'N/A')}")
+    lines.append(f"- Validation checks: {s.get('passed_checks', '?')}/{s.get('total_checks', '?')} passed")
+    lines.append(f"- Claims payment discrepancy: {s.get('total_claims_pmt_divergence', 'N/A')}")
+    lines.append(f"- Claims with payment changes: {s.get('claims_with_pmt_changes', 'N/A')}")
+    lines.append(f"- Beneficiaries affected: {s.get('benes_with_any_change', 'N/A')}")
+
+    # Summarize non-zero comparison checks
+    comparisons = data.get("comparisons", [])
+    nonzero = [c for c in comparisons if c.get("metric_value") not in (0, "0", None)]
+    lines.append(f"- Total comparison checks: {len(comparisons)} ({len(nonzero)} with findings)")
+
+    # Group by category
+    by_cat: dict[str, list] = {}
+    for c in nonzero:
+        cat = c.get("category", "unknown")
+        by_cat.setdefault(cat, []).append(c)
+
+    for cat, checks in by_cat.items():
+        lines.append(f"\n### {cat.replace('_', ' ').title()} Checks")
+        for c in checks[:15]:  # cap to avoid prompt explosion
+            name = c.get("check_name", "")
+            val = c.get("metric_value", "")
+            impact = c.get("impact", "")[:120]
+            lines.append(f"  - {name}: {val} — {impact}")
+        if len(checks) > 15:
+            lines.append(f"  ... and {len(checks) - 15} more {cat} checks")
+
+    # Failed validations
+    failed = [v for v in data.get("validations", []) if not v.get("passed")]
+    if failed:
+        lines.append("\n### Failed Validation Checks")
+        for v in failed:
+            lines.append(f"  - {v.get('check_name', '')}: {v.get('issues_found', '')} issues — {v.get('description', '')}")
+
+    return "\n".join(lines)
+
+
+@app.post("/api/chat")
+async def chat(request: Request):
+    """AI chat endpoint — stateless, conversation history sent with each request."""
+    try:
+        import openai as openai_mod
+    except ImportError:
+        raise HTTPException(500, "openai package not installed. Run: pip install openai")
+
+    api_key = None
+    # Check environment
+    import os
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(500, "OPENAI_API_KEY environment variable not set")
+
+    body = await request.json()
+    message = body.get("message", "").strip()
+    conversation_history = body.get("conversationHistory", [])
+    model = body.get("model", "gpt-4o")
+
+    if not message:
+        raise HTTPException(400, "message is required")
+
+    # Build system prompt with live report data
+    findings = _build_findings_context()
+    system_prompt = _CMS_SYSTEM_PROMPT.format(findings_context=findings)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *[{"role": m["role"], "content": m["content"]} for m in conversation_history],
+        {"role": "user", "content": message},
+    ]
+
+    try:
+        client = openai_mod.OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=1500,
+            temperature=0.7,
+        )
+        content = response.choices[0].message.content or ""
+        return {"content": content, "model": response.model or model}
+    except Exception as e:
+        logger.exception("Chat API error")
+        raise HTTPException(500, f"Chat failed: {str(e)}")
 
 
 # ── Frontend HTML ──────────────────────────────────────────────────
