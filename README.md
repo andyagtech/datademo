@@ -494,6 +494,31 @@ The local and cloud versions share all pipeline logic:
 
 ---
 
+## Known Limitations & Future Improvements
+
+### CDN Dependencies for Interactive Tools
+
+Three of the documentation tools load JavaScript libraries from CDN at runtime:
+
+| Tool | CDN Import | Purpose |
+|------|-----------|---------|
+| Architecture Diagrams | `mermaid@11` via jsdelivr (~2 MB) | Diagram rendering |
+| Parquet Viewer | `hyparquet@1` + `hyparquet-compressors@1` via esm.sh | In-browser Parquet reader |
+| SQL Explorer | `hyparquet@1` + `hyparquet-compressors@1` + `squirreling@0` via esm.sh | Browser SQL engine |
+
+**Impact:** These tools require an internet connection. The pipeline itself, all tests, and the comparison report work fully offline — only the interactive documentation tools need network access.
+
+**Future improvement — offline bundling:** For air-gapped or on-prem deployments, these CDN imports could be vendored locally. Mermaid is a single `.min.js` file and trivial to bundle. The `esm.sh` imports (hyparquet, squirreling) resolve transitive dependencies at the CDN edge, so local bundling would require adding a JavaScript build tool (esbuild or rollup), a `package.json`, and a build step. This was intentionally deferred to keep the project as a zero-JS-build Python project — adding JS tooling would increase infrastructure complexity for a feature that is documentation-only and not on the critical path.
+
+### Other Future Improvements
+
+- **CI/CD pipeline** — GitHub Actions for automated testing on push
+- **CloudFront CDN** — for production cloud deployment of reports
+- **CloudWatch monitoring** — alarms and dashboards for Lambda pipeline steps
+- **End-to-end cloud testing** — deploy and validate on real AWS infrastructure
+
+---
+
 ## Project Structure
 
 ```
