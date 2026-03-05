@@ -237,6 +237,9 @@ async def delete_run(run_id: str):
 
 # ── AI Chat endpoint ──────────────────────────────────────────────
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_DB_PATH = _PROJECT_ROOT / "data" / "database" / "cms_claims.duckdb"
+
 _CMS_SYSTEM_PROMPT = """You are a data analysis assistant embedded in the CMS Claims Comparison Report.
 You help reviewers understand the findings from comparing an old Medicare claims processing
 system (CMS DE-SynPUF) against a new replacement system.
@@ -250,20 +253,136 @@ You have deep knowledge of:
 ## Key Findings You Know About
 {findings_context}
 
+## Database Access
+You have direct access to the DuckDB database via the `query_database` tool.
+Use it to answer questions that require looking at the actual data.
+Always use SELECT queries only — the database is read-only.
+Add LIMIT clauses (max 50 rows) to avoid huge result sets.
+
+### Database Schema
+**beneficiary_summary** / **new_beneficiary_summary** (old vs new system, 33 cols each):
+  Key: DESYNPUF_ID (VARCHAR) + summary_year (INTEGER)
+  Demographics: BENE_BIRTH_DT, BENE_DEATH_DT, BENE_SEX_IDENT_CD, BENE_RACE_CD, BENE_ESRD_IND
+  Location: SP_STATE_CODE, BENE_COUNTY_CD
+  Coverage: BENE_HI_CVRAGE_TOT_MONS, BENE_SMI_CVRAGE_TOT_MONS, BENE_HMO_CVRAGE_TOT_MONS, PLAN_CVRG_MOS_NUM
+  Chronic conditions (1=yes, 2=no): SP_ALZHDMTA, SP_CHF, SP_CHRNKIDN, SP_CNCR, SP_COPD, SP_DEPRESSN, SP_DIABETES, SP_ISCHMCHT, SP_OSTEOPRS, SP_RA_OA, SP_STRKETIA
+  Financials (DOUBLE): MEDREIMB_IP, BENRES_IP, PPPYMT_IP, MEDREIMB_OP, BENRES_OP, PPPYMT_OP, MEDREIMB_CAR, BENRES_CAR, PPPYMT_CAR
+
+**carrier_claims** / **new_carrier_claims** (old vs new, 142 cols each):
+  Key: CLM_ID (BIGINT in old, VARCHAR in new — cast to VARCHAR for joins), DESYNPUF_ID (VARCHAR)
+  Dates: CLM_FROM_DT, CLM_THRU_DT (BIGINT, YYYYMMDD format)
+  Diagnosis: ICD9_DGNS_CD_1..8, LINE_ICD9_DGNS_CD_1..13
+  Providers: PRF_PHYSN_NPI_1..13, TAX_NUM_1..13
+  Procedures: HCPCS_CD_1..13
+  Payments (DOUBLE): LINE_NCH_PMT_AMT_1..13, LINE_BENE_PTB_DDCTBL_AMT_1..13, LINE_BENE_PRMRY_PYR_PD_AMT_1..13, LINE_COINSRNC_AMT_1..13, LINE_ALOWD_CHRG_AMT_1..13
+  Processing: LINE_PRCSG_IND_CD_1..13
+
+**_discrepancy_detail** (37 cols) — pre-computed per-beneficiary diffs:
+  Key: DESYNPUF_ID, summary_year. diff_* columns (1 = mismatch), delta_* columns (dollar amount), total_diffs
+
+**_financial_recon** (11 cols) — financial reconciliation:
+  Key: DESYNPUF_ID, summary_year. reported_* vs calc_* columns, *_diff columns
+
+**_match_beneficiary** / **_match_claims** — match status (matched/old_only/new_only)
+
+### Important Notes
+- "ZZ" prefix beneficiaries (DESYNPUF_ID LIKE 'ZZ%') are fabricated test records injected by the new system
+- When comparing old vs new, join on: beneficiary_summary ON DESYNPUF_ID + summary_year; carrier_claims ON CLM_ID::VARCHAR
+- The 0.90 payment ratio pattern: many new system payments = old * 0.90 (systematic 10% reduction)
+- Dates are stored as BIGINT in YYYYMMDD format (e.g., 20080101)
+
 ## Guidelines
-1. Be concise and data-driven. Reference specific numbers from the report when possible.
-2. Explain technical terms (ICD-9, HCPCS, NPI, etc.) in plain language when asked.
-3. Help reviewers understand the *impact* of each discrepancy — what would go wrong downstream.
-4. When discussing financial figures, note whether they affect Medicare reimbursement, beneficiary cost-sharing, or provider payments.
-5. If asked about something outside the report data, say so honestly.
-6. Format responses with markdown for readability.
-7. You can suggest SQL queries the reviewer could run against the DuckDB database to investigate further.
+1. Be concise and data-driven. Use the query_database tool to verify claims with real data.
+2. When asked about discrepancies, query the database to show concrete examples.
+3. Explain technical terms (ICD-9, HCPCS, NPI, etc.) in plain language when asked.
+4. Help reviewers understand the *impact* of each discrepancy.
+5. Format responses with markdown. Show SQL queries you ran and summarize results in tables.
+6. If a query returns too much data, summarize the key patterns.
 """
+
+# OpenAI tool definition for query_database
+_TOOL_QUERY_DATABASE = {
+    "type": "function",
+    "function": {
+        "name": "query_database",
+        "description": "Execute a read-only SQL query against the CMS claims DuckDB database. Use SELECT statements only. Always include a LIMIT clause (max 50 rows). Returns results as a list of row dictionaries.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sql": {
+                    "type": "string",
+                    "description": "The SQL SELECT query to execute. Must be read-only. Include LIMIT clause."
+                },
+                "explanation": {
+                    "type": "string",
+                    "description": "Brief explanation of what this query investigates."
+                }
+            },
+            "required": ["sql"]
+        }
+    }
+}
+
+# Maximum rows returned per query, and max tool-call iterations per request
+_MAX_ROWS = 50
+_MAX_TOOL_ROUNDS = 5
+
+
+def _execute_duckdb_query(sql: str) -> dict:
+    """Execute a read-only SQL query against the CMS DuckDB database.
+
+    Returns {"columns": [...], "rows": [[...], ...], "row_count": N, "truncated": bool}
+    or {"error": "message"} on failure.
+    """
+    import duckdb
+
+    if not _DB_PATH.exists():
+        return {"error": f"Database not found at {_DB_PATH}. Run the pipeline first."}
+
+    # Safety: reject non-SELECT statements
+    sql_stripped = sql.strip().rstrip(";").strip()
+    first_word = sql_stripped.split()[0].upper() if sql_stripped else ""
+    if first_word not in ("SELECT", "WITH", "EXPLAIN"):
+        return {"error": f"Only SELECT/WITH/EXPLAIN queries are allowed. Got: {first_word}"}
+
+    try:
+        con = duckdb.connect(str(_DB_PATH), read_only=True)
+        try:
+            result = con.execute(sql_stripped)
+            columns = [desc[0] for desc in result.description]
+            rows = result.fetchmany(_MAX_ROWS + 1)
+            truncated = len(rows) > _MAX_ROWS
+            if truncated:
+                rows = rows[:_MAX_ROWS]
+            # Convert to JSON-safe types
+            clean_rows = []
+            for row in rows:
+                clean_row = []
+                for val in row:
+                    if val is None:
+                        clean_row.append(None)
+                    elif isinstance(val, (int, float, bool, str)):
+                        clean_row.append(val)
+                    else:
+                        clean_row.append(str(val))
+                clean_rows.append(clean_row)
+            return {
+                "columns": columns,
+                "rows": clean_rows,
+                "row_count": len(clean_rows),
+                "truncated": truncated,
+            }
+        finally:
+            con.close()
+    except duckdb.Error as e:
+        return {"error": f"SQL error: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Query failed: {str(e)}"}
 
 
 def _build_findings_context() -> str:
     """Load report_data.json and build a condensed findings summary for the system prompt."""
-    report_json = Path(__file__).resolve().parent.parent / "reports" / "report_data.json"
+    report_json = _PROJECT_ROOT / "reports" / "report_data.json"
     if not report_json.exists():
         return "No report data available yet. The pipeline has not been run."
 
@@ -314,14 +433,12 @@ def _build_findings_context() -> str:
 
 @app.post("/api/chat")
 async def chat(request: Request):
-    """AI chat endpoint — stateless, conversation history sent with each request."""
+    """AI chat endpoint with function calling for DuckDB queries."""
     try:
         import openai as openai_mod
     except ImportError:
         raise HTTPException(500, "openai package not installed. Run: pip install openai")
 
-    api_key = None
-    # Check environment
     import os
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -347,14 +464,85 @@ async def chat(request: Request):
 
     try:
         client = openai_mod.OpenAI(api_key=api_key)
+        tools = [_TOOL_QUERY_DATABASE]
+        sql_queries_run = []  # track for the response
+
+        # Tool-calling loop: let the model call query_database up to N times
+        for _round in range(_MAX_TOOL_ROUNDS):
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                max_tokens=2000,
+                temperature=0.4,
+            )
+
+            choice = response.choices[0]
+
+            # If no tool calls, we have the final answer
+            if choice.finish_reason != "tool_calls" or not choice.message.tool_calls:
+                content = choice.message.content or ""
+                return {
+                    "content": content,
+                    "model": response.model or model,
+                    "queries": sql_queries_run,
+                }
+
+            # Process tool calls
+            messages.append(choice.message)  # add assistant message with tool_calls
+
+            for tool_call in choice.message.tool_calls:
+                if tool_call.function.name == "query_database":
+                    try:
+                        args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {"sql": ""}
+
+                    sql = args.get("sql", "")
+                    explanation = args.get("explanation", "")
+                    logger.info(f"[chat] query_database: {explanation} | SQL: {sql[:200]}")
+
+                    # Execute the query
+                    result = _execute_duckdb_query(sql)
+                    sql_queries_run.append({
+                        "sql": sql,
+                        "explanation": explanation,
+                        "result_preview": {
+                            "columns": result.get("columns", []),
+                            "row_count": result.get("row_count", 0),
+                            "truncated": result.get("truncated", False),
+                            "error": result.get("error"),
+                        }
+                    })
+
+                    # Send result back to the model
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result, default=str),
+                    })
+                else:
+                    # Unknown tool
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps({"error": f"Unknown tool: {tool_call.function.name}"}),
+                    })
+
+        # If we exhausted tool rounds, get final answer without tools
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            max_tokens=1500,
-            temperature=0.7,
+            max_tokens=2000,
+            temperature=0.4,
         )
         content = response.choices[0].message.content or ""
-        return {"content": content, "model": response.model or model}
+        return {
+            "content": content,
+            "model": response.model or model,
+            "queries": sql_queries_run,
+        }
     except Exception as e:
         logger.exception("Chat API error")
         raise HTTPException(500, f"Chat failed: {str(e)}")

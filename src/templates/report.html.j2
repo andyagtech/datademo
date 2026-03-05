@@ -1181,6 +1181,24 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .then(function(data) {
       hideLoading();
+      // Show SQL queries the AI ran (if any)
+      if (data.queries && data.queries.length > 0) {
+        data.queries.forEach(function(q) {
+          var qDiv = document.createElement('div');
+          qDiv.className = 'chat-msg assistant';
+          qDiv.style.fontSize = '0.75rem';
+          qDiv.style.background = 'rgba(56,189,248,0.08)';
+          qDiv.style.borderLeft = '3px solid #38bdf8';
+          var errHtml = q.result_preview.error
+            ? '<br><span style="color:#f87171;">Error: ' + q.result_preview.error + '</span>'
+            : '<br><span style="color:#94a3b8;">' + q.result_preview.row_count + ' row(s)' + (q.result_preview.truncated ? ' (truncated)' : '') + '</span>';
+          qDiv.innerHTML = '<strong style="color:#38bdf8;">SQL Query</strong>' +
+            (q.explanation ? ' — <em>' + q.explanation + '</em>' : '') +
+            '<pre style="margin:4px 0;background:rgba(0,0,0,0.3);padding:6px 8px;border-radius:4px;overflow-x:auto;font-size:0.72rem;"><code>' +
+            q.sql.replace(/</g, '&lt;') + '</code></pre>' + errHtml;
+          messagesEl.appendChild(qDiv);
+        });
+      }
       addMessage('assistant', data.content);
       conversationHistory.push({ role: 'assistant', content: data.content });
       dotEl.className = 'dot connected';
