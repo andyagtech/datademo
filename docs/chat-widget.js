@@ -15,12 +15,55 @@
   var HISTORY_KEY = 'cms_chat_history';
   var API_URL_KEY = 'cms_chat_api_url';
 
-  // ── Resolve relative path to SQL Explorer ──
-  function getSqlExplorerUrl() {
+  // ── Page navigation map (like healthresourcepal's [[page_id]] tokens) ──
+  var PAGE_MAP = {
+    sql:            { label: 'SQL Explorer',      url: 'sql_explorer.html' },
+    schema:         { label: 'Schema Explorer',   url: 'schema_explorer.html' },
+    parquet:        { label: 'Parquet Viewer',     url: 'parquet_viewer.html' },
+    report:         { label: 'Comparison Report',  url: '../reports/comparison_report.html' },
+    architecture:   { label: 'Architecture',       url: 'architecture.html' },
+    data_dictionary:{ label: 'Data Dictionary',    url: 'data_dictionary.html' },
+    solution:       { label: 'Solution Design',    url: 'solution.html' },
+    pipeline:       { label: 'Pipeline Reference', url: 'pipeline.html' },
+    reviewer:       { label: 'Reviewer Guide',     url: 'reviewer_readme.html' },
+    requirements:   { label: 'Requirements',       url: 'requirements_traceability.html' },
+    // Report sections (scroll-to, not page navigation)
+    discrepancies:  { label: 'Discrepancies',      section: 'discrepancies' },
+    financial:      { label: 'Financial Analysis',  section: 'financial' },
+    validation:     { label: 'Validation',          section: 'validation' },
+    trends:         { label: 'YoY Trends',          section: 'trends' },
+    comparison:     { label: 'System Comparison',   section: 'comparison' },
+    profiles:       { label: 'Data Profiles',       section: 'profiles' },
+    summary:        { label: 'Executive Summary',   section: 'summary' },
+    data_context:   { label: 'Data Context',        section: 'data-context' }
+  };
+
+  // Resolve relative path based on current page location
+  function resolvePageUrl(pageId) {
+    var entry = PAGE_MAP[pageId];
+    if (!entry) return null;
+    // Section navigation (scroll-to on report page)
+    if (entry.section) return { section: entry.section, label: entry.label };
+    // Page navigation — adjust relative path based on current location
     var loc = window.location.pathname;
-    if (loc.indexOf('/docs/') !== -1) return 'sql_explorer.html';
-    if (loc.indexOf('/reports/') !== -1) return '../docs/sql_explorer.html';
-    return 'docs/sql_explorer.html';
+    var url = entry.url;
+    if (loc.indexOf('/docs/') !== -1) {
+      // Already in docs/, urls are relative
+      return { url: url, label: entry.label };
+    }
+    if (loc.indexOf('/reports/') !== -1) {
+      // In reports/, prefix with ../docs/ unless url already has ../
+      if (url.indexOf('../') === 0) return { url: url, label: entry.label };
+      return { url: '../docs/' + url, label: entry.label };
+    }
+    // Root level
+    if (url.indexOf('../') === 0) return { url: url.replace('../', ''), label: entry.label };
+    return { url: 'docs/' + url, label: entry.label };
+  }
+
+  function getSqlExplorerUrl() {
+    var r = resolvePageUrl('sql');
+    return r ? r.url : 'docs/sql_explorer.html';
   }
 
   // ── Inject CSS ──
@@ -97,6 +140,9 @@
     '.chat-nav-pill{display:inline-block;margin-top:6px}',
     '.chat-nav-pill button{background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:12px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-family:inherit}',
     '.chat-nav-pill button:hover{background:rgba(56,189,248,0.25)}',
+    '.chat-nav-tag{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;margin:0 1px;background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.25);border-radius:6px;font-size:.72rem;cursor:pointer;font-family:inherit;text-decoration:none;transition:all .15s;vertical-align:baseline;line-height:1.6}',
+    '.chat-nav-tag:hover{background:rgba(56,189,248,0.25);border-color:#38bdf8;text-decoration:none}',
+    '.chat-nav-tag svg{width:10px;height:10px;flex-shrink:0}',
     '@media(max-width:500px){.chat-panel{width:calc(100vw - 16px);right:8px;bottom:8px;height:calc(100vh - 16px);max-height:none;border-radius:12px}}'
   ].join('\n');
   document.head.appendChild(style);
@@ -301,6 +347,35 @@
   quickEl.addEventListener('click', function (e) {
     var btn = e.target.closest('button[data-q]');
     if (btn) sendMessage(btn.dataset.q);
+  });
+
+  // ── Navigation tag click delegation (for [[page_id]] tokens) ──
+  messagesEl.addEventListener('click', function (e) {
+    var tag = e.target.closest('.chat-nav-tag');
+    if (!tag) return;
+    e.preventDefault();
+    // Section navigation (scroll-to)
+    var sectionId = tag.getAttribute('data-nav-section');
+    if (sectionId) {
+      navigateToSection(sectionId);
+      return;
+    }
+    // Page navigation (save session, then navigate)
+    var pageId = tag.getAttribute('data-nav-page');
+    if (pageId) {
+      saveSession();
+      // If it's the SQL page, check if there's a SQL code block nearby to pre-fill
+      if (pageId === 'sql') {
+        var msgDiv = tag.closest('.chat-msg');
+        if (msgDiv) {
+          var codeEl = msgDiv.querySelector('pre code');
+          if (codeEl && /^\s*(SELECT|WITH)/i.test(codeEl.textContent)) {
+            sessionStorage.setItem('cms_prefill_sql', codeEl.textContent);
+          }
+        }
+      }
+      window.location.href = tag.getAttribute('href');
+    }
   });
 
   // ── Input handling ──
@@ -544,34 +619,131 @@
     pill.querySelector('button').addEventListener('click', function () { navigateToSection(section.id); });
   }
 
-  // ── Markdown renderer ──
+  // ── Markdown renderer with [[page_id]] navigation tokens ──
+  // Block-level parser inspired by healthresourcepal/markdownParser.ts
   function renderMarkdown(text) {
     if (!text) return '';
-    var html = text
-      .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/^\s*[-*]\s+(.+)/gm, '<li>$1</li>')
-      .replace(/^\s*\d+\.\s+(.+)/gm, '<li>$1</li>')
-      .replace(/^###\s+(.+)/gm, '<strong style="display:block;margin:8px 0 4px;color:#38bdf8;">$1</strong>')
-      .replace(/^##\s+(.+)/gm, '<strong style="display:block;margin:8px 0 4px;font-size:1rem;color:#38bdf8;">$1</strong>')
-      // Tables
-      .replace(/\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/g, function (match, headerLine, bodyLines) {
-        var headers = headerLine.split('|').map(function (h) { return h.trim(); }).filter(Boolean);
-        var rows = bodyLines.trim().split('\n').map(function (row) {
-          return row.split('|').map(function (c) { return c.trim(); }).filter(Boolean);
-        });
-        var table = '<table><thead><tr>' + headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>';
-        rows.forEach(function (r) { table += '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; });
-        return table + '</tbody></table>';
-      })
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>');
-    html = html.replace(/(<li>.*?<\/li>(\s*<br>)?)+/g, function (match) {
-      return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
+
+    // First extract code blocks so they don't get parsed
+    var codeBlocks = [];
+    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function (m, lang, code) {
+      codeBlocks.push(code);
+      return '%%CODEBLOCK_' + (codeBlocks.length - 1) + '%%';
     });
-    return '<p>' + html + '</p>';
+
+    // Extract tables
+    var tables = [];
+    text = text.replace(/\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/g, function (match, headerLine, bodyLines) {
+      var headers = headerLine.split('|').map(function (h) { return h.trim(); }).filter(Boolean);
+      var rows = bodyLines.trim().split('\n').map(function (row) {
+        return row.split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+      });
+      var table = '<table><thead><tr>' + headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>';
+      rows.forEach(function (r) { table += '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; });
+      tables.push(table + '</tbody></table>');
+      return '%%TABLE_' + (tables.length - 1) + '%%';
+    });
+
+    // Parse blocks line by line
+    var lines = text.split('\n');
+    var blocks = [];
+    var currentPara = [];
+    var currentList = [];
+
+    function flushPara() {
+      if (currentPara.length > 0) {
+        blocks.push({ type: 'paragraph', text: currentPara.join(' ').trim() });
+        currentPara = [];
+      }
+    }
+    function flushList() {
+      if (currentList.length > 0) {
+        blocks.push({ type: 'list', items: currentList.slice() });
+        currentList = [];
+      }
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+
+      if (line === '') { flushList(); flushPara(); continue; }
+
+      // Headings
+      var hm = line.match(/^(#{1,3})\s+(.+)$/);
+      if (hm) { flushList(); flushPara(); blocks.push({ type: 'heading', level: hm[1].length, text: hm[2] }); continue; }
+
+      // List items
+      if (line.match(/^[-*•]\s+/)) { flushPara(); currentList.push(line.replace(/^[-*•]\s+/, '')); continue; }
+      if (line.match(/^\d+\.\s+/)) { flushPara(); currentList.push(line.replace(/^\d+\.\s+/, '')); continue; }
+
+      // Code block / table placeholders
+      if (line.match(/^%%CODEBLOCK_\d+%%$/) || line.match(/^%%TABLE_\d+%%$/)) { flushList(); flushPara(); blocks.push({ type: 'raw', text: line }); continue; }
+
+      // Regular paragraph line
+      flushList();
+      currentPara.push(line);
+    }
+    flushList();
+    flushPara();
+
+    // Render blocks to HTML
+    var html = blocks.map(function (block) {
+      if (block.type === 'heading') {
+        var cls = block.level === 1 ? 'font-size:1rem;font-weight:700;margin:10px 0 4px;color:#38bdf8;' :
+                  block.level === 2 ? 'font-size:.92rem;font-weight:700;margin:8px 0 4px;color:#38bdf8;' :
+                  'font-size:.85rem;font-weight:600;margin:6px 0 3px;color:#38bdf8;';
+        return '<div style="' + cls + '">' + renderInline(block.text) + '</div>';
+      }
+      if (block.type === 'list') {
+        return '<ul>' + block.items.map(function (item) { return '<li>' + renderInline(item) + '</li>'; }).join('') + '</ul>';
+      }
+      if (block.type === 'raw') {
+        var cbm = block.text.match(/^%%CODEBLOCK_(\d+)%%$/);
+        if (cbm) return '<pre><code>' + codeBlocks[parseInt(cbm[1])].replace(/</g, '&lt;') + '</code></pre>';
+        var tbm = block.text.match(/^%%TABLE_(\d+)%%$/);
+        if (tbm) return tables[parseInt(tbm[1])];
+        return '';
+      }
+      // paragraph
+      return '<p>' + renderInline(block.text) + '</p>';
+    }).join('');
+
+    return html;
+  }
+
+  // Inline markdown + [[page_id]] navigation tokens
+  function renderInline(text) {
+    if (!text) return '';
+    // Split on [[page_id]] tokens first
+    var parts = text.split(/(\[\[[a-z_]+\]\])/g);
+    var result = '';
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i];
+      var tagMatch = part.match(/^\[\[([a-z_]+)\]\]$/);
+      if (tagMatch && PAGE_MAP[tagMatch[1]]) {
+        var pageId = tagMatch[1];
+        var entry = PAGE_MAP[pageId];
+        var resolved = resolvePageUrl(pageId);
+        if (resolved && resolved.section) {
+          // Section navigation button
+          result += '<a class="chat-nav-tag" href="#" data-nav-section="' + resolved.section + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>' +
+            entry.label + '</a>';
+        } else if (resolved && resolved.url) {
+          // Page navigation button (save session before navigating)
+          result += '<a class="chat-nav-tag" href="' + resolved.url + '" data-nav-page="' + pageId + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+            entry.label + '</a>';
+        }
+      } else if (part) {
+        // Apply inline markdown
+        result += part
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>');
+      }
+    }
+    return result;
   }
 
   // ── Restore previous session ──

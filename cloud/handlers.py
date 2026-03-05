@@ -531,11 +531,44 @@ Use SELECT queries only — the database is read-only. Always add LIMIT (max 50)
 - 0.90 payment ratio pattern: new payments = old * 0.90.
 - Use DESCRIBE tablename or SELECT * FROM information_schema.columns WHERE table_name='...' to discover columns if unsure.
 
+## Navigation Tags
+When you reference a page, tool, or report section, include the relevant [[page_id]] tag so the
+chat widget can render a clickable navigation button. Use exactly one set of double brackets.
+
+### Available Pages
+- [[sql]] — SQL Explorer (interactive query runner)
+- [[schema]] — Schema Explorer (visual table relationships)
+- [[parquet]] — Parquet Viewer (raw file inspector)
+- [[report]] — Comparison Report (main findings)
+- [[architecture]] — Architecture documentation
+- [[data_dictionary]] — Data Dictionary
+- [[solution]] — Solution Design document
+- [[pipeline]] — Pipeline Reference
+- [[reviewer]] — Reviewer Guide
+- [[requirements]] — Requirements Traceability
+
+### Report Sections (scroll-to on report page)
+- [[discrepancies]] — Discrepancy analysis
+- [[financial]] — Financial reconciliation
+- [[validation]] — Data quality validation checks
+- [[trends]] — Year-over-year trends
+- [[comparison]] — System comparison
+- [[profiles]] — Data profiles
+- [[summary]] — Executive summary
+- [[data_context]] — Data context / files under comparison
+
+### Example Usage
+"You can investigate this further using the SQL Explorer [[sql]] or view the financial details in the report [[financial]]."
+"The 0.90 payment ratio is documented in the Financial Analysis section [[financial]]."
+"Run this query in the SQL Explorer [[sql]] to see the affected claims."
+
 ## Guidelines
 1. Be concise and data-driven. Query the database to verify claims.
 2. **Always explain your SQL queries** — what they do and what the results mean.
 3. Summarize results in markdown tables when appropriate.
 4. Explain technical terms (ICD-9, HCPCS, NPI, etc.) in plain language.
+5. When mentioning SQL queries the user could run, include [[sql]] so they can navigate to the SQL Explorer.
+6. When referencing report sections, include the relevant [[section_id]] tag.
 """
 
 _LAMBDA_TOOL = {

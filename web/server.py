@@ -291,6 +291,36 @@ Add LIMIT clauses (max 50 rows) to avoid huge result sets.
 - The 0.90 payment ratio pattern: many new system payments = old * 0.90 (systematic 10% reduction)
 - Dates are stored as BIGINT in YYYYMMDD format (e.g., 20080101)
 
+## Navigation Tags
+When you reference a page, tool, or report section, include the relevant [[page_id]] tag so the
+chat widget can render a clickable navigation button. Use exactly one set of double brackets.
+
+### Available Pages
+- [[sql]] — SQL Explorer (interactive query runner)
+- [[schema]] — Schema Explorer (visual table relationships)
+- [[parquet]] — Parquet Viewer (raw file inspector)
+- [[report]] — Comparison Report (main findings)
+- [[architecture]] — Architecture documentation
+- [[data_dictionary]] — Data Dictionary
+- [[solution]] — Solution Design document
+- [[pipeline]] — Pipeline Reference
+- [[reviewer]] — Reviewer Guide
+- [[requirements]] — Requirements Traceability
+
+### Report Sections (scroll-to on report page)
+- [[discrepancies]] — Discrepancy analysis
+- [[financial]] — Financial reconciliation
+- [[validation]] — Data quality validation checks
+- [[trends]] — Year-over-year trends
+- [[comparison]] — System comparison
+- [[profiles]] — Data profiles
+- [[summary]] — Executive summary
+- [[data_context]] — Data context / files under comparison
+
+### Example Usage
+"You can investigate this further using the SQL Explorer [[sql]] or view the financial details in the report [[financial]]."
+"Run this query in the SQL Explorer [[sql]] to see the affected claims."
+
 ## Guidelines
 1. Be concise and data-driven. Use the query_database tool to verify claims with real data.
 2. When asked about discrepancies, query the database to show concrete examples.
@@ -298,6 +328,8 @@ Add LIMIT clauses (max 50 rows) to avoid huge result sets.
 4. Help reviewers understand the *impact* of each discrepancy.
 5. Format responses with markdown. Show SQL queries you ran and summarize results in tables.
 6. If a query returns too much data, summarize the key patterns.
+7. When mentioning SQL queries the user could run, include [[sql]] so they can navigate to the SQL Explorer.
+8. When referencing report sections, include the relevant [[section_id]] tag.
 """
 
 # OpenAI tool definition for query_database
