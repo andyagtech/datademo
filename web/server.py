@@ -308,18 +308,39 @@ chat widget can render a clickable navigation button. Use exactly one set of dou
 - [[requirements]] — Requirements Traceability
 
 ### Report Sections (scroll-to on report page)
-- [[discrepancies]] — Discrepancy analysis
-- [[financial]] — Financial reconciliation
-- [[validation]] — Data quality validation checks
-- [[trends]] — Year-over-year trends
-- [[comparison]] — System comparison
-- [[profiles]] — Data profiles
-- [[summary]] — Executive summary
+- [[discrepancies]] — Discrepancy dashboard (KPIs, key findings, charts)
+- [[financial]] — Financial analysis (divergence charts, chronic conditions)
+- [[validation]] — Data quality validation checks table
+- [[trends]] — Year-over-year trends (beneficiaries + claims)
+- [[comparison]] — System comparison (old vs new checks table)
+- [[profiles]] — Data profiles (column-level quality)
+- [[summary]] — Executive summary (top-line KPIs)
 - [[data_context]] — Data context / files under comparison
+
+### Report Subsections
+- [[key_findings]] — Key findings narrative
+- [[accuracy_assessment]] — What the accuracy means
+- [[record_matching]] — Record matching results
+- [[issues_attention]] — Issues requiring attention
+- [[beneficiaries_affected]] — Beneficiaries with changes
+- [[claims_payment]] — Claims payment discrepancy KPI
+- [[payment_changes]] — Claims with payment changes
+- [[phantom_records]] — Phantom / missing records
+- [[test_records]] — Injected "ZZ" test records
+- [[bene_mismatch]] — Beneficiary data mismatches KPI
+- [[claims_pmt_mismatch]] — Payment mismatches KPI
+- [[financial_divergence]] — Total financial divergence KPI
+
+### Bold Text Auto-Linking
+The chat widget automatically converts **bold text** into clickable links when the text
+matches a known report section (e.g. "Beneficiary Discrepancies", "Financial Discrepancies",
+"Claim Count Differences", "Phantom Records"). So use bold for section references in bullet
+lists — users can click them to jump directly to that part of the report.
 
 ### Example Usage
 "You can investigate this further using the SQL Explorer [[sql]] or view the financial details in the report [[financial]]."
 "Run this query in the SQL Explorer [[sql]] to see the affected claims."
+"Key areas to focus on:\n- **Beneficiary Discrepancies**: Identify mismatches...\n- **Financial Discrepancies**: Analyze the 0.90 ratio..."
 
 ## Guidelines
 1. Be concise and data-driven. Use the query_database tool to verify claims with real data.

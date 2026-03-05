@@ -17,6 +17,7 @@
 
   // ── Page navigation map (like healthresourcepal's [[page_id]] tokens) ──
   var PAGE_MAP = {
+    // Documentation pages
     sql:            { label: 'SQL Explorer',      url: 'sql_explorer.html' },
     schema:         { label: 'Schema Explorer',   url: 'schema_explorer.html' },
     parquet:        { label: 'Parquet Viewer',     url: 'parquet_viewer.html' },
@@ -27,16 +28,60 @@
     pipeline:       { label: 'Pipeline Reference', url: 'pipeline.html' },
     reviewer:       { label: 'Reviewer Guide',     url: 'reviewer_readme.html' },
     requirements:   { label: 'Requirements',       url: 'requirements_traceability.html' },
-    // Report sections (scroll-to, not page navigation)
-    discrepancies:  { label: 'Discrepancies',      section: 'discrepancies' },
-    financial:      { label: 'Financial Analysis',  section: 'financial' },
-    validation:     { label: 'Validation',          section: 'validation' },
-    trends:         { label: 'YoY Trends',          section: 'trends' },
-    comparison:     { label: 'System Comparison',   section: 'comparison' },
-    profiles:       { label: 'Data Profiles',       section: 'profiles' },
-    summary:        { label: 'Executive Summary',   section: 'summary' },
-    data_context:   { label: 'Data Context',        section: 'data-context' }
+
+    // Report top-level sections (scroll-to on report page, or navigate+hash from other pages)
+    discrepancies:          { label: 'Discrepancies',         section: 'discrepancies' },
+    financial:              { label: 'Financial Analysis',    section: 'financial' },
+    validation:             { label: 'Validation',            section: 'validation' },
+    trends:                 { label: 'YoY Trends',            section: 'trends' },
+    comparison:             { label: 'System Comparison',     section: 'comparison' },
+    profiles:               { label: 'Data Profiles',         section: 'profiles' },
+    summary:                { label: 'Executive Summary',     section: 'summary' },
+    data_context:           { label: 'Data Context',          section: 'data-context' },
+
+    // Report subsections
+    key_findings:           { label: 'Key Findings',                section: 'key-findings' },
+    accuracy_assessment:    { label: 'Accuracy Assessment',         section: 'accuracy-assessment' },
+    record_matching:        { label: 'Record Matching',             section: 'record-matching' },
+    issues_attention:       { label: 'Issues Requiring Attention',  section: 'issues-requiring-attention' },
+    beneficiaries_affected: { label: 'Beneficiaries Affected',      section: 'beneficiaries-affected' },
+    claims_payment:         { label: 'Claims Payment Discrepancy',  section: 'claims-payment-discrepancy' },
+    payment_changes:        { label: 'Claims with Payment Changes', section: 'claims-with-payment-changes' },
+    phantom_records:        { label: 'Phantom Records',             section: 'kpi-phantom' },
+    test_records:           { label: 'Injected Test Records',       section: 'injected-test-records' },
+
+    // KPI cards
+    bene_mismatch:          { label: 'Beneficiary Mismatches',      section: 'kpi-bene-mismatch' },
+    claims_pmt_mismatch:    { label: 'Payment Mismatches',          section: 'kpi-claims-pmt' },
+    financial_divergence:   { label: 'Financial Divergence',        section: 'kpi-fin-diverge' },
+
+    // Charts
+    field_mismatches_chart: { label: 'Field Mismatches Chart',      section: 'chart-field-mismatches' },
+    discrepancy_trend_chart:{ label: 'Discrepancy Trend Chart',     section: 'chart-discrepancy-trend' },
+    fin_divergence_chart:   { label: 'Financial Divergence Chart',  section: 'chart-fin-divergence' },
+    reimb_comparison_chart: { label: 'Reimbursement Comparison',    section: 'chart-reimb-comparison' }
   };
+
+  // ── Bold-text auto-linking: map common phrases to [[page_id]] ──
+  // When AI uses **bold text** that matches these patterns, auto-link to the section
+  var BOLD_LINK_PATTERNS = [
+    { pattern: /beneficiary\s+discrepanc/i,   id: 'discrepancies',  reportHash: 'kpi-bene-mismatch' },
+    { pattern: /claim\s+count\s+diff/i,       id: 'discrepancies',  reportHash: 'kpi-claims-pmt' },
+    { pattern: /financial\s+discrepanc/i,      id: 'financial',      reportHash: 'kpi-fin-diverge' },
+    { pattern: /payment\s+(?:ratio|mismatch)/i,id: 'financial',      reportHash: 'kpi-claims-pmt' },
+    { pattern: /phantom\s+record/i,            id: 'discrepancies',  reportHash: 'kpi-phantom' },
+    { pattern: /data\s+quality/i,              id: 'validation',     reportHash: 'validation' },
+    { pattern: /key\s+finding/i,               id: 'discrepancies',  reportHash: 'key-findings' },
+    { pattern: /executive\s+summary/i,         id: 'summary',        reportHash: 'summary' },
+    { pattern: /system\s+comparison/i,         id: 'comparison',     reportHash: 'comparison' },
+    { pattern: /year.over.year|yoy\s+trend/i,  id: 'trends',         reportHash: 'trends' },
+    { pattern: /data\s+profile/i,              id: 'profiles',       reportHash: 'profiles' },
+    { pattern: /record\s+match/i,              id: 'data_context',   reportHash: 'record-matching' },
+    { pattern: /accuracy\s+assess/i,           id: 'discrepancies',  reportHash: 'accuracy-assessment' },
+    { pattern: /validation\s+result/i,         id: 'validation',     reportHash: 'validation' },
+    { pattern: /injected\s+test/i,             id: 'discrepancies',  reportHash: 'injected-test-records' },
+    { pattern: /zz.*beneficiar/i,              id: 'discrepancies',  reportHash: 'injected-test-records' }
+  ];
 
   // Resolve relative path based on current page location
   function resolvePageUrl(pageId) {
@@ -711,6 +756,31 @@
     return html;
   }
 
+  // Convert **bold text** to a clickable link if it matches a known section pattern
+  function boldToLink(boldText) {
+    for (var i = 0; i < BOLD_LINK_PATTERNS.length; i++) {
+      var bp = BOLD_LINK_PATTERNS[i];
+      if (bp.pattern.test(boldText)) {
+        var isOnReport = window.location.pathname.indexOf('comparison_report') !== -1;
+        if (isOnReport) {
+          // On report page — scroll to the section
+          return '<a class="chat-nav-tag" href="#" data-nav-section="' + bp.reportHash + '" style="font-weight:600;">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>' +
+            boldText + '</a>';
+        } else {
+          // On other page — navigate to report with hash
+          var reportUrl = resolvePageUrl('report');
+          var href = (reportUrl ? reportUrl.url : '../reports/comparison_report.html') + '#' + bp.reportHash;
+          return '<a class="chat-nav-tag" href="' + href + '" data-nav-page="report" style="font-weight:600;">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+            boldText + '</a>';
+        }
+      }
+    }
+    // No match — render as plain bold
+    return '<strong>' + boldText + '</strong>';
+  }
+
   // Inline markdown + [[page_id]] navigation tokens
   function renderInline(text) {
     if (!text) return '';
@@ -736,10 +806,12 @@
             entry.label + '</a>';
         }
       } else if (part) {
-        // Apply inline markdown
+        // Apply inline markdown with auto-linking for bold text
         result += part
           .replace(/`([^`]+)`/g, '<code>$1</code>')
-          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*\*(.+?)\*\*/g, function (m, boldText) {
+            return boldToLink(boldText);
+          })
           .replace(/\*(.+?)\*/g, '<em>$1</em>');
       }
     }

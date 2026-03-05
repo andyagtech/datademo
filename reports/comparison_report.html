@@ -147,7 +147,7 @@
 </nav>
 
 <div class="container" style="padding-top: calc(2rem + 32px)">
-  <h1>CMS Claims Data Comparison Report</h1>
+  <h1 id="report-title">CMS Claims Data Comparison Report</h1>
   <p class="subtitle">Generated 2026-03-05 06:51:03</p>
 
   <!-- Sidebar Navigation -->
@@ -169,7 +169,7 @@
   <!-- 0. DATA CONTEXT — what exactly is being compared              -->
   <!-- ============================================================ -->
   <div class="section" id="data-context">
-    <h2>Data Under Comparison</h2>
+    <h2 id="data-context-heading">Data Under Comparison</h2>
     <p style="color: var(--muted); margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.7; max-width: 900px;">
       This report compares outputs from two CMS Medicare claims processing systems.
       The <strong style="color: var(--accent);">old system</strong> is the legacy production pipeline
@@ -180,7 +180,7 @@
 
     <div class="grid-2">
       <!-- Old System -->
-      <div class="card card-accent">
+      <div class="card card-accent" id="old-system-files">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
           <strong style="font-size: 1rem;">Old System (Reference)</strong>
           <span class="badge badge-info">5 files</span>
@@ -207,7 +207,7 @@
       </div>
 
       <!-- New System -->
-      <div class="card" style="border-left: 3px solid #4ade80;">
+      <div class="card" style="border-left: 3px solid #4ade80;" id="new-system-files">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
           <strong style="font-size: 1rem;">New System (Under Test)</strong>
           
@@ -240,7 +240,7 @@
 
     
     <!-- Match summary -->
-    <h3 style="margin-top: 1.5rem;">Record Matching Results</h3>
+    <h3 id="record-matching" style="margin-top: 1.5rem;">Record Matching Results</h3>
     <div class="grid">
       
       <div class="card card-green">
@@ -263,46 +263,46 @@
   <!-- 1. EXECUTIVE SUMMARY — the most important numbers up front   -->
   <!-- ============================================================ -->
   <div class="section" id="summary">
-    <h2>Executive Summary</h2>
+    <h2 id="executive-summary-heading">Executive Summary</h2>
     <div class="grid">
-      <div class="card card-accent">
+      <div class="card card-accent" id="total-beneficiaries">
         <div class="card-label">Total Beneficiaries</div>
         <div class="card-value">343,644</div>
         <div class="card-sub">Across 3 summary years</div>
       </div>
-      <div class="card card-accent">
+      <div class="card card-accent" id="total-carrier-claims">
         <div class="card-label">Total Carrier Claims</div>
         <div class="card-value">4,741,335</div>
         <div class="card-sub">Parts A + B combined</div>
       </div>
       <div class="card card-red">
-        <div class="card-label">Checks Passed</div>
+        <div class="card-label" id="checks-passed">Checks Passed</div>
         <div class="card-value ">7 / 11</div>
         <div class="card-sub">4 issues detected</div>
       </div>
       <div class="card card-yellow">
-        <div class="card-label">New System Status</div>
+        <div class="card-label" id="new-system-status">New System Status</div>
         <div class="card-value ">Loaded</div>
         <div class="card-sub">110 comparison checks</div>
       </div>
     </div>
     <div class="grid">
-      <div class="card card-red">
+      <div class="card card-red" id="claims-payment-discrepancy">
         <div class="card-label">Claims Payment Discrepancy</div>
         <div class="card-value fail">$1,994,823.86</div>
         <div class="card-sub">Total NCH payment divergence across all claim lines</div>
       </div>
-      <div class="card card-red">
+      <div class="card card-red" id="claims-with-payment-changes">
         <div class="card-label">Claims with Payment Changes</div>
         <div class="card-value fail">13,731</div>
         <div class="card-sub">Matched claims with altered payment amounts</div>
       </div>
-      <div class="card card-yellow">
+      <div class="card card-yellow" id="beneficiaries-affected">
         <div class="card-label">Beneficiaries Affected</div>
         <div class="card-value warn">339</div>
         <div class="card-sub">Distinct beneficiaries with any field-level change</div>
       </div>
-      <div class="card card-yellow">
+      <div class="card card-yellow" id="injected-test-records">
         <div class="card-label">Injected Test Records</div>
         <div class="card-value warn">159 + 4,777</div>
         <div class="card-sub">Fake "ZZ" beneficiaries + fabricated claims</div>
@@ -310,7 +310,7 @@
     </div>
 
     
-    <h3 style="color: var(--red); margin-top: 1.5rem;">Issues Requiring Attention</h3>
+    <h3 id="issues-requiring-attention" style="color: var(--red); margin-top: 1.5rem;">Issues Requiring Attention</h3>
     <div class="grid" style="grid-template-columns: 1fr;">
       
       <div class="card card-red">
@@ -377,7 +377,7 @@
   <!-- 1b. DISCREPANCY DASHBOARD — the spec's core ask              -->
   <!-- ============================================================ -->
   <div class="section" id="discrepancies">
-    <h2>Discrepancy Dashboard</h2>
+    <h2 id="discrepancy-dashboard-heading">Discrepancy Dashboard</h2>
     <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.88rem; line-height: 1.6; max-width: 900px;">
       The old system (CMS DE-SynPUF) is treated as <strong style="color: var(--accent);">ground truth</strong>.
       All metrics below quantify how the new system's outputs <strong style="color: var(--yellow);">deviate</strong>
@@ -411,7 +411,7 @@
 
     <!-- Key Findings — interpretive narrative (rendered by JS from analysis data) -->
     <div id="key-findings" style="margin-top: 1.5rem; display: none;">
-      <h3 style="margin-bottom: 0.75rem;">Key Findings</h3>
+      <h3 id="key-findings-heading" style="margin-bottom: 0.75rem;">Key Findings</h3>
       <div class="card" style="border-left: 3px solid var(--yellow); line-height: 1.8; font-size: 0.88rem;">
         <p id="finding-accuracy" style="margin-bottom: 0.6rem;"></p>
         <p id="finding-top-field" style="margin-bottom: 0.6rem;"></p>
@@ -421,7 +421,7 @@
         <p id="finding-trend" style="margin-bottom: 0;"></p>
       </div>
 
-      <h3 style="margin-top: 1.25rem; margin-bottom: 0.5rem;">What This Means for Accuracy</h3>
+      <h3 id="accuracy-assessment" style="margin-top: 1.25rem; margin-bottom: 0.5rem;">What This Means for Accuracy</h3>
       <div class="card" style="border-left: 3px solid #4ade80; line-height: 1.8; font-size: 0.88rem;">
         <p id="meaning-accuracy" style="margin-bottom: 0.6rem;"></p>
         <p id="meaning-risk" style="margin-bottom: 0;"></p>
@@ -451,7 +451,7 @@
   <!-- 2. VALIDATION RESULTS — core analysis                        -->
   <!-- ============================================================ -->
   <div class="section" id="validation">
-    <h2>Validation Results</h2>
+    <h2 id="validation-results-heading">Validation Results</h2>
     <table>
       <thead>
         <tr><th>Check</th><th>Category</th><th>Description</th><th>Checked</th><th>Issues</th><th>Rate</th><th>Status</th></tr>
@@ -571,7 +571,7 @@
       </tbody>
     </table>
     <details>
-      <summary>Issues by Check <span class="summary-meta">bar chart</span></summary>
+      <summary id="issues-by-check">Issues by Check <span class="summary-meta">bar chart</span></summary>
       <div class="details-content"><div id="chart-validation" style="width:100%;height:350px;"></div></div>
     </details>
   </div>
@@ -580,7 +580,7 @@
   <!-- 3. YEAR-OVER-YEAR TRENDS                                     -->
   <!-- ============================================================ -->
   <div class="section" id="trends">
-    <h2>Year-over-Year Trends</h2>
+    <h2 id="yoy-trends-heading">Year-over-Year Trends</h2>
     <div class="grid-2">
       <div class="chart-container"><div id="chart-yoy-bene" style="width:100%;height:350px;"></div></div>
       <div class="chart-container"><div id="chart-yoy-claims" style="width:100%;height:350px;"></div></div>
@@ -591,7 +591,7 @@
   <!-- 4. FINANCIAL ANALYSIS                                        -->
   <!-- ============================================================ -->
   <div class="section" id="financial">
-    <h2>Financial Analysis</h2>
+    <h2 id="financial-analysis-heading">Financial Analysis</h2>
     <div class="chart-container"><div id="chart-financial-trends" style="width:100%;height:400px;"></div></div>
     <div class="grid-2">
       <div class="chart-container"><div id="chart-financial-dist" style="width:100%;height:400px;"></div></div>
@@ -603,7 +603,7 @@
   <!-- 5. SYSTEM COMPARISON (old vs new)                            -->
   <!-- ============================================================ -->
   <div class="section" id="comparison">
-    <h2>System Comparison</h2>
+    <h2 id="system-comparison-heading">System Comparison</h2>
     
     <details open>
       <summary>
@@ -1626,7 +1626,7 @@
   <!-- 6. DATA PROFILES — collapsible reference material            -->
   <!-- ============================================================ -->
   <div class="section" id="profiles">
-    <h2>Data Profiles</h2>
+    <h2 id="data-profiles-heading">Data Profiles</h2>
     <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.85rem;">
       Column-level quality profiles for each ingested table. Click to expand.
     </p>
