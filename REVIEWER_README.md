@@ -63,7 +63,13 @@ pytest tests/ -v
 
 ## 3. The Report
 
-Open `reports/comparison_report.html` in a browser. This is the primary deliverable. It's designed for progressive disclosure: KPIs first, then narrative, then detailed charts, then raw data.
+Start the local server first (interactive charts, Schema Explorer, SQL Explorer, and Parquet Viewer require HTTP):
+
+```bash
+./scripts/serve.sh        # http://localhost:8888
+```
+
+Then open http://localhost:8888/reports/comparison_report.html — this is the primary deliverable. It's designed for progressive disclosure: KPIs first, then narrative, then detailed charts, then raw data.
 
 ### Executive Summary
 

@@ -49,6 +49,7 @@
   .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
   .section { margin-bottom: 2.5rem; }
   .null-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--accent); }
+  .impact-cell { font-size: 0.78rem; color: var(--muted); max-width: 280px; word-wrap: break-word; white-space: normal; line-height: 1.35; }
 
   /* Collapsible sections */
   details { margin: 0.75rem 0; }
@@ -429,7 +430,7 @@
               <td>{{ c.table_pair }}</td>
               <td>{{ c.description }}</td>
               <td>{{ c.metric_value }}</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">{{ c.impact }}</td>
+              <td class="impact-cell">{{ c.impact }}</td>
             </tr>
             {% endfor %}
           </tbody>

@@ -113,6 +113,20 @@ uv pip install -r requirements.txt
 
 </details>
 
+### Viewing Reports & Documentation
+
+The interactive report, documentation hub, and browser tools (Schema Explorer, SQL Explorer, Parquet Viewer) require an HTTP server — they will not fully work over `file://` due to browser security restrictions.
+
+```bash
+# Start a local server (Python built-in, no extra dependencies)
+./scripts/serve.sh            # http://localhost:8888
+./scripts/serve.sh 9000       # custom port
+```
+
+Then open:
+- **Report:** http://localhost:8888/reports/comparison_report.html
+- **Documentation:** http://localhost:8888/docs/index.html
+
 ### Web UI (Drag-and-Drop)
 
 For a browser-based experience with file uploads:

@@ -49,6 +49,7 @@
   .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
   .section { margin-bottom: 2.5rem; }
   .null-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--accent); }
+  .impact-cell { font-size: 0.78rem; color: var(--muted); max-width: 280px; word-wrap: break-word; white-space: normal; line-height: 1.35; }
 
   /* Collapsible sections */
   details { margin: 0.75rem 0; }
@@ -589,7 +590,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Columns present in old system but missing in new system</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -598,7 +599,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Columns present in new system but not in old system</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -607,7 +608,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Columns with different data types between systems</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -616,7 +617,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Row count: old=343,644, new=343,644</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -625,7 +626,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Distinct DESYNPUF_ID values in old but not in new</td>
               <td>2</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Beneficiaries in old system not migrated. Potential data loss affecting eligibility and claims history.</td>
+              <td class="impact-cell">Beneficiaries in old system not migrated. Potential data loss affecting eligibility and claims history.</td>
             </tr>
             
             <tr>
@@ -634,7 +635,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Distinct DESYNPUF_ID values in new but not in old</td>
               <td>159</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">New beneficiary records added post-migration. Verify these are legitimate enrollees, not duplicates.</td>
+              <td class="impact-cell">New beneficiary records added post-migration. Verify these are legitimate enrollees, not duplicates.</td>
             </tr>
             
             <tr>
@@ -643,7 +644,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column BENE_BIRTH_DT on matched rows</td>
               <td>530</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Birth date changes could affect age-based eligibility calculations and actuarial analysis.</td>
+              <td class="impact-cell">Birth date changes could affect age-based eligibility calculations and actuarial analysis.</td>
             </tr>
             
             <tr>
@@ -652,7 +653,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column BENE_DEATH_DT on matched rows</td>
               <td>11,017</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Death date discrepancies affect mortality reporting, claims-after-death validation, and benefit termination.</td>
+              <td class="impact-cell">Death date discrepancies affect mortality reporting, claims-after-death validation, and benefit termination.</td>
             </tr>
             
             <tr>
@@ -661,7 +662,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column BENE_SEX_IDENT_CD on matched rows</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -670,7 +671,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column BENE_RACE_CD on matched rows</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -679,7 +680,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_ALZHDMTA on matched rows</td>
               <td>165,109</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of Alzheimer's indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of Alzheimer's indicators between systems.</td>
             </tr>
             
             <tr>
@@ -688,7 +689,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_CHF on matched rows</td>
               <td>189,240</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of heart failure indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of heart failure indicators between systems.</td>
             </tr>
             
             <tr>
@@ -697,7 +698,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_CHRNKIDN on matched rows</td>
               <td>128,993</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of chronic kidney disease indicators.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of chronic kidney disease indicators.</td>
             </tr>
             
             <tr>
@@ -706,7 +707,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_CNCR on matched rows</td>
               <td>54,501</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of cancer indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of cancer indicators between systems.</td>
             </tr>
             
             <tr>
@@ -715,7 +716,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_COPD on matched rows</td>
               <td>111,101</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of COPD indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of COPD indicators between systems.</td>
             </tr>
             
             <tr>
@@ -724,7 +725,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_DEPRESSN on matched rows</td>
               <td>164,663</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of depression indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of depression indicators between systems.</td>
             </tr>
             
             <tr>
@@ -733,7 +734,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_DIABETES on matched rows</td>
               <td>178,029</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of diabetes indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of diabetes indicators between systems.</td>
             </tr>
             
             <tr>
@@ -742,7 +743,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_ISCHMCHT on matched rows</td>
               <td>198,020</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of ischemic heart disease indicators.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of ischemic heart disease indicators.</td>
             </tr>
             
             <tr>
@@ -751,7 +752,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_OSTEOPRS on matched rows</td>
               <td>160,156</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of osteoporosis indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of osteoporosis indicators between systems.</td>
             </tr>
             
             <tr>
@@ -760,7 +761,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_RA_OA on matched rows</td>
               <td>128,552</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of rheumatoid arthritis/osteoarthritis indicators.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of rheumatoid arthritis/osteoarthritis indicators.</td>
             </tr>
             
             <tr>
@@ -769,7 +770,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Value mismatches for column SP_STRKETIA on matched rows</td>
               <td>45,361</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Chronic condition flag differences — systematic recoding of stroke/TIA indicators between systems.</td>
+              <td class="impact-cell">Chronic condition flag differences — systematic recoding of stroke/TIA indicators between systems.</td>
             </tr>
             
             <tr>
@@ -778,7 +779,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for MEDREIMB_IP</td>
               <td>2,283.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in inpatient Medicare reimbursement. Indicates systematic payment recalculation.</td>
+              <td class="impact-cell">Mean difference in inpatient Medicare reimbursement. Indicates systematic payment recalculation.</td>
             </tr>
             
             <tr>
@@ -787,7 +788,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for BENRES_IP</td>
               <td>1,210.88</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in inpatient beneficiary responsibility. Affects cost-sharing calculations.</td>
+              <td class="impact-cell">Mean difference in inpatient beneficiary responsibility. Affects cost-sharing calculations.</td>
             </tr>
             
             <tr>
@@ -796,7 +797,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for PPPYMT_IP</td>
               <td>2,128.46</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in inpatient primary payer payments. Indicates coordination-of-benefits changes.</td>
+              <td class="impact-cell">Mean difference in inpatient primary payer payments. Indicates coordination-of-benefits changes.</td>
             </tr>
             
             <tr>
@@ -805,7 +806,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for MEDREIMB_OP</td>
               <td>1,745.50</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in outpatient Medicare reimbursement. Indicates systematic payment recalculation.</td>
+              <td class="impact-cell">Mean difference in outpatient Medicare reimbursement. Indicates systematic payment recalculation.</td>
             </tr>
             
             <tr>
@@ -814,7 +815,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for BENRES_OP</td>
               <td>1,140.38</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in outpatient beneficiary responsibility. Affects cost-sharing calculations.</td>
+              <td class="impact-cell">Mean difference in outpatient beneficiary responsibility. Affects cost-sharing calculations.</td>
             </tr>
             
             <tr>
@@ -823,7 +824,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for PPPYMT_OP</td>
               <td>1,506.84</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in outpatient primary payer payments. Indicates coordination-of-benefits changes.</td>
+              <td class="impact-cell">Mean difference in outpatient primary payer payments. Indicates coordination-of-benefits changes.</td>
             </tr>
             
             <tr>
@@ -832,7 +833,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for MEDREIMB_CAR</td>
               <td>933.54</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in carrier Medicare reimbursement. Affects provider payment reconciliation.</td>
+              <td class="impact-cell">Mean difference in carrier Medicare reimbursement. Affects provider payment reconciliation.</td>
             </tr>
             
             <tr>
@@ -841,7 +842,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for BENRES_CAR</td>
               <td>309.64</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in carrier beneficiary responsibility. Affects cost-sharing calculations.</td>
+              <td class="impact-cell">Mean difference in carrier beneficiary responsibility. Affects cost-sharing calculations.</td>
             </tr>
             
             <tr>
@@ -850,7 +851,7 @@
               <td>beneficiary_summary vs new_beneficiary_summary</td>
               <td>Aggregate comparison for PPPYMT_CAR</td>
               <td>1,935.46</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Mean difference in carrier primary payer payments. Indicates coordination-of-benefits changes.</td>
+              <td class="impact-cell">Mean difference in carrier primary payer payments. Indicates coordination-of-benefits changes.</td>
             </tr>
             
             <tr>
@@ -859,7 +860,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Columns present in old system but missing in new system</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -868,7 +869,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Columns present in new system but not in old system</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -877,7 +878,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Columns with different data types between systems</td>
               <td>1</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Column type differences may cause downstream query or aggregation errors if not resolved.</td>
+              <td class="impact-cell">Column type differences may cause downstream query or aggregation errors if not resolved.</td>
             </tr>
             
             <tr>
@@ -886,7 +887,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Row count: old=4,741,335, new=4,746,112</td>
               <td>4,777</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">New system has additional claim rows. Likely linked to extra beneficiaries; verify linkage to valid IDs.</td>
+              <td class="impact-cell">New system has additional claim rows. Likely linked to extra beneficiaries; verify linkage to valid IDs.</td>
             </tr>
             
             <tr>
@@ -895,7 +896,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Distinct CLM_ID values in old but not in new</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -904,7 +905,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Distinct CLM_ID values in new but not in old</td>
               <td>4,777</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">New claim IDs not in old system. Consistent with row count increase; verify linkage to valid beneficiaries.</td>
+              <td class="impact-cell">New claim IDs not in old system. Consistent with row count increase; verify linkage to valid beneficiaries.</td>
             </tr>
             
             <tr>
@@ -913,7 +914,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Value mismatches for column DESYNPUF_ID on matched rows</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -922,7 +923,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Value mismatches for column CLM_FROM_DT on matched rows</td>
               <td>465</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Claim start date mismatches could affect date-based reporting and temporal validation.</td>
+              <td class="impact-cell">Claim start date mismatches could affect date-based reporting and temporal validation.</td>
             </tr>
             
             <tr>
@@ -931,7 +932,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Value mismatches for column CLM_THRU_DT on matched rows</td>
               <td>0</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
+              <td class="impact-cell"></td>
             </tr>
             
             <tr>
@@ -940,7 +941,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Value mismatches for column ICD9_DGNS_CD_1 on matched rows</td>
               <td>497</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Primary diagnosis code changes affect clinical categorization and potentially reimbursement.</td>
+              <td class="impact-cell">Primary diagnosis code changes affect clinical categorization and potentially reimbursement.</td>
             </tr>
             
             <tr>
@@ -949,7 +950,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Value mismatches for column ICD9_DGNS_CD_2 on matched rows</td>
               <td>275</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Secondary diagnosis code changes may affect comorbidity analysis and risk adjustment.</td>
+              <td class="impact-cell">Secondary diagnosis code changes may affect comorbidity analysis and risk adjustment.</td>
             </tr>
             
             <tr>
@@ -958,7 +959,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Value mismatches for column HCPCS_CD_1 on matched rows</td>
               <td>488</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Procedure code changes could affect service categorization and payment accuracy.</td>
+              <td class="impact-cell">Procedure code changes could affect service categorization and payment accuracy.</td>
             </tr>
             
             <tr>
@@ -967,7 +968,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Aggregate comparison for LINE_NCH_PMT_AMT_1</td>
               <td>1,071,288.98</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Large mean difference in line-level NCH payment amounts. High financial impact on claims processing.</td>
+              <td class="impact-cell">Large mean difference in line-level NCH payment amounts. High financial impact on claims processing.</td>
             </tr>
             
             <tr>
@@ -976,7 +977,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Aggregate comparison for LINE_BENE_PTB_DDCTBL_AMT_1</td>
               <td>1,183,391.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Large mean difference in Part B deductible amounts. Affects beneficiary out-of-pocket calculations.</td>
+              <td class="impact-cell">Large mean difference in Part B deductible amounts. Affects beneficiary out-of-pocket calculations.</td>
             </tr>
             
             <tr>
@@ -985,7 +986,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Aggregate comparison for LINE_COINSRNC_AMT_1</td>
               <td>1,185,385.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Large mean difference in coinsurance amounts. Affects beneficiary cost-sharing calculations.</td>
+              <td class="impact-cell">Large mean difference in coinsurance amounts. Affects beneficiary cost-sharing calculations.</td>
             </tr>
             
             <tr>
@@ -994,7 +995,7 @@
               <td>carrier_claims vs new_carrier_claims</td>
               <td>Aggregate comparison for LINE_ALOWD_CHRG_AMT_1</td>
               <td>1,165,858.09</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">Large mean difference in allowed charge amounts. Affects fee schedule and payment calculations.</td>
+              <td class="impact-cell">Large mean difference in allowed charge amounts. Affects fee schedule and payment calculations.</td>
             </tr>
             
           </tbody>
@@ -1037,7 +1038,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1052,7 +1052,6 @@
               <td>19090101</td>
               <td>19831201</td>
               <td>19364346.65</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1067,7 +1066,6 @@
               <td>20080101</td>
               <td>20101201</td>
               <td>20090740.77</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1082,7 +1080,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.55</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1097,7 +1094,6 @@
               <td>1</td>
               <td>5</td>
               <td>1.29</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1112,7 +1108,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1127,7 +1122,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1142,7 +1136,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1157,7 +1150,6 @@
               <td>0</td>
               <td>12</td>
               <td>11.19</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1172,7 +1164,6 @@
               <td>0</td>
               <td>12</td>
               <td>10.84</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1187,7 +1178,6 @@
               <td>0</td>
               <td>12</td>
               <td>3.16</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1202,7 +1192,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1217,7 +1206,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.80</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1232,7 +1220,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.70</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1247,7 +1234,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.83</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1262,7 +1248,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.93</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1277,7 +1262,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.87</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1292,7 +1276,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.79</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1307,7 +1290,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.64</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1322,7 +1304,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.58</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1337,7 +1318,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.83</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1352,7 +1332,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.86</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1367,7 +1346,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.96</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1382,7 +1360,6 @@
               <td>-3000.0</td>
               <td>164220.0</td>
               <td>1887.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1397,7 +1374,6 @@
               <td>0.0</td>
               <td>53096.0</td>
               <td>214.82</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1412,7 +1388,6 @@
               <td>0.0</td>
               <td>91000.0</td>
               <td>77.31</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1427,7 +1402,6 @@
               <td>-100.0</td>
               <td>50020.0</td>
               <td>609.04</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1442,7 +1416,6 @@
               <td>0.0</td>
               <td>13840.0</td>
               <td>187.67</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1457,7 +1430,6 @@
               <td>0.0</td>
               <td>19000.0</td>
               <td>23.30</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1472,7 +1444,6 @@
               <td>0.0</td>
               <td>21160.0</td>
               <td>1117.49</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1487,7 +1458,6 @@
               <td>0.0</td>
               <td>5260.0</td>
               <td>314.95</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1502,7 +1472,6 @@
               <td>0.0</td>
               <td>2200.0</td>
               <td>17.51</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1517,7 +1486,6 @@
               <td>2008</td>
               <td>2010</td>
               <td>2008.99</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
           </tbody>
@@ -1549,7 +1517,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1564,7 +1531,6 @@
               <td>887013384714946</td>
               <td>887993389571976</td>
               <td>887503229715276.38</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1579,7 +1545,6 @@
               <td>20080101</td>
               <td>20101231</td>
               <td>20089487.75</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1594,7 +1559,6 @@
               <td>20080101</td>
               <td>20101231</td>
               <td>20089492.30</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1609,7 +1573,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1624,7 +1587,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1639,7 +1601,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1654,7 +1615,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1669,7 +1629,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1684,7 +1643,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1699,7 +1657,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1714,7 +1671,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1729,7 +1685,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1744,7 +1699,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1759,7 +1713,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1774,7 +1727,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1789,7 +1741,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1804,7 +1755,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1819,7 +1769,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1834,7 +1783,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1849,7 +1797,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1864,7 +1811,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1879,7 +1825,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1894,7 +1839,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1909,7 +1853,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1924,7 +1867,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1939,7 +1881,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1954,7 +1895,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1969,7 +1909,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1984,7 +1923,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -1999,7 +1937,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2014,7 +1951,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2029,7 +1965,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2044,7 +1979,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2059,7 +1993,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2074,7 +2007,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2089,7 +2021,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2104,7 +2035,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2119,7 +2049,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2134,7 +2063,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2149,7 +2077,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2164,7 +2091,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2179,7 +2105,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2194,7 +2119,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2209,7 +2133,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2224,7 +2147,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2239,7 +2161,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2254,7 +2175,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2269,7 +2189,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2284,7 +2203,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2299,7 +2217,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2314,7 +2231,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>57.78</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2329,7 +2245,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>14.39</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2344,7 +2259,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>6.36</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2359,7 +2273,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>3.40</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2374,7 +2287,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>2.10</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2389,7 +2301,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>1.31</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2404,7 +2315,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.70</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2419,7 +2329,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.46</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2434,7 +2343,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.32</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2449,7 +2357,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.24</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2464,7 +2371,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.16</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2479,7 +2385,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.13</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2494,7 +2399,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.09</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2509,7 +2413,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>3.55</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2524,7 +2427,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.38</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2539,7 +2441,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.14</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2554,7 +2455,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.06</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2569,7 +2469,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2584,7 +2483,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2599,7 +2497,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2614,7 +2511,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2629,7 +2525,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2644,7 +2539,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2659,7 +2553,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2674,7 +2567,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2689,7 +2581,6 @@
               <td>0.0</td>
               <td>150.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2704,7 +2595,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.94</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2719,7 +2609,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.22</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2734,7 +2623,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.10</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2749,7 +2637,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.05</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2764,7 +2651,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2779,7 +2665,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2794,7 +2679,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2809,7 +2693,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2824,7 +2707,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2839,7 +2721,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2854,7 +2735,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2869,7 +2749,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2884,7 +2763,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2899,7 +2777,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>13.96</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2914,7 +2791,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>3.23</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2929,7 +2805,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>1.38</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2944,7 +2819,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.71</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2959,7 +2833,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.43</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2974,7 +2847,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.27</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -2989,7 +2861,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.14</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3004,7 +2875,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.09</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3019,7 +2889,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.06</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3034,7 +2903,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.04</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3049,7 +2917,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3064,7 +2931,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3079,7 +2945,6 @@
               <td>0.0</td>
               <td>180.0</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3094,7 +2959,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>75.82</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3109,7 +2973,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>18.09</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3124,7 +2987,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>7.94</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3139,7 +3001,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>4.20</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3154,7 +3015,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>2.56</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3169,7 +3029,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>1.61</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3184,7 +3043,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.85</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3199,7 +3057,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.56</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3214,7 +3071,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.39</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3229,7 +3085,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.28</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3244,7 +3099,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.20</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3259,7 +3113,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.15</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3274,7 +3127,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.11</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3289,7 +3141,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3304,7 +3155,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3319,7 +3169,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3334,7 +3183,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3349,7 +3197,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3364,7 +3211,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3379,7 +3225,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3394,7 +3239,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3409,7 +3253,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3424,7 +3267,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3439,7 +3281,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3454,7 +3295,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3469,7 +3309,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3484,7 +3323,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3499,7 +3337,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3514,7 +3351,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3529,7 +3365,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3544,7 +3379,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3559,7 +3393,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3574,7 +3407,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3589,7 +3421,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3604,7 +3435,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3619,7 +3449,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3634,7 +3463,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3649,7 +3477,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3664,7 +3491,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
           </tbody>
@@ -3696,7 +3522,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3711,7 +3536,6 @@
               <td>19090101</td>
               <td>19831201</td>
               <td>19364346.17</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3726,7 +3550,6 @@
               <td>20080101</td>
               <td>20101201</td>
               <td>20090740.77</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3741,7 +3564,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.55</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3756,7 +3578,6 @@
               <td>1</td>
               <td>5</td>
               <td>1.29</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3771,7 +3592,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3786,7 +3606,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3801,7 +3620,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3816,7 +3634,6 @@
               <td>0</td>
               <td>12</td>
               <td>11.19</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3831,7 +3648,6 @@
               <td>0</td>
               <td>12</td>
               <td>10.84</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3846,7 +3662,6 @@
               <td>0</td>
               <td>12</td>
               <td>3.16</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3861,7 +3676,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3876,7 +3690,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.80</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3891,7 +3704,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.70</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3906,7 +3718,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.83</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3921,7 +3732,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.93</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3936,7 +3746,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.87</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3951,7 +3760,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.79</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3966,7 +3774,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.64</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3981,7 +3788,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.58</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -3996,7 +3802,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.83</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4011,7 +3816,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.86</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4026,7 +3830,6 @@
               <td>1</td>
               <td>2</td>
               <td>1.96</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4041,7 +3844,6 @@
               <td>-3000.0</td>
               <td>164220.0</td>
               <td>1887.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4056,7 +3858,6 @@
               <td>0.0</td>
               <td>53096.0</td>
               <td>214.82</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4071,7 +3872,6 @@
               <td>0.0</td>
               <td>91000.0</td>
               <td>77.31</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4086,7 +3886,6 @@
               <td>-100.0</td>
               <td>50020.0</td>
               <td>609.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4101,7 +3900,6 @@
               <td>0.0</td>
               <td>13840.0</td>
               <td>187.67</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4116,7 +3914,6 @@
               <td>0.0</td>
               <td>19000.0</td>
               <td>23.30</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4131,7 +3928,6 @@
               <td>0.0</td>
               <td>21160.0</td>
               <td>1117.49</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4146,7 +3942,6 @@
               <td>0.0</td>
               <td>5260.0</td>
               <td>314.96</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4161,7 +3956,6 @@
               <td>0.0</td>
               <td>2200.0</td>
               <td>17.51</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4176,7 +3970,6 @@
               <td>2008</td>
               <td>2010</td>
               <td>2008.99</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
           </tbody>
@@ -4208,7 +4001,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4223,7 +4015,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4238,7 +4029,6 @@
               <td>20080101</td>
               <td>20231332</td>
               <td>20089502.91</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4253,7 +4043,6 @@
               <td>20080101</td>
               <td>20110107</td>
               <td>20089493.62</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4268,7 +4057,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4283,7 +4071,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4298,7 +4085,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4313,7 +4099,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4328,7 +4113,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4343,7 +4127,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4358,7 +4141,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4373,7 +4155,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4388,7 +4169,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4403,7 +4183,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4418,7 +4197,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4433,7 +4211,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4448,7 +4225,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4463,7 +4239,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4478,7 +4253,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4493,7 +4267,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4508,7 +4281,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4523,7 +4295,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4538,7 +4309,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4553,7 +4323,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4568,7 +4337,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4583,7 +4351,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4598,7 +4365,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4613,7 +4379,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4628,7 +4393,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4643,7 +4407,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4658,7 +4421,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4673,7 +4435,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4688,7 +4449,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4703,7 +4463,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4718,7 +4477,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4733,7 +4491,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4748,7 +4505,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4763,7 +4519,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4778,7 +4533,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4793,7 +4547,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4808,7 +4561,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4823,7 +4575,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4838,7 +4589,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4853,7 +4603,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4868,7 +4617,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4883,7 +4631,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4898,7 +4645,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4913,7 +4659,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4928,7 +4673,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4943,7 +4687,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4958,7 +4701,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4973,7 +4715,6 @@
               <td>0.0</td>
               <td>584.72</td>
               <td>57.95</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -4988,7 +4729,6 @@
               <td>0.0</td>
               <td>580.84</td>
               <td>14.47</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5003,7 +4743,6 @@
               <td>0.0</td>
               <td>562.27</td>
               <td>6.40</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5018,7 +4757,6 @@
               <td>0.0</td>
               <td>559.12</td>
               <td>3.43</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5033,7 +4771,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>2.11</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5048,7 +4785,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>1.32</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5063,7 +4799,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.71</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5078,7 +4813,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.47</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5093,7 +4827,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.33</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5108,7 +4841,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.24</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5123,7 +4855,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.17</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5138,7 +4869,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.13</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5153,7 +4883,6 @@
               <td>0.0</td>
               <td>550.0</td>
               <td>0.09</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5168,7 +4897,6 @@
               <td>0.0</td>
               <td>605.74</td>
               <td>3.80</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5183,7 +4911,6 @@
               <td>0.0</td>
               <td>585.79</td>
               <td>0.48</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5198,7 +4925,6 @@
               <td>0.0</td>
               <td>532.15</td>
               <td>0.19</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5213,7 +4939,6 @@
               <td>0.0</td>
               <td>543.91</td>
               <td>0.09</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5228,7 +4953,6 @@
               <td>0.0</td>
               <td>532.32</td>
               <td>0.05</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5243,7 +4967,6 @@
               <td>0.0</td>
               <td>497.61</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5258,7 +4981,6 @@
               <td>0.0</td>
               <td>499.55</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5273,7 +4995,6 @@
               <td>0.0</td>
               <td>497.45</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5288,7 +5009,6 @@
               <td>0.0</td>
               <td>497.16</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5303,7 +5023,6 @@
               <td>0.0</td>
               <td>465.79</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5318,7 +5037,6 @@
               <td>0.0</td>
               <td>489.47</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5333,7 +5051,6 @@
               <td>0.0</td>
               <td>497.07</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5348,7 +5065,6 @@
               <td>0.0</td>
               <td>455.27</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5363,7 +5079,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>1.19</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5378,7 +5093,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.32</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5393,7 +5107,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.15</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5408,7 +5121,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.08</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5423,7 +5135,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.05</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5438,7 +5149,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5453,7 +5163,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5468,7 +5177,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5483,7 +5191,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5498,7 +5205,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5513,7 +5219,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5528,7 +5233,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5543,7 +5247,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5558,7 +5261,6 @@
               <td>0.0</td>
               <td>600.28</td>
               <td>14.20</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5573,7 +5275,6 @@
               <td>0.0</td>
               <td>562.41</td>
               <td>3.32</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5588,7 +5289,6 @@
               <td>0.0</td>
               <td>549.83</td>
               <td>1.43</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5603,7 +5303,6 @@
               <td>0.0</td>
               <td>562.71</td>
               <td>0.73</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5618,7 +5317,6 @@
               <td>0.0</td>
               <td>598.74</td>
               <td>0.45</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5633,7 +5331,6 @@
               <td>0.0</td>
               <td>497.33</td>
               <td>0.28</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5648,7 +5345,6 @@
               <td>0.0</td>
               <td>499.98</td>
               <td>0.15</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5663,7 +5359,6 @@
               <td>0.0</td>
               <td>499.44</td>
               <td>0.09</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5678,7 +5373,6 @@
               <td>0.0</td>
               <td>483.12</td>
               <td>0.07</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5693,7 +5387,6 @@
               <td>0.0</td>
               <td>495.97</td>
               <td>0.05</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5708,7 +5401,6 @@
               <td>0.0</td>
               <td>490.21</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5723,7 +5415,6 @@
               <td>0.0</td>
               <td>474.16</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5738,7 +5429,6 @@
               <td>0.0</td>
               <td>493.75</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5753,7 +5443,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>76.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5768,7 +5457,6 @@
               <td>0.0</td>
               <td>747.37</td>
               <td>18.17</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5783,7 +5471,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>7.98</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5798,7 +5485,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>4.22</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5813,7 +5499,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>2.57</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5828,7 +5513,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>1.62</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5843,7 +5527,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.85</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5858,7 +5541,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.56</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5873,7 +5555,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.40</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5888,7 +5569,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.28</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5903,7 +5583,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.20</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5918,7 +5597,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.15</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5933,7 +5611,6 @@
               <td>0.0</td>
               <td>670.0</td>
               <td>0.11</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5948,7 +5625,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5963,7 +5639,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5978,7 +5653,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -5993,7 +5667,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6008,7 +5681,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6023,7 +5695,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6038,7 +5709,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6053,7 +5723,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6068,7 +5737,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6083,7 +5751,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6098,7 +5765,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6113,7 +5779,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6128,7 +5793,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6143,7 +5807,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6158,7 +5821,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6173,7 +5835,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6188,7 +5849,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6203,7 +5863,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6218,7 +5877,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6233,7 +5891,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6248,7 +5905,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6263,7 +5919,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6278,7 +5933,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6293,7 +5947,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6308,7 +5961,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6323,7 +5975,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
           </tbody>
@@ -6355,7 +6006,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6370,7 +6020,6 @@
               <td>2008</td>
               <td>2010</td>
               <td>2008.99</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6385,7 +6034,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6400,7 +6048,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6415,7 +6062,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6430,7 +6076,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6445,7 +6090,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6460,7 +6104,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6475,7 +6118,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6490,7 +6132,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6505,7 +6146,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6520,7 +6160,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6535,7 +6174,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6550,7 +6188,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6565,7 +6202,6 @@
               <td>0</td>
               <td>1</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6580,7 +6216,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6595,7 +6230,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6610,7 +6244,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6625,7 +6258,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6640,7 +6272,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6655,7 +6286,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6670,7 +6300,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6685,7 +6314,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6700,7 +6328,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6715,7 +6342,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6730,7 +6356,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6745,7 +6370,6 @@
               <td>0</td>
               <td>0</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6760,7 +6384,6 @@
               <td>0.0</td>
               <td>2360.5300000000007</td>
               <td>0.02</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6775,7 +6398,6 @@
               <td>0.0</td>
               <td>748.73</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6790,7 +6412,6 @@
               <td>0.0</td>
               <td>572.4200000000001</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6805,7 +6426,6 @@
               <td>0.0</td>
               <td>5339.950000000001</td>
               <td>0.03</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6820,7 +6440,6 @@
               <td>0.0</td>
               <td>189.99</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6835,7 +6454,6 @@
               <td>0.0</td>
               <td>99.56</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6850,7 +6468,6 @@
               <td>0.0</td>
               <td>831.5</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6865,7 +6482,6 @@
               <td>0.0</td>
               <td>269.24</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6880,7 +6496,6 @@
               <td>0.0</td>
               <td>99.72</td>
               <td>0.01</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6895,7 +6510,6 @@
               <td>0</td>
               <td>2</td>
               <td>0.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
           </tbody>
@@ -6927,7 +6541,6 @@
               <td>-</td>
               <td>-</td>
               <td>-</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6942,7 +6555,6 @@
               <td>2008</td>
               <td>2010</td>
               <td>2009.00</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6957,7 +6569,6 @@
               <td>0.0</td>
               <td>21160.0</td>
               <td>1465.59</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6972,7 +6583,6 @@
               <td>0.0</td>
               <td>21160.0</td>
               <td>1465.62</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -6987,7 +6597,6 @@
               <td>0.0</td>
               <td>5260.0</td>
               <td>413.06</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -7002,7 +6611,6 @@
               <td>0.0</td>
               <td>5380.0</td>
               <td>413.07</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -7017,7 +6625,6 @@
               <td>0.0</td>
               <td>2200.0</td>
               <td>22.96</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -7032,7 +6639,6 @@
               <td>0.0</td>
               <td>2200.0</td>
               <td>22.96</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -7047,7 +6653,6 @@
               <td>0.0</td>
               <td>3100.0</td>
               <td>3.55</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -7062,7 +6667,6 @@
               <td>0.0</td>
               <td>990.0</td>
               <td>0.93</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
             <tr>
@@ -7077,7 +6681,6 @@
               <td>0.0</td>
               <td>1200.0</td>
               <td>0.04</td>
-              <td style="font-size:0.78rem;color:var(--muted);max-width:260px"></td>
             </tr>
             
           </tbody>

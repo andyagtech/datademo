@@ -222,7 +222,10 @@ docker run --rm -p 8888:8888 \
 <p><img alt="Test Suite Passing" src="screenshots/screenshot_2.png" /></p>
 <hr />
 <h2 id="3-the-report">3. The Report</h2>
-<p>Open <code>reports/comparison_report.html</code> in a browser. This is the primary deliverable. It's designed for progressive disclosure: KPIs first, then narrative, then detailed charts, then raw data.</p>
+<p>Start the local server first (interactive charts, Schema Explorer, SQL Explorer, and Parquet Viewer require HTTP):</p>
+<pre><code class="language-bash">./scripts/serve.sh        # http://localhost:8888
+</code></pre>
+<p>Then open http://localhost:8888/reports/comparison_report.html — this is the primary deliverable. It's designed for progressive disclosure: KPIs first, then narrative, then detailed charts, then raw data.</p>
 <h3 id="executive-summary">Executive Summary</h3>
 <p>The top of the report shows key metrics at a glance: total beneficiaries, total claims, matched/unmatched counts, and pass/fail indicators for each validation category.</p>
 <p>A reviewer should be able to answer "what's wrong and how bad is it" within 10 seconds of opening the report.</p>
