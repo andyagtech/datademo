@@ -69,7 +69,9 @@ case "$MODE" in
       -x ".pytest_cache/*" \
       -x "*/.pytest_cache/*" \
       -x "reports/exports/*" \
-      -x "node_modules/*"
+      -x "node_modules/*" \
+      -x "data/database/*.duckdb" \
+      -x "data/database/*.wal"
     ;;
 esac
 
