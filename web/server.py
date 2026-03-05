@@ -130,8 +130,8 @@ async def run_pipeline(run_id: str, request: Request):
             if project_root not in sys.path:
                 sys.path.insert(0, project_root)
 
-            from src.pipeline.context import PipelineContext
-            from src.runner import run_pipeline as _run_pipeline
+            from src.pipeline import PipelineContext
+            from src.pipeline.runner import run_pipeline as _run_pipeline
 
             # Determine data paths
             old_data_dir = str(workspace / "data" / "raw")

@@ -7882,6 +7882,53 @@ document.addEventListener('DOMContentLoaded', function() {
   .chat-config .dot.connected { background: #4ade80; }
   .chat-config .dot.disconnected { background: #f87171; }
 
+  /* History panel */
+  .chat-history-overlay {
+    display: none; position: absolute; inset: 0; z-index: 10;
+    background: #0f172af0; flex-direction: column;
+  }
+  .chat-history-overlay.open { display: flex; }
+  .chat-history-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid #334155; flex-shrink: 0;
+  }
+  .chat-history-header h4 { margin: 0; color: #f1f5f9; font-size: 0.9rem; }
+  .chat-history-header button {
+    background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px;
+  }
+  .chat-history-header button:hover { color: #f1f5f9; }
+  .chat-history-list {
+    flex: 1; overflow-y: auto; padding: 8px 12px;
+  }
+  .chat-history-empty {
+    color: #64748b; text-align: center; padding: 40px 16px; font-size: 0.85rem;
+  }
+  .chat-history-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .chat-history-card:hover { border-color: #38bdf8; }
+  .chat-history-card .h-time {
+    font-size: 0.65rem; color: #64748b; margin-bottom: 4px;
+  }
+  .chat-history-card .h-question {
+    font-size: 0.8rem; color: #e2e8f0; font-weight: 500; margin-bottom: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chat-history-card .h-sql {
+    font-size: 0.68rem; color: #38bdf8; font-family: monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chat-history-card .h-nosql {
+    font-size: 0.68rem; color: #475569; font-style: italic;
+  }
+  .chat-history-clear {
+    display: block; width: 100%; padding: 8px; margin-top: 4px;
+    background: none; border: 1px solid #334155; border-radius: 6px;
+    color: #f87171; font-size: 0.75rem; cursor: pointer; text-align: center;
+  }
+  .chat-history-clear:hover { background: #1e293b; border-color: #f87171; }
+
   @media (max-width: 500px) {
     .chat-panel { width: calc(100vw - 16px); right: 8px; bottom: 8px; height: calc(100vh - 16px); max-height: none; border-radius: 12px; }
   }
@@ -7902,6 +7949,9 @@ document.addEventListener('DOMContentLoaded', function() {
       <h4>Report Assistant</h4>
       <span>AI-powered — knows this report's findings</span>
     </div>
+    <button class="chat-reset" id="chatHistory" title="Query history" style="margin-right:-4px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </button>
     <button class="chat-reset" id="chatReset" title="Reset conversation">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
     </button>
@@ -7933,7 +7983,17 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="chat-config">
     <span class="dot disconnected" id="chatDot"></span>
     <span>API:</span>
-    <input type="text" id="chatApiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+    <input type="text" id="chatApiUrl" value="https://zn5ugmlfnpuwwpabueyzgzaar40ovvmo.lambda-url.us-east-1.on.aws" placeholder="https://zn5ugmlfnpuwwpabueyzgzaar40ovvmo.lambda-url.us-east-1.on.aws">
+  </div>
+
+  <div class="chat-history-overlay" id="chatHistoryOverlay">
+    <div class="chat-history-header">
+      <h4>Query History</h4>
+      <button id="chatHistoryClose" title="Close history">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="chat-history-list" id="chatHistoryList"></div>
   </div>
 </div>
 
@@ -7949,9 +8009,14 @@ document.addEventListener('DOMContentLoaded', function() {
   var quickEl = document.getElementById('chatQuick');
   var apiUrlInput = document.getElementById('chatApiUrl');
   var dotEl = document.getElementById('chatDot');
+  var historyBtn = document.getElementById('chatHistory');
+  var historyOverlay = document.getElementById('chatHistoryOverlay');
+  var historyCloseBtn = document.getElementById('chatHistoryClose');
+  var historyListEl = document.getElementById('chatHistoryList');
 
   var conversationHistory = [];
   var isLoading = false;
+  var HISTORY_KEY = 'cms_chat_history';
 
   // Restore API URL from localStorage
   var savedUrl = localStorage.getItem('cms_chat_api_url');
@@ -7959,6 +8024,85 @@ document.addEventListener('DOMContentLoaded', function() {
   apiUrlInput.addEventListener('change', function() {
     localStorage.setItem('cms_chat_api_url', apiUrlInput.value);
     checkConnection();
+  });
+
+  // Pre-warm: fire a lightweight ping on page load so the Lambda downloads
+  // Parquet files and builds DuckDB *before* the user opens the chat.
+  (function preWarm() {
+    var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+    var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"message":"ping","conversationHistory":[]}'
+    })
+    .then(function(res) {
+      dotEl.className = 'dot ' + (res.ok || res.status === 500 ? 'connected' : 'disconnected');
+    })
+    .catch(function() { dotEl.className = 'dot disconnected'; });
+  })();
+
+  // ---- History persistence ----
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+  function saveHistoryEntry(question, answer, queries) {
+    var h = loadHistory();
+    h.unshift({ ts: Date.now(), question: question, answer: answer.substring(0, 500), queries: queries || [] });
+    if (h.length > 100) h = h.slice(0, 100);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+  }
+  function renderHistory() {
+    var h = loadHistory();
+    if (!h.length) {
+      historyListEl.innerHTML = '<div class="chat-history-empty">No queries yet. Ask the assistant a question!</div>';
+      return;
+    }
+    var html = '';
+    h.forEach(function(entry, idx) {
+      var d = new Date(entry.ts);
+      var timeStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      var sqlHtml = '';
+      if (entry.queries && entry.queries.length > 0) {
+        entry.queries.forEach(function(q) {
+          sqlHtml += '<div class="h-sql">' + (q.sql || '').replace(/</g, '&lt;').substring(0, 120) + '</div>';
+        });
+      } else {
+        sqlHtml = '<div class="h-nosql">No SQL executed</div>';
+      }
+      html += '<div class="chat-history-card" data-idx="' + idx + '">' +
+        '<div class="h-time">' + timeStr + '</div>' +
+        '<div class="h-question">' + (entry.question || '').replace(/</g, '&lt;') + '</div>' +
+        sqlHtml + '</div>';
+    });
+    html += '<button class="chat-history-clear" id="chatHistoryClear">Clear all history</button>';
+    historyListEl.innerHTML = html;
+    var clearBtn = document.getElementById('chatHistoryClear');
+    if (clearBtn) clearBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      localStorage.removeItem(HISTORY_KEY);
+      renderHistory();
+    });
+    historyListEl.querySelectorAll('.chat-history-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var idx = parseInt(card.dataset.idx);
+        var entry = loadHistory()[idx];
+        if (entry) {
+          historyOverlay.classList.remove('open');
+          sendMessage(entry.question);
+        }
+      });
+    });
+  }
+
+  // History panel open/close
+  historyBtn.addEventListener('click', function() {
+    renderHistory();
+    historyOverlay.classList.add('open');
+  });
+  historyCloseBtn.addEventListener('click', function() {
+    historyOverlay.classList.remove('open');
   });
 
   // Open / close
@@ -8041,7 +8185,8 @@ document.addEventListener('DOMContentLoaded', function() {
     sendBtn.disabled = true;
     showLoading();
 
-    var apiUrl = apiUrlInput.value.replace(/\/+$/, '') + '/api/chat';
+    var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+    var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
 
     fetch(apiUrl, {
       method: 'POST',
@@ -8060,25 +8205,48 @@ document.addEventListener('DOMContentLoaded', function() {
       hideLoading();
       // Show SQL queries the AI ran (if any)
       if (data.queries && data.queries.length > 0) {
-        data.queries.forEach(function(q) {
+        data.queries.forEach(function(q, qi) {
           var qDiv = document.createElement('div');
           qDiv.className = 'chat-msg assistant';
-          qDiv.style.fontSize = '0.75rem';
-          qDiv.style.background = 'rgba(56,189,248,0.08)';
+          qDiv.style.fontSize = '0.78rem';
+          qDiv.style.background = 'rgba(56,189,248,0.06)';
           qDiv.style.borderLeft = '3px solid #38bdf8';
-          var errHtml = q.result_preview.error
-            ? '<br><span style="color:#f87171;">Error: ' + q.result_preview.error + '</span>'
-            : '<br><span style="color:#94a3b8;">' + q.result_preview.row_count + ' row(s)' + (q.result_preview.truncated ? ' (truncated)' : '') + '</span>';
-          qDiv.innerHTML = '<strong style="color:#38bdf8;">SQL Query</strong>' +
-            (q.explanation ? ' — <em>' + q.explanation + '</em>' : '') +
-            '<pre style="margin:4px 0;background:rgba(0,0,0,0.3);padding:6px 8px;border-radius:4px;overflow-x:auto;font-size:0.72rem;"><code>' +
-            q.sql.replace(/</g, '&lt;') + '</code></pre>' + errHtml;
+          qDiv.style.padding = '8px 12px';
+          var resultLine = '';
+          if (q.result_preview.error) {
+            resultLine = '<span style="color:#f87171;">Error: ' + q.result_preview.error + '</span>';
+          } else {
+            resultLine = '<span style="color:#4ade80;">' + q.result_preview.row_count + ' row(s) returned</span>' +
+              (q.result_preview.truncated ? ' <span style="color:#fbbf24;">(truncated to 50)</span>' : '');
+          }
+          var explainHtml = q.explanation
+            ? '<div style="color:#e2e8f0;margin-bottom:6px;">' + q.explanation.replace(/</g, '&lt;') + '</div>'
+            : '';
+          qDiv.innerHTML =
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+              '<strong style="color:#38bdf8;font-size:0.7rem;">QUERY ' + (qi + 1) + '</strong>' +
+              resultLine +
+            '</div>' +
+            explainHtml +
+            '<details style="margin:0;"><summary style="cursor:pointer;color:#64748b;font-size:0.7rem;user-select:none;">Show SQL</summary>' +
+            '<pre style="margin:4px 0 0;background:rgba(0,0,0,0.3);padding:6px 8px;border-radius:4px;overflow-x:auto;font-size:0.72rem;"><code>' +
+            q.sql.replace(/</g, '&lt;') + '</code></pre></details>';
           messagesEl.appendChild(qDiv);
         });
       }
-      addMessage('assistant', data.content);
+      var msgDiv = addMessage('assistant', data.content);
       conversationHistory.push({ role: 'assistant', content: data.content });
+      saveHistoryEntry(text, data.content, data.queries || []);
       dotEl.className = 'dot connected';
+
+      // Auto-navigate to relevant report section
+      var combinedText = text + ' ' + data.content;
+      var section = detectSection(combinedText);
+      if (section) {
+        addSectionPill(msgDiv, section);
+        navigateToSection(section.id);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
     })
     .catch(function(err) {
       hideLoading();
@@ -8093,10 +8261,61 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function checkConnection() {
-    var apiUrl = apiUrlInput.value.replace(/\/+$/, '') + '/api/chat';
+    var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+    var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
     fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"message":"ping"}' })
       .then(function(res) { dotEl.className = 'dot ' + (res.ok || res.status === 500 ? 'connected' : 'disconnected'); })
       .catch(function() { dotEl.className = 'dot disconnected'; });
+  }
+
+  // ── Section navigation from chat ──────────────────────────────────
+  var SECTION_KEYWORDS = {
+    'discrepancies': { id: 'discrepancies', label: 'Discrepancies', patterns: /discrepanc|mismatch|diff(?:erence|s\b)|data.?mismatch/i },
+    'financial':     { id: 'financial',     label: 'Financial Analysis', patterns: /financial|payment|reimburs|cost|dollar|reimb|pppymt|benres|medreimb|0\.90.*ratio|payment.*ratio/i },
+    'validation':    { id: 'validation',    label: 'Validation', patterns: /validat|quality.?check|integrity|check.?result/i },
+    'trends':        { id: 'trends',        label: 'YoY Trends', patterns: /trend|year.?over|yoy|annual|yearly/i },
+    'comparison':    { id: 'comparison',    label: 'System Comparison', patterns: /system.?compar|old.?vs|new.?vs|side.?by.?side/i },
+    'profiles':      { id: 'profiles',      label: 'Data Profiles', patterns: /profile|column.?stat|data.?type|schema.?detail/i },
+    'summary':       { id: 'summary',       label: 'Executive Summary', patterns: /executive.?summary|overview|total.?beneficiar|total.?claim/i },
+    'data-context':  { id: 'data-context',  label: 'Data Context', patterns: /data.?context|file.?list|source.?file|csv.?file|under.?comparison/i }
+  };
+
+  function detectSection(text) {
+    // Returns the first matching section id, prioritizing specificity
+    var order = ['discrepancies','financial','validation','trends','comparison','profiles','summary','data-context'];
+    for (var i = 0; i < order.length; i++) {
+      var sec = SECTION_KEYWORDS[order[i]];
+      if (sec.patterns.test(text)) return sec;
+    }
+    return null;
+  }
+
+  function navigateToSection(sectionId) {
+    var el = document.getElementById(sectionId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Highlight sidebar link
+    var sideLinks = document.querySelectorAll('#sidebar a[data-section]');
+    sideLinks.forEach(function(a) {
+      a.classList.toggle('active', a.getAttribute('data-section') === sectionId);
+    });
+    // Brief flash effect on the section
+    el.style.transition = 'box-shadow 0.3s';
+    el.style.boxShadow = '0 0 0 2px rgba(56,189,248,0.5)';
+    setTimeout(function() { el.style.boxShadow = 'none'; }, 1500);
+  }
+
+  function addSectionPill(parentEl, section) {
+    var pill = document.createElement('div');
+    pill.style.cssText = 'margin-top:6px;';
+    pill.innerHTML = '<button style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);' +
+      'border-radius:12px;padding:3px 10px;font-size:0.7rem;cursor:pointer;font-family:inherit;" ' +
+      'onclick="event.preventDefault();" data-nav-section="' + section.id + '">' +
+      '\u279C Go to ' + section.label + '</button>';
+    parentEl.appendChild(pill);
+    pill.querySelector('button').addEventListener('click', function() {
+      navigateToSection(section.id);
+    });
   }
 
   // Simple markdown renderer for assistant messages

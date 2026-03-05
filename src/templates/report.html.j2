@@ -1357,10 +1357,19 @@ document.addEventListener('DOMContentLoaded', function() {
           messagesEl.appendChild(qDiv);
         });
       }
-      addMessage('assistant', data.content);
+      var msgDiv = addMessage('assistant', data.content);
       conversationHistory.push({ role: 'assistant', content: data.content });
       saveHistoryEntry(text, data.content, data.queries || []);
       dotEl.className = 'dot connected';
+
+      // Auto-navigate to relevant report section
+      var combinedText = text + ' ' + data.content;
+      var section = detectSection(combinedText);
+      if (section) {
+        addSectionPill(msgDiv, section);
+        navigateToSection(section.id);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
     })
     .catch(function(err) {
       hideLoading();
@@ -1380,6 +1389,56 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"message":"ping"}' })
       .then(function(res) { dotEl.className = 'dot ' + (res.ok || res.status === 500 ? 'connected' : 'disconnected'); })
       .catch(function() { dotEl.className = 'dot disconnected'; });
+  }
+
+  // ── Section navigation from chat ──────────────────────────────────
+  var SECTION_KEYWORDS = {
+    'discrepancies': { id: 'discrepancies', label: 'Discrepancies', patterns: /discrepanc|mismatch|diff(?:erence|s\b)|data.?mismatch/i },
+    'financial':     { id: 'financial',     label: 'Financial Analysis', patterns: /financial|payment|reimburs|cost|dollar|reimb|pppymt|benres|medreimb|0\.90.*ratio|payment.*ratio/i },
+    'validation':    { id: 'validation',    label: 'Validation', patterns: /validat|quality.?check|integrity|check.?result/i },
+    'trends':        { id: 'trends',        label: 'YoY Trends', patterns: /trend|year.?over|yoy|annual|yearly/i },
+    'comparison':    { id: 'comparison',    label: 'System Comparison', patterns: /system.?compar|old.?vs|new.?vs|side.?by.?side/i },
+    'profiles':      { id: 'profiles',      label: 'Data Profiles', patterns: /profile|column.?stat|data.?type|schema.?detail/i },
+    'summary':       { id: 'summary',       label: 'Executive Summary', patterns: /executive.?summary|overview|total.?beneficiar|total.?claim/i },
+    'data-context':  { id: 'data-context',  label: 'Data Context', patterns: /data.?context|file.?list|source.?file|csv.?file|under.?comparison/i }
+  };
+
+  function detectSection(text) {
+    // Returns the first matching section id, prioritizing specificity
+    var order = ['discrepancies','financial','validation','trends','comparison','profiles','summary','data-context'];
+    for (var i = 0; i < order.length; i++) {
+      var sec = SECTION_KEYWORDS[order[i]];
+      if (sec.patterns.test(text)) return sec;
+    }
+    return null;
+  }
+
+  function navigateToSection(sectionId) {
+    var el = document.getElementById(sectionId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Highlight sidebar link
+    var sideLinks = document.querySelectorAll('#sidebar a[data-section]');
+    sideLinks.forEach(function(a) {
+      a.classList.toggle('active', a.getAttribute('data-section') === sectionId);
+    });
+    // Brief flash effect on the section
+    el.style.transition = 'box-shadow 0.3s';
+    el.style.boxShadow = '0 0 0 2px rgba(56,189,248,0.5)';
+    setTimeout(function() { el.style.boxShadow = 'none'; }, 1500);
+  }
+
+  function addSectionPill(parentEl, section) {
+    var pill = document.createElement('div');
+    pill.style.cssText = 'margin-top:6px;';
+    pill.innerHTML = '<button style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);' +
+      'border-radius:12px;padding:3px 10px;font-size:0.7rem;cursor:pointer;font-family:inherit;" ' +
+      'onclick="event.preventDefault();" data-nav-section="' + section.id + '">' +
+      '\u279C Go to ' + section.label + '</button>';
+    parentEl.appendChild(pill);
+    pill.querySelector('button').addEventListener('click', function() {
+      navigateToSection(section.id);
+    });
   }
 
   // Simple markdown renderer for assistant messages
