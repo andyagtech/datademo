@@ -14,7 +14,7 @@
 
 | Component | Where | What It Does |
 |---|---|---|
-| 6-step pipeline | `src/pipeline/step1_receive.py` → `step6_report.py` | Orchestrated by `src/runner.py` with gate logic — halts early on bad input |
+| 6-step pipeline | `src/pipeline/step1_receive.py` → `step6_report.py` | Orchestrated by `src/pipeline/runner.py` with gate logic — halts early on bad input |
 | Validation engine | `src/validate.py` | 17 internal consistency checks (identity, temporal, demographic, financial) |
 | Comparison engine | `src/compare.py` | 46 cross-system checks (schema, row-level, field-level, aggregate) |
 | Record matching | `src/pipeline/step4_match.py` | FULL OUTER JOIN on composite keys to align old/new records |
@@ -89,7 +89,7 @@ The report includes a **Key Findings** narrative section with:
 
 | Choice | Rationale (documented in `SOLUTION.md`) |
 |---|---|
-| **Python 3.14** | Standard for data engineering; rich ecosystem (pandas, plotly, jinja2) |
+| **Python 3.14** | Current stable release (October 2025); full binary wheel support for all dependencies (DuckDB, pandas, plotly, jinja2) |
 | **DuckDB** | Embedded analytical database — zero-config, handles 2.4GB CSVs natively, columnar engine optimized for aggregations on wide tables |
 
 Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (requires server), Spark (overkill), Pandas-only (fragile at scale). All documented in `docs/SOLUTION.md`.
@@ -107,7 +107,7 @@ Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (require
 | **CSV exports** | `reports/exports/*.csv` | Raw diff tables (discrepancy_detail, financial_recon, match results) — openable in Excel |
 | **Web UI** | `web/server.py` | FastAPI drag-and-drop upload interface for running the pipeline from a browser |
 | **React diff viewer** | `viewer/` | Interactive record-level diff viewer (demo data) |
-| **DuckDB database** | `data/db/cms_claims.duckdb` | Query directly with DuckDB CLI for ad-hoc analysis |
+| **DuckDB database** | `data/database/cms_claims.duckdb` | Query directly with DuckDB CLI for ad-hoc analysis |
 
 ### REQ-8: Be prepared to explain code and design decisions
 
@@ -133,7 +133,7 @@ Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (require
 |---|---|
 | **Depth** | 6 named findings with root cause hypotheses, financial breakdown by service type, geographic distribution analysis, trend stability assessment, risk quantification ($35K on $1.24B) |
 | **Strategy** | Old system as ground truth → FULL OUTER JOIN matching → field-level diff flags → aggregate analysis → interpretive narrative. Documented in `SOLUTION.md` and `PIPELINE.md` |
-| **Documentation** | 5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 54 automated tests. |
+| **Documentation** | 5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 87 automated tests. |
 
 ---
 
@@ -161,7 +161,7 @@ Cleaning: DuckDB handles type coercion during ingest. The pipeline validates hea
 
 - **E (Extract):** CSV files read from local filesystem or S3 via `StorageAdapter` pattern
 - **T (Transform):** DuckDB SQL — summary_year derivation, FULL OUTER JOIN matching, field-level diff computation, financial reconciliation aggregation
-- **L (Load):** DuckDB embedded database at `data/db/cms_claims.duckdb`
+- **L (Load):** DuckDB embedded database at `data/database/cms_claims.duckdb`
 
 Tables created: `beneficiary_summary`, `carrier_claims`, `new_beneficiary_summary`, `new_carrier_claims`, `_match_beneficiary`, `_match_claims`, `_discrepancy_detail`, `_financial_recon`
 
@@ -264,16 +264,16 @@ Required screenshots:
 
 > "A FEEDBACK.md that includes: Feedback on the assignment, Duration, How expertise/skillsets fit, Anything to help better evaluate candidates."
 
-**Status: ⚠️ PARTIAL — duration placeholder not filled in**
+**Status: FULFILLED**
 
 | Section | Status |
 |---|---|
-| **Duration** | ❌ Still says "Approximately X hours" — needs updating |
-| **Approach** | ✅ 4 numbered points explaining key decisions |
-| **Skills Demonstrated** | ✅ 5 categories (data engineering, SQL, Python, analysis, communication) |
-| **Assessment Feedback** | ✅ 4 bullet points with constructive feedback |
-
-**Missing:** The "how your expertise / skillsets fit this assessment" is partially addressed in "Skills Demonstrated" but could be more explicit about USDS-relevant experience. Also missing: "Anything you think might help the assessment better evaluate candidates" as a distinct section.
+| **Duration** | ✅ "Approximately 6 hours coding and another hour for writing and taking screenshots" |
+| **Approach** | ✅ 5 numbered points explaining key decisions |
+| **How My Expertise Fits** | ✅ USDS-relevant context with production pipeline thinking, domain awareness, communication focus, cloud-ready architecture |
+| **Skills Demonstrated** | ✅ 6 categories (data engineering, SQL, Python, data analysis, communication, infrastructure) |
+| **Assessment Feedback** | ✅ Constructive feedback on scope and fairness |
+| **Suggestions** | ✅ Scoring rubric and multi-sample testing suggestions |
 
 ---
 
@@ -281,6 +281,4 @@ Required screenshots:
 
 | # | Gap | Severity | Action Required |
 |---|---|---|---|
-| 1 | **Screenshots missing** | HIGH | Capture screenshots of report sections and web UI, add to `screenshots/` |
-| 2 | **FEEDBACK.md duration** | MEDIUM | Replace "Approximately X hours" with actual time |
-| 3 | **FEEDBACK.md completeness** | LOW | Could add explicit "expertise fit" and "evaluation suggestions" subsections |
+| 1 | **Screenshots pending** | MEDIUM | Capture screenshots of report sections and docs hub, add to `screenshots/` (stubs created in `screenshots/README.md`) |

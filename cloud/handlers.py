@@ -25,6 +25,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import boto3
 import duckdb
 
 from src.adapters.aws import S3Storage
@@ -187,7 +188,7 @@ def handle_receive(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 
 def handle_schema_validate(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Lambda handler for Step 2: Schema Validation."""
+    """Lambda handler for Step 2: Schema Validate."""
     logger.info(f"Step 2 — Schema Validate: {json.dumps(event, default=str)[:500]}")
     ctx = _build_context(event)
     result = step2_run(ctx)
@@ -224,7 +225,7 @@ def handle_ingest(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 
 def handle_match(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Lambda handler for Step 4: Record Matching."""
+    """Lambda handler for Step 4: Match & Validate."""
     logger.info(f"Step 4 — Match: {json.dumps(event, default=str)[:500]}")
     ctx = _build_context(event)
 

@@ -215,6 +215,7 @@ def extract_toc(md_text: str) -> list[tuple[int, str, str]]:
 
 
 def build_toc_html(toc: list[tuple[int, str, str]]) -> str:
+    """Convert a TOC list into sidebar HTML links (h1–h3 only)."""
     links = []
     for level, slug, text in toc:
         depth_class = f"depth-{level}" if level >= 2 else ""
@@ -224,6 +225,7 @@ def build_toc_html(toc: list[tuple[int, str, str]]) -> str:
 
 
 def render_md(md_path: Path, title: str) -> str:
+    """Render a Markdown file to a styled HTML page with TOC sidebar."""
     md_text = md_path.read_text(encoding="utf-8")
 
     # Extract TOC before rendering
@@ -248,6 +250,7 @@ def render_md(md_path: Path, title: str) -> str:
 
 
 def main():
+    """Render all configured Markdown docs to HTML in the docs/ directory."""
     rendered = 0
     for filename, title in MD_FILES.items():
         md_path = DOCS_DIR / filename

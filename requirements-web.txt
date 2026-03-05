@@ -1,0 +1,6 @@
+# Additional dependencies for the FastAPI web upload UI (web/server.py)
+# Not required for the core pipeline or Docker entrypoint.
+-r requirements.txt
+fastapi>=0.110.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9

@@ -208,7 +208,7 @@
 <tr>
 <td>6-step pipeline</td>
 <td><code>src/pipeline/step1_receive.py</code> → <code>step6_report.py</code></td>
-<td>Orchestrated by <code>src/runner.py</code> with gate logic — halts early on bad input</td>
+<td>Orchestrated by <code>src/pipeline/runner.py</code> with gate logic — halts early on bad input</td>
 </tr>
 <tr>
 <td>Validation engine</td>
@@ -376,7 +376,7 @@
 </tr>
 <tr>
 <td><strong>DuckDB database</strong></td>
-<td><code>data/db/cms_claims.duckdb</code></td>
+<td><code>data/database/cms_claims.duckdb</code></td>
 <td>Query directly with DuckDB CLI for ad-hoc analysis</td>
 </tr>
 </tbody>
@@ -439,7 +439,7 @@
 </tr>
 <tr>
 <td><strong>Documentation</strong></td>
-<td>5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 54 automated tests.</td>
+<td>5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 87 automated tests.</td>
 </tr>
 </tbody>
 </table>
@@ -485,7 +485,7 @@
 <ul>
 <li><strong>E (Extract):</strong> CSV files read from local filesystem or S3 via <code>StorageAdapter</code> pattern</li>
 <li><strong>T (Transform):</strong> DuckDB SQL — summary_year derivation, FULL OUTER JOIN matching, field-level diff computation, financial reconciliation aggregation</li>
-<li><strong>L (Load):</strong> DuckDB embedded database at <code>data/db/cms_claims.duckdb</code></li>
+<li><strong>L (Load):</strong> DuckDB embedded database at <code>data/database/cms_claims.duckdb</code></li>
 </ul>
 <p>Tables created: <code>beneficiary_summary</code>, <code>carrier_claims</code>, <code>new_beneficiary_summary</code>, <code>new_carrier_claims</code>, <code>_match_beneficiary</code>, <code>_match_claims</code>, <code>_discrepancy_detail</code>, <code>_financial_recon</code></p>
 <h3 id="req-12-identify-and-quantify-discrepancies">REQ-12: Identify and quantify discrepancies</h3>

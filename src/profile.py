@@ -54,49 +54,54 @@ def profile_table(con: duckdb.DuckDBPyConnection, table_name: str) -> TableProfi
     for col_name, col_type in cols_info:
         safe_col = f'"{col_name}"'
 
-        stats = con.execute(f"""
-            SELECT
-                COUNT(*) - COUNT({safe_col}) AS null_count,
-                ROUND(100.0 * (COUNT(*) - COUNT({safe_col})) / COUNT(*), 2) AS null_pct,
-                COUNT(DISTINCT {safe_col}) AS distinct_count
-            FROM {table_name}
-        """).fetchone()
-
-        cp = ColumnProfile(
-            name=col_name,
-            dtype=col_type,
-            null_count=stats[0],
-            null_pct=stats[1],
-            distinct_count=stats[2],
-        )
-
-        is_numeric = any(t in col_type.upper() for t in [
-            "INT", "BIGINT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC", "HUGEINT", "SMALLINT", "TINYINT"
-        ])
-
-        if is_numeric:
-            num_stats = con.execute(f"""
+        try:
+            stats = con.execute(f"""
                 SELECT
-                    MIN({safe_col})::VARCHAR,
-                    MAX({safe_col})::VARCHAR,
-                    AVG({safe_col}::DOUBLE)
+                    COUNT(*) - COUNT({safe_col}) AS null_count,
+                    ROUND(100.0 * (COUNT(*) - COUNT({safe_col})) / COUNT(*), 2) AS null_pct,
+                    COUNT(DISTINCT {safe_col}) AS distinct_count
                 FROM {table_name}
-                WHERE {safe_col} IS NOT NULL
             """).fetchone()
-            cp.min_val = num_stats[0]
-            cp.max_val = num_stats[1]
-            cp.mean_val = num_stats[2]
 
-        if cp.distinct_count <= 30 and cp.distinct_count > 0:
-            top = con.execute(f"""
-                SELECT {safe_col}::VARCHAR AS val, COUNT(*) AS cnt
-                FROM {table_name}
-                WHERE {safe_col} IS NOT NULL
-                GROUP BY val
-                ORDER BY cnt DESC
-                LIMIT 10
-            """).fetchall()
-            cp.top_values = [(str(v), c) for v, c in top]
+            cp = ColumnProfile(
+                name=col_name,
+                dtype=col_type,
+                null_count=stats[0],
+                null_pct=stats[1],
+                distinct_count=stats[2],
+            )
+
+            is_numeric = any(t in col_type.upper() for t in [
+                "INT", "BIGINT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC", "HUGEINT", "SMALLINT", "TINYINT"
+            ])
+
+            if is_numeric:
+                num_stats = con.execute(f"""
+                    SELECT
+                        MIN({safe_col})::VARCHAR,
+                        MAX({safe_col})::VARCHAR,
+                        AVG({safe_col}::DOUBLE)
+                    FROM {table_name}
+                    WHERE {safe_col} IS NOT NULL
+                """).fetchone()
+                cp.min_val = num_stats[0]
+                cp.max_val = num_stats[1]
+                cp.mean_val = num_stats[2]
+
+            if cp.distinct_count <= 30 and cp.distinct_count > 0:
+                top = con.execute(f"""
+                    SELECT {safe_col}::VARCHAR AS val, COUNT(*) AS cnt
+                    FROM {table_name}
+                    WHERE {safe_col} IS NOT NULL
+                    GROUP BY val
+                    ORDER BY cnt DESC
+                    LIMIT 10
+                """).fetchall()
+                cp.top_values = [(str(v), c) for v, c in top]
+
+        except Exception as e:
+            logger.warning(f"Could not profile column {col_name} in {table_name}: {e}")
+            cp = ColumnProfile(name=col_name, dtype=col_type, null_count=0, null_pct=0, distinct_count=0)
 
         tp.columns.append(cp)
 

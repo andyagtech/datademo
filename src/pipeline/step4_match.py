@@ -1,5 +1,5 @@
 """
-STEP 4: RECORD MATCHING — Match old system records to new system records by key.
+STEP 4: MATCH & VALIDATE — Match old system records to new system records by key.
 
 Responsibilities:
   - Match beneficiaries by DESYNPUF_ID + summary_year
@@ -10,15 +10,25 @@ Responsibilities:
 """
 
 import logging
+from typing import TypedDict
 
 import duckdb
 
+from src.db_utils import table_exists as _table_exists
 from src.pipeline import PipelineContext, StepResult
 from src.validate import run as validate_run
 
 logger = logging.getLogger(__name__)
 
-MATCH_CONFIGS = [
+class _MatchConfig(TypedDict):
+    """Configuration for matching an old/new table pair by key columns."""
+    old_table: str
+    new_table: str
+    key_cols: list[str]
+    match_table: str
+
+
+MATCH_CONFIGS: list[_MatchConfig] = [
     {
         "old_table": "beneficiary_summary",
         "new_table": "new_beneficiary_summary",
@@ -32,14 +42,6 @@ MATCH_CONFIGS = [
         "match_table": "_match_claims",
     },
 ]
-
-
-def _table_exists(con: duckdb.DuckDBPyConnection, table_name: str) -> bool:
-    r = con.execute(
-        f"SELECT COUNT(*) FROM information_schema.tables "
-        f"WHERE table_schema='main' AND table_name='{table_name}'"
-    ).fetchone()
-    return r[0] > 0
 
 
 def _build_match_table(
@@ -92,10 +94,11 @@ def _build_match_table(
 
 def run(ctx: PipelineContext) -> StepResult:
     """Execute Step 4: Record matching and internal validation."""
+    assert ctx.con is not None, "Step 4 requires a DB connection (run Step 3 first)"
     con = ctx.con
-    errors = []
-    warnings = []
-    match_results = {}
+    errors: list[str] = []
+    warnings: list[str] = []
+    match_results: dict[str, dict] = {}
 
     # Internal consistency checks on old system (always)
     validations = validate_run(con)

@@ -4,6 +4,15 @@ Storage and I/O adapters for local and cloud execution.
 The StorageAdapter protocol defines the interface that pipeline steps
 use for all file I/O. This allows the same step logic to run against
 a local filesystem or AWS S3 without changes.
+
+Known limitation (cloud):
+    Steps 1-3 (receive, validate, ingest) currently perform direct
+    filesystem I/O via pathlib/open() rather than routing through
+    ctx.storage. For cloud execution the Lambda handlers work around
+    this by downloading S3 objects to /tmp before invoking the step
+    functions. A future refactor should thread StorageAdapter through
+    ingest.py, step1_receive.py, and step2_schema_validate.py so
+    they read via ctx.storage.get_uri() / ctx.storage.read_bytes().
 """
 
 from __future__ import annotations

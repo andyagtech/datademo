@@ -41,7 +41,7 @@ The pipeline has minimal dependencies (Python + 4 pip packages), but:
 
 - **DuckDB versions matter.** Database files are not guaranteed compatible across major versions.
 - **Python version matters.** We use type unions (`int | str`) and other 3.10+ features.
-- **Reproducibility.** `python:3.14-slim` pins the latest stable Python release (October 2025). All dependencies — including DuckDB's compiled C extensions — ship binary wheels for 3.14. The image runs identically on macOS, Linux, and Windows (via Docker Desktop).
+- **Reproducibility.** `python:3.14-slim` pins the current stable Python release (October 2025). All dependencies — including DuckDB's compiled C extensions — ship binary wheels for 3.14. The image runs identically on macOS, Linux, and Windows (via Docker Desktop).
 - **Data stays outside.** CSVs and the DuckDB file are volume-mounted, not baked into the image. This keeps the image small and the data portable.
 
 ### Report Design
@@ -53,7 +53,7 @@ The HTML report is designed to communicate findings, not just display data:
 3. **Collapsible sections.** Data profiles (which can be hundreds of rows for the 142-column carrier claims table) are collapsed by default. The header shows row/column counts and high-null warnings without needing to expand.
 4. **Charts before tables.** Plotly charts for year-over-year trends, financial distributions, and chronic condition prevalence give a visual overview before the drill-down tables.
 
-### Record Matching Strategy
+### Match & Validate Strategy
 
 When new system data is available, Step 4 performs a FULL OUTER JOIN:
 
@@ -173,12 +173,13 @@ After fixes, re-run this pipeline to verify the discrepancy rate drops to zero o
 
 ## Testing
 
-54 tests covering:
+87 tests covering:
 
-- **Unit tests** for each original module (profile, validate, compare, report)
+- **54 unit/integration tests** using synthetic data (in-memory DuckDB + temp files) — no real data needed, run in ~3 seconds
+- **33 real-data validation tests** — verify actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.
+- **Unit tests** for each core module (profile, validate, compare, report)
 - **Pipeline step tests** for receive, schema validate, and record matching
-- **Integration tests** using in-memory DuckDB with synthetic sample data
-- All tests run in <5 seconds with no external dependencies
+- **Integration tests** for end-to-end report generation
 
 ```bash
 pytest tests/ -v

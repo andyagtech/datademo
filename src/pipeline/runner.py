@@ -20,9 +20,9 @@ logger = logging.getLogger("pipeline")
 
 STEPS = [
     ("1. Receive & Verify", step1_run),
-    ("2. Schema Validation", step2_run),
+    ("2. Schema Validate", step2_run),
     ("3. Ingest & Profile", step3_run),
-    ("4. Record Matching", step4_run),
+    ("4. Match & Validate", step4_run),
     ("5. Compare & Analyze", step5_run),
     ("6. Report", step6_run),
 ]

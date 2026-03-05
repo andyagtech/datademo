@@ -23,7 +23,7 @@ from src.pipeline.step4_match import _build_match_table
 @pytest.fixture
 def data_dir(tmp_path):
     """Create a temporary data directory with sample CSV files."""
-    raw = tmp_path / "raw"
+    raw = tmp_path / "old_system"
     raw.mkdir()
 
     # Beneficiary summary CSV (2008)
@@ -132,14 +132,14 @@ class TestStep2SchemaValidate:
         assert _classify_file(["foo", "bar", "baz"]) is None
 
     def test_validate_beneficiary_csv(self, data_dir):
-        csv_path = data_dir / "raw" / "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv"
+        csv_path = data_dir / "old_system" / "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv"
         result = validate_file(csv_path)
         assert result["valid"] is True
         assert result["file_type"] == "beneficiary"
         assert result["header_count"] == len(BENEFICIARY_EXPECTED_COLS)
 
     def test_validate_carrier_csv(self, data_dir):
-        csv_path = data_dir / "raw" / "DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv"
+        csv_path = data_dir / "old_system" / "DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv"
         result = validate_file(csv_path)
         assert result["valid"] is True
         assert result["file_type"] == "carrier_claims"
@@ -155,7 +155,7 @@ class TestStep2SchemaValidate:
         assert ctx.results["schema_validate"]["carrier_files"] >= 1
 
     def test_read_csv_headers(self, data_dir):
-        csv_path = data_dir / "raw" / "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv"
+        csv_path = data_dir / "old_system" / "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv"
         headers = _read_csv_headers(csv_path)
         assert len(headers) == len(BENEFICIARY_EXPECTED_COLS)
 

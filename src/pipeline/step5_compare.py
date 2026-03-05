@@ -13,18 +13,11 @@ import logging
 
 import duckdb
 
+from src.db_utils import table_exists as _table_exists
 from src.pipeline import PipelineContext, StepResult
 from src.compare import run as compare_run
 
 logger = logging.getLogger(__name__)
-
-
-def _table_exists(con: duckdb.DuckDBPyConnection, table_name: str) -> bool:
-    r = con.execute(
-        f"SELECT COUNT(*) FROM information_schema.tables "
-        f"WHERE table_schema='main' AND table_name='{table_name}'"
-    ).fetchone()
-    return r[0] > 0
 
 
 def _build_discrepancy_detail(con: duckdb.DuckDBPyConnection) -> list[dict]:
@@ -150,9 +143,10 @@ def _build_discrepancy_detail(con: duckdb.DuckDBPyConnection) -> list[dict]:
 
 def run(ctx: PipelineContext) -> StepResult:
     """Execute Step 5: Comparison and trend analysis."""
+    assert ctx.con is not None, "Step 5 requires a DB connection (run Step 3 first)"
     con = ctx.con
-    errors = []
-    warnings = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     # Run the existing comparison engine
     comparisons = compare_run(con)

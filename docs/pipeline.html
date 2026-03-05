@@ -239,7 +239,7 @@ reports/report_data.json        (canonical data artifact)
 reports/comparison_report.html  (interactive HTML report)
 reports/exports/*.csv           (raw diff tables)
 </code></pre>
-<p><strong>Execution model:</strong> Each step is a pure function <code>run(ctx: PipelineContext) -&gt; StepResult</code>. The runner (<code>src/runner.py</code>) calls them in sequence. If any step sets <code>ctx.halted = True</code>, the pipeline stops with a clear error message. The same functions run locally (sequential) or in AWS (Step Functions + Lambda).</p>
+<p><strong>Execution model:</strong> Each step is a pure function <code>run(ctx: PipelineContext) -&gt; StepResult</code>. The runner (<code>src/pipeline/runner.py</code>) calls them in sequence. If any step sets <code>ctx.halted = True</code>, the pipeline stops with a clear error message. The same functions run locally (sequential) or in AWS (Step Functions + Lambda).</p>
 <p><strong>Key types:</strong><br />
 - <code>PipelineContext</code> — carries the DuckDB connection, config, storage adapter, and accumulated results across steps.<br />
 - <code>StepResult</code> — returned by each step with <code>success</code>, <code>message</code>, <code>errors[]</code>, <code>warnings[]</code>, and step-specific data.</p>
@@ -1132,7 +1132,7 @@ class ComparisonResult:
 </thead>
 <tbody>
 <tr>
-<td><code>data/db/cms_claims.duckdb</code></td>
+<td><code>data/database/cms_claims.duckdb</code></td>
 <td>Persistent DuckDB database with all 8 tables — queryable via CLI, Python, or any DuckDB binding</td>
 </tr>
 </tbody>

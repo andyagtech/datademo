@@ -1,5 +1,5 @@
 """
-STEP 2: SCHEMA VALIDATION — Gate check before ingestion.
+STEP 2: SCHEMA VALIDATE — Gate check before ingestion.
 
 Responsibilities:
   - Read first row of each CSV to extract headers
@@ -11,6 +11,7 @@ Responsibilities:
 import csv
 import logging
 from pathlib import Path
+from typing import Any
 
 from src.pipeline import PipelineContext, StepResult
 
@@ -84,9 +85,9 @@ def _check_encoding(path: Path) -> str | None:
         return f"Encoding error in {path.name}: {e}"
 
 
-def validate_file(path: Path, expected_type: str | None = None) -> dict:
+def validate_file(path: Path, expected_type: str | None = None) -> dict[str, Any]:
     """Validate a single CSV file's schema."""
-    result = {
+    result: dict[str, Any] = {
         "file": path.name,
         "path": str(path),
         "valid": True,
@@ -160,9 +161,9 @@ def validate_file(path: Path, expected_type: str | None = None) -> dict:
 
 def run(ctx: PipelineContext) -> StepResult:
     """Execute Step 2: Schema validation gate."""
-    errors = []
-    warnings = []
-    file_validations = []
+    errors: list[str] = []
+    warnings: list[str] = []
+    file_validations: list[dict[str, Any]] = []
 
     receive_data = ctx.results.get("receive", {})
 

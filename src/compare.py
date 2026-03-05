@@ -13,8 +13,11 @@ Comparison categories:
 
 import logging
 from dataclasses import dataclass, field
+from typing import TypedDict
 
 import duckdb
+
+from src.db_utils import table_exists as _table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +30,6 @@ class ComparisonResult:
     description: str
     metric_value: float | int
     details: list[dict] = field(default_factory=list)
-
-
-def _table_exists(con: duckdb.DuckDBPyConnection, table_name: str) -> bool:
-    r = con.execute(
-        f"SELECT COUNT(*) FROM information_schema.tables "
-        f"WHERE table_schema='main' AND table_name='{table_name}'"
-    ).fetchone()
-    return r[0] > 0
 
 
 def compare_schemas(
@@ -169,7 +164,7 @@ def compare_field_values(
             FROM {old_table} o
             INNER JOIN {new_table} n ON o.{key_col} = n.{key_col}
         """).fetchone()
-
+        assert r is not None
         matched, mismatches = r
         results.append(ComparisonResult(
             check_name=f"field_mismatch_{col.lower()}",
@@ -232,7 +227,17 @@ def compare_aggregates(
 
 # --- Table pair configurations ---
 
-TABLE_PAIRS = [
+
+class _TablePairConfig(TypedDict):
+    """Configuration for comparing an old/new table pair."""
+    old: str
+    new: str
+    key: str
+    compare_cols: list[str]
+    numeric_cols: list[str]
+
+
+TABLE_PAIRS: list[_TablePairConfig] = [
     {
         "old": "beneficiary_summary",
         "new": "new_beneficiary_summary",

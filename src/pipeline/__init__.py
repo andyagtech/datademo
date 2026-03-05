@@ -2,12 +2,12 @@
 CMS Claims Comparison Pipeline — 6-Step Architecture
 
 Steps:
-  1. RECEIVE   — Accept files, verify integrity, extract zips
-  2. VALIDATE  — Schema validation gate (headers, types, expected files)
-  3. INGEST    — Load into DuckDB, profile data quality
-  4. MATCH     — Record matching by primary keys
-  5. COMPARE   — Field-level diffs, discrepancy classification, trend analysis
-  6. REPORT    — Generate HTML report with findings
+  1. RECEIVE         — Accept files, verify integrity, extract zips
+  2. SCHEMA VALIDATE — Gate check on headers, types, expected files
+  3. INGEST & PROFILE — Load into DuckDB, profile data quality
+  4. MATCH & VALIDATE — Record matching by key + internal consistency checks
+  5. COMPARE         — Field-level diffs, discrepancy classification, trend analysis
+  6. REPORT          — Generate HTML report with findings
 
 Each step exposes:
   run(ctx: PipelineContext) -> StepResult
@@ -41,7 +41,11 @@ class PipelineContext:
     # Execution mode
     mode: str = "local"  # "local" or "cloud"
 
-    # Accumulated results from each step
+    # Accumulated results from each step.
+    # Convention: each step writes its own key ("receive", "schema_validate",
+    # "ingest", "match", "compare", "report").  Steps 3-5 also write shared
+    # cross-step keys ("profiles", "anomalies", "validations", "comparisons",
+    # "trends") consumed by the report step.
     results: dict[str, Any] = field(default_factory=dict)
 
     # Gate flags — a step can halt the pipeline

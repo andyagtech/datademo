@@ -25,24 +25,29 @@ class LocalStorage:
         return self.base_dir / key
 
     def read_bytes(self, key: str) -> bytes:
+        """Read a file's contents as bytes."""
         return self._resolve(key).read_bytes()
 
     def write_bytes(self, key: str, data: bytes) -> str:
+        """Write bytes to a file, creating parent directories as needed."""
         path = self._resolve(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return str(path)
 
     def read_text(self, key: str, encoding: str = "utf-8") -> str:
+        """Read a file's contents as a string."""
         return self._resolve(key).read_text(encoding=encoding)
 
     def write_text(self, key: str, data: str, encoding: str = "utf-8") -> str:
+        """Write a string to a file, creating parent directories as needed."""
         path = self._resolve(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(data, encoding=encoding)
         return str(path)
 
     def list_files(self, prefix: str, pattern: str = "*") -> list[str]:
+        """List files under a prefix matching an optional glob pattern."""
         base = self._resolve(prefix)
         if not base.is_dir():
             return []
@@ -54,9 +59,11 @@ class LocalStorage:
         return results
 
     def file_exists(self, key: str) -> bool:
+        """Check if a file exists."""
         return self._resolve(key).exists()
 
     def file_size(self, key: str) -> int:
+        """Return file size in bytes."""
         return self._resolve(key).stat().st_size
 
     def get_uri(self, key: str) -> str:

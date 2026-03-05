@@ -19,22 +19,17 @@ from src.pipeline import PipelineContext, StepResult
 
 logger = logging.getLogger(__name__)
 
-EXPECTED_OLD_FILES = {
-    "beneficiary": [
-        "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv",
-        "DE1_0_2009_Beneficiary_Summary_File_Sample_1.csv",
-        "DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv",
-    ],
-    "carrier_claims": [
-        "DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv",
-        "DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv",
-    ],
-}
-
-# New system files can have flexible names — we match by pattern
-NEW_FILE_PATTERNS = {
+# Discovery patterns and minimum expected file counts per category.
+# Works with any CMS DE-SynPUF sample (1–20) — files are matched by
+# glob pattern, not exact filename.
+FILE_PATTERNS = {
     "beneficiary": "*Beneficiary*",
     "carrier_claims": "*Carrier*",
+}
+
+EXPECTED_MIN_COUNTS = {
+    "beneficiary": 3,      # one per year (2008, 2009, 2010)
+    "carrier_claims": 2,   # A and B splits
 }
 
 
@@ -53,12 +48,18 @@ def _extract_zip(zip_path: Path, dest_dir: Path, password: str | None = None) ->
     pw_bytes = password.encode() if password else None
 
     extracted = []
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        for info in zf.infolist():
-            if info.is_dir():
-                continue
-            zf.extract(info, dest_dir, pwd=pw_bytes)
-            extracted.append(dest_dir / info.filename)
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                zf.extract(info, dest_dir, pwd=pw_bytes)
+                extracted.append(dest_dir / info.filename)
+    except zipfile.BadZipFile:
+        raise ValueError(f"Corrupt or invalid zip file: {zip_path.name}")
+    except RuntimeError as e:
+        # Raised for password-protected zips with wrong/missing password
+        raise ValueError(f"Could not extract {zip_path.name}: {e}")
 
     return extracted
 
@@ -76,45 +77,55 @@ def _inventory_files(directory: Path) -> dict:
     return inventory
 
 
-def _check_expected_files(directory: Path, expected: dict[str, list[str]]) -> tuple[list[str], list[str]]:
-    """Check which expected files are present/missing."""
-    found = []
-    missing = []
-    for category, filenames in expected.items():
-        for fn in filenames:
-            if (directory / fn).exists():
-                found.append(fn)
-            else:
-                missing.append(fn)
-    return found, missing
+def _discover_files(directory: Path) -> dict[str, list[str]]:
+    """Discover CSV files by category using glob patterns."""
+    discovered = {}
+    for category, pattern in FILE_PATTERNS.items():
+        matches = sorted(f.name for f in directory.glob(pattern) if f.suffix == ".csv")
+        discovered[category] = matches
+    return discovered
 
 
 def receive_old_system(ctx: PipelineContext) -> dict:
     """Validate the old system data directory."""
     data_dir = ctx.old_data_dir
 
-    # Check for zips that need extraction
-    zips = list(data_dir.glob("*.zip"))
-    raw_dir = data_dir / "raw" if (data_dir / "raw").exists() else data_dir
+    # Canonical paths
+    downloads_dir = data_dir / "original_downloads"
+    old_system_dir = data_dir / "old_system"
 
-    # If CSVs are in a raw/ subdirectory, use that
-    csv_files = list(raw_dir.glob("*.csv"))
-    if not csv_files and zips:
-        logger.info(f"Found {len(zips)} zip files, extracting...")
-        raw_dir = data_dir / "raw"
-        for z in zips:
-            _extract_zip(z, raw_dir)
-        csv_files = list(raw_dir.glob("*.csv"))
+    # Check for CSVs already extracted into old_system/
+    csv_files = list(old_system_dir.glob("*.csv")) if old_system_dir.exists() else []
 
-    found, missing = _check_expected_files(raw_dir, EXPECTED_OLD_FILES)
-    inventory = _inventory_files(raw_dir)
+    # If no CSVs yet, look for zips in original_downloads/ (preferred)
+    # or fall back to data/ root for backwards compatibility
+    if not csv_files:
+        zips = list(downloads_dir.glob("*.zip")) if downloads_dir.exists() else []
+        if not zips:
+            zips = list(data_dir.glob("*.zip"))
+        if zips:
+            logger.info(f"Found {len(zips)} zip files, extracting to {old_system_dir}...")
+            old_system_dir.mkdir(parents=True, exist_ok=True)
+            for z in zips:
+                _extract_zip(z, old_system_dir)
+            csv_files = list(old_system_dir.glob("*.csv"))
+
+    discovered = _discover_files(old_system_dir)
+    inventory = _inventory_files(old_system_dir)
+
+    missing_categories = []
+    for category, min_count in EXPECTED_MIN_COUNTS.items():
+        actual = len(discovered.get(category, []))
+        if actual < min_count:
+            missing_categories.append(f"{category}: found {actual}, need {min_count}")
 
     return {
-        "source_dir": str(raw_dir),
-        "files_found": found,
-        "files_missing": missing,
+        "source_dir": str(old_system_dir),
+        "discovered": discovered,
+        "files_found": [f for files in discovered.values() for f in files],
+        "missing_categories": missing_categories,
         "inventory": inventory,
-        "complete": len(missing) == 0,
+        "complete": len(missing_categories) == 0,
     }
 
 
@@ -137,7 +148,7 @@ def receive_new_system(ctx: PipelineContext) -> dict | None:
 
     # Find files by pattern
     found_files = {}
-    for category, pattern in NEW_FILE_PATTERNS.items():
+    for category, pattern in FILE_PATTERNS.items():
         matches = sorted(new_dir.glob(pattern))
         # Also check for .csv extension explicitly
         if not matches:
@@ -167,7 +178,7 @@ def run(ctx: PipelineContext) -> StepResult:
     # Old system
     old_result = receive_old_system(ctx)
     if not old_result["complete"]:
-        errors.append(f"Missing old system files: {old_result['files_missing']}")
+        errors.append(f"Missing old system files: {old_result['missing_categories']}")
 
     # New system (optional)
     new_result = receive_new_system(ctx)

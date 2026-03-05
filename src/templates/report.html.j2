@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CMS Claims Comparison Report</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --border: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+    --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; color: var(--accent); }
+  h2 { font-size: 1.25rem; margin: 2rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; margin: 1.5rem 0 0.5rem; color: var(--muted); }
+  .subtitle { color: var(--muted); margin-bottom: 0.25rem; font-size: 0.85rem; }
+  .report-desc { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; line-height: 1.5; max-width: 800px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1rem 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+  .card-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .card-value { font-size: 1.5rem; font-weight: 700; margin-top: 0.25rem; }
+  .card-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+  .card-accent { border-left: 3px solid var(--accent); }
+  .card-green { border-left: 3px solid var(--green); }
+  .card-red { border-left: 3px solid var(--red); }
+  .card-yellow { border-left: 3px solid var(--yellow); }
+  .pass { color: var(--green); }
+  .fail { color: var(--red); }
+  .warn { color: var(--yellow); }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.875rem; }
+  th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; position: relative; }
+  th:hover { color: var(--accent); }
+  th .sort-arrow { margin-left: 4px; font-size: 0.65rem; opacity: 0.4; }
+  th.sort-asc .sort-arrow::after { content: '\\25B2'; opacity: 1; }
+  th.sort-desc .sort-arrow::after { content: '\\25BC'; opacity: 1; }
+  th:not(.sort-asc):not(.sort-desc) .sort-arrow::after { content: '\\25B4\\25BE'; }
+  tr:hover td { background: rgba(56, 189, 248, 0.05); }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+  .badge-fail { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+  .badge-warn { background: rgba(251, 191, 36, 0.15); color: var(--yellow); }
+  .badge-info { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
+  .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+  .section { margin-bottom: 2.5rem; }
+  .null-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--accent); }
+
+  /* Collapsible sections */
+  details { margin: 0.75rem 0; }
+  details > summary {
+    cursor: pointer; padding: 0.75rem 1rem; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-weight: 600; font-size: 0.95rem; color: var(--text);
+    list-style: none; display: flex; align-items: center; gap: 0.5rem;
+    transition: background 0.15s;
+  }
+  details > summary:hover { background: #263348; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before {
+    content: '\\25B6'; font-size: 0.65rem; color: var(--muted);
+    transition: transform 0.2s;
+  }
+  details[open] > summary::before { transform: rotate(90deg); }
+  details[open] > summary { border-radius: 8px 8px 0 0; border-bottom-color: transparent; }
+  details > .details-content {
+    border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 8px 8px; padding: 1rem; background: var(--surface);
+  }
+  .summary-meta { margin-left: auto; font-size: 0.8rem; color: var(--muted); font-weight: 400; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0a0c14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem; font-family: 'Inter', system-ui, sans-serif;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+  .project-nav .nav-home:hover { background: rgba(56,189,248,0.12); }
+
+  /* Sidebar nav */
+  .sidebar {
+    position: fixed; top: 32px; left: 0; width: 220px; height: calc(100vh - 32px);
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 1.25rem 0; overflow-y: auto; z-index: 100;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); padding: 0 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .sidebar a {
+    display: block; padding: 0.45rem 1rem 0.45rem 1.15rem;
+    font-size: 0.82rem; color: var(--muted); text-decoration: none;
+    border-left: 3px solid transparent; transition: all 0.15s;
+    line-height: 1.4;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(56, 189, 248, 0.05); }
+  .sidebar a.active {
+    color: var(--accent); border-left-color: var(--accent);
+    background: rgba(56, 189, 248, 0.08); font-weight: 600;
+  }
+  .sidebar-divider { height: 1px; background: var(--border); margin: 0.5rem 1rem; }
+  .container { margin-left: 220px; }
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .container { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="project-nav">
+  <a href="../index.html" class="nav-home">&#9671; Docs</a>
+  <span class="nav-sep">|</span>
+  <a href="comparison_report.html" class="active">Report</a>
+  <a href="../architecture.html">Architecture</a>
+  <a href="../schema_explorer.html">Schema</a>
+  <a href="../parquet_viewer.html">Parquet</a>
+  <a href="../sql_explorer.html">SQL</a>
+</nav>
+
+<div class="container" style="padding-top: calc(2rem + 32px)">
+  <h1>CMS Claims Data Comparison Report</h1>
+  <p class="subtitle">Generated {{ generated_at }}</p>
+
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-title">Report Sections</div>
+    <a href="#data-context" data-section="data-context">Data Context</a>
+    <a href="#summary" data-section="summary">Executive Summary</a>
+    <a href="#discrepancies" data-section="discrepancies">Discrepancies</a>
+    <div class="sidebar-divider"></div>
+    <a href="#validation" data-section="validation">Validation</a>
+    <a href="#trends" data-section="trends">YoY Trends</a>
+    <a href="#financial" data-section="financial">Financial Analysis</a>
+    <div class="sidebar-divider"></div>
+    <a href="#comparison" data-section="comparison">System Comparison</a>
+    <a href="#profiles" data-section="profiles">Data Profiles</a>
+  </nav>
+
+  <!-- ============================================================ -->
+  <!-- 0. DATA CONTEXT — what exactly is being compared              -->
+  <!-- ============================================================ -->
+  <div class="section" id="data-context">
+    <h2>Data Under Comparison</h2>
+    <p style="color: var(--muted); margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.7; max-width: 900px;">
+      This report compares outputs from two CMS Medicare claims processing systems.
+      The <strong style="color: var(--accent);">old system</strong> is the legacy production pipeline
+      (CMS DE-SynPUF reference dataset, 2008&ndash;2010).
+      The <strong style="color: #4ade80;">new system</strong> is the replacement pipeline whose outputs
+      are validated against the old system to ensure correctness before cutover.
+    </p>
+
+    <div class="grid-2">
+      <!-- Old System -->
+      <div class="card card-accent">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <strong style="font-size: 1rem;">Old System (Reference)</strong>
+          <span class="badge badge-info">{{ old_system_file_count }} files</span>
+        </div>
+        <table style="margin: 0; font-size: 0.8rem;">
+          <thead><tr><th style="font-size: 0.7rem;">File</th><th style="font-size: 0.7rem;">Rows</th><th style="font-size: 0.7rem;">Size</th></tr></thead>
+          <tbody>
+            {% for f in old_system_files %}
+            <tr><td style="font-size: 0.8rem;">{{ f.name }}</td><td>{{ f.rows }}</td><td>{{ f.size }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted);">
+          Source: <code style="background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.75rem;">{{ old_system_path }}</code>
+        </div>
+      </div>
+
+      <!-- New System -->
+      <div class="card" style="border-left: 3px solid #4ade80;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <strong style="font-size: 1rem;">New System (Under Test)</strong>
+          {% if new_system_files %}
+          <span class="badge badge-pass">{{ new_system_file_count }} files</span>
+          {% else %}
+          <span class="badge badge-warn">Not loaded</span>
+          {% endif %}
+        </div>
+        {% if new_system_files %}
+        <table style="margin: 0; font-size: 0.8rem;">
+          <thead><tr><th style="font-size: 0.7rem;">File</th><th style="font-size: 0.7rem;">Rows</th><th style="font-size: 0.7rem;">Size</th></tr></thead>
+          <tbody>
+            {% for f in new_system_files %}
+            <tr><td style="font-size: 0.8rem;">{{ f.name }}</td><td>{{ f.rows }}</td><td>{{ f.size }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted);">
+          Source: <code style="background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.75rem;">{{ new_system_path }}</code>
+        </div>
+        {% else %}
+        <p style="color: var(--muted); font-size: 0.85rem; margin-top: 0.5rem;">New system data has not been loaded yet. Run with <code style="background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px;">--new-data path/to/csvs/</code></p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if match_summary %}
+    <!-- Match summary -->
+    <h3 style="margin-top: 1.5rem;">Record Matching Results</h3>
+    <div class="grid">
+      {% for m in match_summary %}
+      <div class="card {{ 'card-green' if m.match_rate >= 99.5 else 'card-yellow' if m.match_rate >= 95 else 'card-red' }}">
+        <div class="card-label">{{ m.table }}</div>
+        <div class="card-value {{ 'pass' if m.match_rate >= 99.5 else 'warn' if m.match_rate >= 95 else 'fail' }}">{{ m.match_rate }}%</div>
+        <div class="card-sub">{{ m.matched }} matched &middot; {{ m.old_only }} old-only &middot; {{ m.new_only }} new-only</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 1. EXECUTIVE SUMMARY — the most important numbers up front   -->
+  <!-- ============================================================ -->
+  <div class="section" id="summary">
+    <h2>Executive Summary</h2>
+    <div class="grid">
+      <div class="card card-accent">
+        <div class="card-label">Total Beneficiaries</div>
+        <div class="card-value">{{ summary.total_beneficiaries }}</div>
+        <div class="card-sub">Across {{ summary.summary_years }} summary years</div>
+      </div>
+      <div class="card card-accent">
+        <div class="card-label">Total Carrier Claims</div>
+        <div class="card-value">{{ summary.total_claims }}</div>
+        <div class="card-sub">Parts A + B combined</div>
+      </div>
+      <div class="card {{ 'card-green' if summary.failed_checks == 0 else 'card-red' }}">
+        <div class="card-label">Checks Passed</div>
+        <div class="card-value {{ 'pass' if summary.failed_checks == 0 else '' }}">{{ summary.passed_checks }} / {{ summary.total_checks }}</div>
+        <div class="card-sub">{{ summary.failed_checks }} issue{{ 's' if summary.failed_checks != 1 else '' }} detected</div>
+      </div>
+      <div class="card {{ 'card-green' if not comparisons else 'card-yellow' }}">
+        <div class="card-label">New System Status</div>
+        <div class="card-value {{ 'warn' if not comparisons else '' }}">{{ 'Loaded' if comparisons else 'Pending' }}</div>
+        <div class="card-sub">{{ comparisons|length if comparisons else 'No' }} comparison checks</div>
+      </div>
+    </div>
+
+    {% if failed_validations %}
+    <h3 style="color: var(--red); margin-top: 1.5rem;">Issues Requiring Attention</h3>
+    <div class="grid" style="grid-template-columns: 1fr;">
+      {% for v in failed_validations %}
+      <div class="card card-red">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span class="badge badge-fail">{{ v.category }}</span>
+            <strong style="margin-left: 0.5rem;">{{ v.check_name }}</strong>
+          </div>
+          <div style="text-align: right;">
+            <span class="fail" style="font-size: 1.1rem; font-weight: 700;">{{ v.issues_found }}</span>
+            <span style="color: var(--muted); font-size: 0.8rem;"> issues ({{ v.issue_pct }}%)</span>
+          </div>
+        </div>
+        <div style="color: var(--muted); margin-top: 0.35rem; font-size: 0.85rem;">{{ v.description }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 1b. DISCREPANCY DASHBOARD — the spec's core ask              -->
+  <!-- ============================================================ -->
+  <div class="section" id="discrepancies">
+    <h2>Discrepancy Dashboard</h2>
+    <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.88rem; line-height: 1.6; max-width: 900px;">
+      The old system (CMS DE-SynPUF) is treated as <strong style="color: var(--accent);">ground truth</strong>.
+      All metrics below quantify how the new system's outputs <strong style="color: var(--yellow);">deviate</strong>
+      from the old system. Discrepancies indicate potential issues in the new claims processing pipeline
+      that must be resolved before cutover.
+    </p>
+
+    <!-- Key discrepancy KPIs -->
+    <div class="grid">
+      <div class="card card-red" id="kpi-bene-mismatch">
+        <div class="card-label">Beneficiaries with Data Mismatches</div>
+        <div class="card-value fail" id="kpi-bene-mismatch-val">—</div>
+        <div class="card-sub" id="kpi-bene-mismatch-sub"></div>
+      </div>
+      <div class="card card-red" id="kpi-claims-pmt">
+        <div class="card-label">Claims with Payment Mismatches</div>
+        <div class="card-value fail" id="kpi-claims-pmt-val">—</div>
+        <div class="card-sub" id="kpi-claims-pmt-sub"></div>
+      </div>
+      <div class="card card-yellow" id="kpi-fin-diverge">
+        <div class="card-label">Total Financial Divergence</div>
+        <div class="card-value warn" id="kpi-fin-diverge-val">—</div>
+        <div class="card-sub" id="kpi-fin-diverge-sub">Sum of absolute differences across all reimbursement columns</div>
+      </div>
+      <div class="card" style="border-left: 3px solid var(--accent);" id="kpi-phantom">
+        <div class="card-label">Phantom / Missing Records</div>
+        <div class="card-value" id="kpi-phantom-val">—</div>
+        <div class="card-sub" id="kpi-phantom-sub">Records in one system but not the other</div>
+      </div>
+    </div>
+
+    <!-- Key Findings — interpretive narrative (rendered by JS from analysis data) -->
+    <div id="key-findings" style="margin-top: 1.5rem; display: none;">
+      <h3 style="margin-bottom: 0.75rem;">Key Findings</h3>
+      <div class="card" style="border-left: 3px solid var(--yellow); line-height: 1.8; font-size: 0.88rem;">
+        <p id="finding-accuracy" style="margin-bottom: 0.6rem;"></p>
+        <p id="finding-top-field" style="margin-bottom: 0.6rem;"></p>
+        <p id="finding-financial" style="margin-bottom: 0.6rem;"></p>
+        <p id="finding-claims" style="margin-bottom: 0.6rem;"></p>
+        <p id="finding-phantom" style="margin-bottom: 0.6rem;"></p>
+        <p id="finding-trend" style="margin-bottom: 0;"></p>
+      </div>
+
+      <h3 style="margin-top: 1.25rem; margin-bottom: 0.5rem;">What This Means for Accuracy</h3>
+      <div class="card" style="border-left: 3px solid #4ade80; line-height: 1.8; font-size: 0.88rem;">
+        <p id="meaning-accuracy" style="margin-bottom: 0.6rem;"></p>
+        <p id="meaning-risk" style="margin-bottom: 0;"></p>
+      </div>
+    </div>
+
+    <!-- Discrepancy charts -->
+    <div class="grid-2" style="margin-top: 1.5rem;">
+      <div class="chart-container">
+        <div id="chart-field-mismatches" style="width:100%;height:400px;"></div>
+      </div>
+      <div class="chart-container">
+        <div id="chart-discrepancy-trend" style="width:100%;height:400px;"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="chart-container">
+        <div id="chart-fin-divergence" style="width:100%;height:400px;"></div>
+      </div>
+      <div class="chart-container">
+        <div id="chart-reimb-comparison" style="width:100%;height:400px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 2. VALIDATION RESULTS — core analysis                        -->
+  <!-- ============================================================ -->
+  <div class="section" id="validation">
+    <h2>Validation Results</h2>
+    <table>
+      <thead>
+        <tr><th>Check</th><th>Category</th><th>Description</th><th>Checked</th><th>Issues</th><th>Rate</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for v in validations %}
+        <tr>
+          <td>{{ v.check_name }}</td>
+          <td><span class="badge badge-info">{{ v.category }}</span></td>
+          <td>{{ v.description }}</td>
+          <td>{{ v.total_checked }}</td>
+          <td>{{ v.issues_found }}</td>
+          <td>{{ v.issue_pct }}%</td>
+          <td><span class="badge {{ 'badge-pass' if v.passed else 'badge-fail' }}">{{ 'PASS' if v.passed else 'FAIL' }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <details>
+      <summary>Issues by Check <span class="summary-meta">bar chart</span></summary>
+      <div class="details-content"><div id="chart-validation" style="width:100%;height:350px;"></div></div>
+    </details>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 3. YEAR-OVER-YEAR TRENDS                                     -->
+  <!-- ============================================================ -->
+  <div class="section" id="trends">
+    <h2>Year-over-Year Trends</h2>
+    <div class="grid-2">
+      <div class="chart-container"><div id="chart-yoy-bene" style="width:100%;height:350px;"></div></div>
+      <div class="chart-container"><div id="chart-yoy-claims" style="width:100%;height:350px;"></div></div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 4. FINANCIAL ANALYSIS                                        -->
+  <!-- ============================================================ -->
+  <div class="section" id="financial">
+    <h2>Financial Analysis</h2>
+    <div class="chart-container"><div id="chart-financial-trends" style="width:100%;height:400px;"></div></div>
+    <div class="grid-2">
+      <div class="chart-container"><div id="chart-financial-dist" style="width:100%;height:400px;"></div></div>
+      <div class="chart-container"><div id="chart-chronic" style="width:100%;height:400px;"></div></div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 5. SYSTEM COMPARISON (old vs new)                            -->
+  <!-- ============================================================ -->
+  <div class="section" id="comparison">
+    <h2>System Comparison</h2>
+    {% if comparisons %}
+    <details open>
+      <summary>
+        All Comparison Checks
+        <span class="summary-meta">{{ comparisons|length }} checks across schema, row-level, field-level, and aggregate categories</span>
+      </summary>
+      <div class="details-content">
+        <table>
+          <thead>
+            <tr><th>Check</th><th>Category</th><th>Table Pair</th><th>Description</th><th>Metric</th></tr>
+          </thead>
+          <tbody>
+            {% for c in comparisons %}
+            <tr>
+              <td>{{ c.check_name }}</td>
+              <td><span class="badge badge-info">{{ c.category }}</span></td>
+              <td>{{ c.table_pair }}</td>
+              <td>{{ c.description }}</td>
+              <td>{{ c.metric_value }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% else %}
+    <div class="card card-yellow">
+      <div class="card-label">Awaiting New System Data</div>
+      <div class="card-value warn">Not Yet Loaded</div>
+      <p style="color: var(--muted); margin-top: 0.5rem; font-size: 0.875rem;">
+        To run old-vs-new comparison: <code style="background: var(--bg); padding: 0.15rem 0.4rem; border-radius: 3px;">python -m src.main --new-data path/to/csvs/</code>
+      </p>
+      <p style="color: var(--muted); margin-top: 0.35rem; font-size: 0.85rem;">
+        Expected format: CSVs with matching schemas for Beneficiary Summary and Carrier Claims files.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 6. DATA PROFILES — collapsible reference material            -->
+  <!-- ============================================================ -->
+  <div class="section" id="profiles">
+    <h2>Data Profiles</h2>
+    <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.85rem;">
+      Column-level quality profiles for each ingested table. Click to expand.
+    </p>
+    {% for tname, profile in profiles.items() %}
+    <details>
+      <summary>
+        {{ tname }}
+        <span class="summary-meta">{{ profile.row_count }} rows, {{ profile.column_count }} cols{% if profile.high_null_cols %} &middot; <span class="warn">{{ profile.high_null_cols }} high-null cols</span>{% endif %}</span>
+      </summary>
+      <div class="details-content">
+        <table>
+          <thead>
+            <tr><th>Column</th><th>Type</th><th>Nulls</th><th>Null %</th><th>Distinct</th><th>Min</th><th>Max</th><th>Mean</th></tr>
+          </thead>
+          <tbody>
+            {% for col in profile.columns %}
+            <tr>
+              <td>{{ col.name }}</td>
+              <td><span class="badge badge-info">{{ col.dtype }}</span></td>
+              <td>{{ col.null_count }}</td>
+              <td>
+                <span class="{{ 'fail' if col.null_pct > 80 else 'warn' if col.null_pct > 50 else '' }}">{{ col.null_pct }}%</span>
+                <div class="null-bar" style="width: {{ col.null_pct }}%"></div>
+              </td>
+              <td>{{ col.distinct_count }}</td>
+              <td>{{ col.min_val or '-' }}</td>
+              <td>{{ col.max_val or '-' }}</td>
+              <td>{{ '%.2f'|format(col.mean_val) if col.mean_val is not none else '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Footer                                                       -->
+  <!-- ============================================================ -->
+  <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+    <p style="color: var(--muted); font-size: 0.8rem;">
+      Pipeline: INGEST &rarr; PROFILE &rarr; VALIDATE &rarr; COMPARE &rarr; REPORT
+    </p>
+    <p style="color: var(--muted); font-size: 0.8rem;">
+      CMS DE-SynPUF 2008&ndash;2010 &middot; DuckDB + Python
+    </p>
+  </div>
+</div>
+<script>
+var REPORT_DATA = {{ chart_data_json }};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var dark = {plot_bgcolor:'#1e293b',paper_bgcolor:'#1e293b',font:{color:'#e2e8f0',size:11},margin:{l:60,r:30,t:50,b:40}};
+  var gridColor = '#334155';
+
+  /* ================================================================ */
+  /* DISCREPANCY DASHBOARD — KPIs + Charts                           */
+  /* ================================================================ */
+
+  /* -- KPI: Beneficiaries with data mismatches -- */
+  var dby = REPORT_DATA.discrepancy_by_year || [];
+  if (dby.length) {
+    var totalBene = dby.reduce(function(s,r){return s+r.total;},0);
+    var mismatchedBene = dby.reduce(function(s,r){return s+r.mismatched;},0);
+    var benePct = (100.0 * mismatchedBene / Math.max(totalBene,1)).toFixed(2);
+    document.getElementById('kpi-bene-mismatch-val').textContent = mismatchedBene.toLocaleString();
+    document.getElementById('kpi-bene-mismatch-sub').textContent = benePct + '% of ' + totalBene.toLocaleString() + ' matched beneficiary-years';
+  }
+
+  /* -- KPI: Claims with payment mismatches -- */
+  var cpm = REPORT_DATA.claims_payment_mismatches || [];
+  if (cpm.length) {
+    var totalClaimsMismatch = cpm.reduce(function(s,r){return s+r.mismatch_count;},0);
+    var volClaims = REPORT_DATA.volume_claims || {};
+    document.getElementById('kpi-claims-pmt-val').textContent = totalClaimsMismatch.toLocaleString();
+    var claimDenom = volClaims.old || 0;
+    document.getElementById('kpi-claims-pmt-sub').textContent = 'Across ' + cpm.length + ' payment columns on ' + claimDenom.toLocaleString() + ' matched claims';
+  }
+
+  /* -- KPI: Total financial divergence -- */
+  var finDiv = REPORT_DATA.financial_divergence || [];
+  if (finDiv.length) {
+    var totalAbsDiff = finDiv.reduce(function(s,r){return s+r.abs_diff;},0);
+    document.getElementById('kpi-fin-diverge-val').textContent = '$' + totalAbsDiff.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+
+  /* -- KPI: Phantom / missing records -- */
+  var volB = REPORT_DATA.volume_beneficiaries || {};
+  var volC = REPORT_DATA.volume_claims || {};
+  if (volB.old || volC.old) {
+    var bDiff = Math.abs(volB.diff || 0);
+    var cDiff = Math.abs(volC.diff || 0);
+    document.getElementById('kpi-phantom-val').textContent = (bDiff + cDiff).toLocaleString();
+    var parts = [];
+    if (volB.diff > 0) parts.push(volB.diff.toLocaleString() + ' extra beneficiaries in new');
+    if (volB.diff < 0) parts.push(Math.abs(volB.diff).toLocaleString() + ' missing beneficiaries in new');
+    if (volC.diff > 0) parts.push(volC.diff.toLocaleString() + ' extra claims in new');
+    if (volC.diff < 0) parts.push(Math.abs(volC.diff).toLocaleString() + ' missing claims in new');
+    if (parts.length) document.getElementById('kpi-phantom-sub').textContent = parts.join(' · ');
+  }
+
+  /* -- Key Findings narrative (interpretive analysis) -- */
+  var af = REPORT_DATA.analysis_findings || {};
+  if (af.total_matched_bene) {
+    document.getElementById('key-findings').style.display = 'block';
+
+    document.getElementById('finding-accuracy').innerHTML =
+      '<strong style="color:var(--accent);">Overall accuracy: ' + af.accuracy_pct + '%.</strong> ' +
+      'Of ' + af.total_matched_bene.toLocaleString() + ' matched beneficiary-year records, ' +
+      af.mismatched_bene.toLocaleString() + ' (' + (100 - af.accuracy_pct).toFixed(2) + '%) have at least one field that differs between the old and new systems.';
+
+    document.getElementById('finding-top-field').innerHTML =
+      '<strong style="color:#f87171;">Primary issue: ' + af.top_field + ' mismatches.</strong> ' +
+      af.top_field_count.toLocaleString() + ' records (' + af.top_field_pct_of_all + '% of all field-level discrepancies) have different ' + af.top_field + ' values. ' +
+      (af.top_field === 'BENE_BIRTH_DT' ?
+        'This is consistent across all three summary years, suggesting a <em>systematic date parsing or migration bug</em> in the new system rather than random data corruption.' :
+        'This field accounts for the largest share of discrepancies.');
+
+    var directionNote = af.all_positive ?
+      'All dollar deltas are <em>positive</em> — the new system consistently <strong style="color:#fbbf24;">overstates</strong> reimbursements, never understates them. This one-directional pattern indicates a <em>systematic calculation bias</em>, not random noise.' :
+      'Dollar deltas go in both directions, suggesting random calculation errors rather than a systematic bias.';
+    document.getElementById('finding-financial').innerHTML =
+      '<strong style="color:#fbbf24;">Financial divergence: $' + af.abs_dollar_total.toLocaleString(undefined,{minimumFractionDigits:2}) + '.</strong> ' +
+      'Across ' + af.fin_field_count.toLocaleString() + ' financial field mismatches on 9 reimbursement columns (IP/OP/CAR × Medicare/Beneficiary/PrimaryPayer). ' +
+      directionNote;
+
+    var cpm2 = REPORT_DATA.claims_payment_mismatches || [];
+    if (cpm2.length) {
+      var topClaim = cpm2.reduce(function(a,b){return a.mismatch_count > b.mismatch_count ? a : b;});
+      var otherCount = cpm2.reduce(function(s,r){return s + r.mismatch_count;}, 0) - topClaim.mismatch_count;
+      document.getElementById('finding-claims').innerHTML =
+        '<strong style="color:#f87171;">Claims payment mismatches: ' + topClaim.mismatch_count.toLocaleString() + ' on ' + topClaim.column + '.</strong> ' +
+        'This is ' + Math.round(topClaim.mismatch_count / Math.max(otherCount,1)) + 'x more than all other payment columns combined (' + otherCount.toLocaleString() + '), ' +
+        'indicating a targeted calculation error in the primary payment amount logic.';
+    }
+
+    if (volC.diff) {
+      document.getElementById('finding-phantom').innerHTML =
+        '<strong>Phantom records: ' + Math.abs(volC.diff).toLocaleString() + ' claims.</strong> ' +
+        (volC.diff > 0 ?
+          'The new system generates ' + volC.diff.toLocaleString() + ' claims that have no corresponding record in the old system. Zero claims are lost (old-only = 0). This suggests the new system is <em>creating spurious claim records</em>.' :
+          Math.abs(volC.diff).toLocaleString() + ' claims exist in the old system but are missing from the new system (data loss).');
+    }
+
+    if (dby.length >= 2) {
+      var rates = dby.map(function(r){return r.pct;});
+      var minRate = Math.min.apply(null, rates);
+      var maxRate = Math.max.apply(null, rates);
+      var spread = maxRate - minRate;
+      document.getElementById('finding-trend').innerHTML =
+        '<strong>Trend stability:</strong> ' +
+        (spread < 0.1 ?
+          'Discrepancy rates are <strong style="color:#4ade80;">stable across years</strong> (' + minRate + '%–' + maxRate + '%), suggesting the errors are inherent to the migration logic rather than worsening over time.' :
+          'Discrepancy rates vary across years (' + minRate + '%–' + maxRate + '%), suggesting the issue may be time-dependent or data-volume-dependent.');
+    }
+
+    // What this means for accuracy
+    var riskLevel = af.accuracy_pct >= 99.5 ? 'low' : af.accuracy_pct >= 98 ? 'moderate' : 'high';
+    document.getElementById('meaning-accuracy').innerHTML =
+      'The new system achieves <strong>' + af.accuracy_pct + '% record-level accuracy</strong> on beneficiary data. ' +
+      (riskLevel === 'low' ? 'This is a strong result — fewer than 1 in 200 records are affected.' :
+       riskLevel === 'moderate' ? 'This needs investigation — more than 1 in 50 records are affected.' :
+       'This is a significant concern — accuracy is below 98%.');
+
+    var totalReimb = (REPORT_DATA.reimb_by_year_old || []).reduce(function(s,r){return s+r.total;},0);
+    var finPct = totalReimb > 0 ? (100.0 * af.abs_dollar_total / totalReimb).toFixed(4) : '0';
+    document.getElementById('meaning-risk').innerHTML =
+      '<strong>Risk assessment:</strong> The $' + af.abs_dollar_total.toLocaleString(undefined,{minimumFractionDigits:2}) +
+      ' financial divergence represents <strong>' + finPct + '%</strong> of $' + (totalReimb/1e9).toFixed(2) + 'B total reimbursements — ' +
+      '<em>negligible in aggregate</em>. However, the concentration in specific fields (' + af.top_field + ', ' +
+      (cpm2.length ? cpm2[0].column : 'payment amounts') + ') and the one-directional bias suggest <strong style="color:#fbbf24;">two distinct bugs</strong> ' +
+      'that should be fixed before production cutover: (1) a date handling issue and (2) a payment calculation issue.';
+  }
+
+  /* -- Chart: Geographic distribution of discrepancies -- */
+  var dbs = REPORT_DATA.discrepancy_by_state || [];
+  if (dbs.length) {
+    var dbsFiltered = dbs.filter(function(r){return r.mismatched > 0;}).sort(function(a,b){return b.rate - a.rate;}).slice(0,25);
+    if (dbsFiltered.length && document.getElementById('chart-field-mismatches')) {
+      // We'll add a small geographic note
+    }
+  }
+
+  /* -- Chart: Top field mismatches (horizontal bar) -- */
+  var fm = REPORT_DATA.field_mismatches || [];
+  if (fm.length) {
+    var fmTop = fm.slice(0, 20);
+    Plotly.newPlot('chart-field-mismatches',[{
+      x: fmTop.map(function(r){return r.mismatch_count;}),
+      y: fmTop.map(function(r){return r.field;}),
+      orientation:'h', type:'bar',
+      marker:{color:fmTop.map(function(r){return r.mismatch_count > 100 ? '#f87171' : '#fbbf24';})},
+      text:fmTop.map(function(r){return r.mismatch_count.toLocaleString();}),
+      textposition:'outside'
+    }],Object.assign({},dark,{
+      title:'Top Mismatched Fields (New vs Old)',
+      xaxis:{title:'Mismatched Records',gridcolor:gridColor},
+      yaxis:{autorange:'reversed',gridcolor:gridColor},
+      height:400,margin:{l:200,r:60,t:50,b:40}
+    }),{responsive:true});
+  }
+
+  /* -- Chart: Discrepancy trend by year -- */
+  if (dby.length) {
+    var dbyYears = dby.map(function(r){return String(r.year);});
+    Plotly.newPlot('chart-discrepancy-trend',[
+      {x:dbyYears,y:dby.map(function(r){return r.total;}),name:'Total Matched',type:'bar',marker:{color:'#334155'}},
+      {x:dbyYears,y:dby.map(function(r){return r.mismatched;}),name:'With Mismatches',type:'bar',marker:{color:'#f87171'}},
+      {x:dbyYears,y:dby.map(function(r){return r.pct;}),name:'Mismatch %',type:'scatter',mode:'lines+markers',yaxis:'y2',line:{color:'#fbbf24',width:3},marker:{size:8}}
+    ],Object.assign({},dark,{
+      barmode:'overlay',
+      title:'Beneficiary Discrepancy Trend by Year',
+      xaxis:{title:'Year',gridcolor:gridColor},
+      yaxis:{title:'Records',gridcolor:gridColor},
+      yaxis2:{title:'Mismatch %',overlaying:'y',side:'right',gridcolor:'rgba(0,0,0,0)',showgrid:false,ticksuffix:'%'},
+      legend:{bgcolor:'rgba(0,0,0,0)',x:0.01,y:0.99},
+      height:400,margin:{l:70,r:70,t:50,b:40}
+    }),{responsive:true});
+  }
+
+  /* -- Chart: Financial divergence by column -- */
+  if (finDiv.length) {
+    var fdCols = finDiv.map(function(r){return r.column;});
+    var fdColors = finDiv.map(function(r){return r.diff > 0 ? '#4ade80' : '#f87171';});
+    Plotly.newPlot('chart-fin-divergence',[{
+      x:fdCols,y:finDiv.map(function(r){return r.diff;}),
+      type:'bar',marker:{color:fdColors},
+      text:finDiv.map(function(r){return '$'+r.diff.toLocaleString(undefined,{minimumFractionDigits:0});}),
+      textposition:'outside'
+    }],Object.assign({},dark,{
+      title:'Financial Divergence: New − Old (by column)',
+      xaxis:{title:'Reimbursement Column',gridcolor:gridColor,tickangle:-35},
+      yaxis:{title:'Dollar Difference ($)',gridcolor:gridColor},
+      height:400,margin:{l:80,r:30,t:50,b:100}
+    }),{responsive:true});
+  }
+
+  /* -- Chart: Old vs New total reimbursement by year -- */
+  var reimbOld = REPORT_DATA.reimb_by_year_old || [];
+  var reimbNew = REPORT_DATA.reimb_by_year_new || [];
+  if (reimbOld.length && reimbNew.length) {
+    Plotly.newPlot('chart-reimb-comparison',[
+      {x:reimbOld.map(function(r){return String(r.year);}),y:reimbOld.map(function(r){return r.total;}),name:'Old System (Truth)',type:'bar',marker:{color:'#38bdf8'}},
+      {x:reimbNew.map(function(r){return String(r.year);}),y:reimbNew.map(function(r){return r.total;}),name:'New System',type:'bar',marker:{color:'#4ade80',opacity:0.7}}
+    ],Object.assign({},dark,{
+      barmode:'group',
+      title:'Total Medicare Reimbursement: Old vs New',
+      xaxis:{title:'Year',gridcolor:gridColor},
+      yaxis:{title:'Total Reimbursement ($)',gridcolor:gridColor},
+      legend:{bgcolor:'rgba(0,0,0,0)'},
+      height:400,margin:{l:80,r:30,t:50,b:40}
+    }),{responsive:true});
+  }
+
+  /* ================================================================ */
+  /* EXISTING CHARTS                                                  */
+  /* ================================================================ */
+
+  /* -- Validation bar chart -- */
+  var vals = REPORT_DATA._validations || [];
+  if (vals.length) {
+    var vChecks = vals.map(function(v){return v.check_name;});
+    var vIssues = vals.map(function(v){return parseInt(String(v.issues_found).replace(/,/g,''))||0;});
+    var vColors = vIssues.map(function(i){return i>0?'#f87171':'#4ade80';});
+    Plotly.newPlot('chart-validation',[{x:vIssues,y:vChecks,orientation:'h',type:'bar',marker:{color:vColors},text:vIssues.map(function(i){return i.toLocaleString();}),textposition:'outside'}],
+      Object.assign({},dark,{title:'Issues Found Per Validation Check',xaxis:{title:'Issues Found',gridcolor:gridColor},yaxis:{autorange:'reversed',gridcolor:gridColor},height:Math.max(350,vChecks.length*35),margin:{l:250,r:60,t:50,b:40}}),{responsive:true});
+  }
+
+  /* -- YoY Beneficiaries -- */
+  var yoyB = REPORT_DATA.yoy_beneficiaries || [];
+  if (yoyB.length) {
+    Plotly.newPlot('chart-yoy-bene',[{x:yoyB.map(function(r){return String(r.year);}),y:yoyB.map(function(r){return r.count;}),type:'bar',marker:{color:'#38bdf8'},text:yoyB.map(function(r){return r.count.toLocaleString();}),textposition:'outside'}],
+      Object.assign({},dark,{title:'Beneficiaries by Year',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Count',gridcolor:gridColor},height:350}),{responsive:true});
+  }
+
+  /* -- YoY Claims -- */
+  var yoyC = REPORT_DATA.yoy_claims || [];
+  if (yoyC.length) {
+    Plotly.newPlot('chart-yoy-claims',[{x:yoyC.map(function(r){return String(r.year);}),y:yoyC.map(function(r){return r.count;}),type:'bar',marker:{color:'#a78bfa'},text:yoyC.map(function(r){return r.count.toLocaleString();}),textposition:'outside'}],
+      Object.assign({},dark,{title:'Carrier Claims by Year',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Claims',gridcolor:gridColor},height:350}),{responsive:true});
+  }
+
+  /* -- Financial Trends (grouped bar) -- */
+  var ft = REPORT_DATA.financial_trends || [];
+  if (ft.length) {
+    var ftYears = ft.map(function(r){return String(r.year);});
+    Plotly.newPlot('chart-financial-trends',[
+      {name:'Inpatient',x:ftYears,y:ft.map(function(r){return r.inpatient;}),type:'bar',marker:{color:'#f87171'}},
+      {name:'Outpatient',x:ftYears,y:ft.map(function(r){return r.outpatient;}),type:'bar',marker:{color:'#fbbf24'}},
+      {name:'Carrier',x:ftYears,y:ft.map(function(r){return r.carrier;}),type:'bar',marker:{color:'#4ade80'}}
+    ],Object.assign({},dark,{barmode:'group',title:'Medicare Reimbursement Totals by Year & Type',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Total Reimbursement ($)',gridcolor:gridColor},legend:{bgcolor:'rgba(0,0,0,0)'},height:400,margin:{l:80,r:30,t:50,b:40}}),{responsive:true});
+  }
+
+  /* -- Financial Distribution (box plots) -- */
+  var fd = REPORT_DATA.financial_distribution || {};
+  if (fd.medicare_reimb && fd.medicare_reimb.length) {
+    Plotly.newPlot('chart-financial-dist',[
+      {y:fd.medicare_reimb,name:'Medicare Reimb',type:'box',marker:{color:'#4ade80'}},
+      {y:fd.beneficiary_resp,name:'Beneficiary Resp',type:'box',marker:{color:'#fbbf24'}},
+      {y:fd.primary_payer,name:'Primary Payer',type:'box',marker:{color:'#38bdf8'}}
+    ],Object.assign({},dark,{title:'Carrier Payment Distribution (sample)',yaxis:{title:'Amount ($)',gridcolor:gridColor},showlegend:false,height:400,margin:{l:80,r:30,t:50,b:40}}),{responsive:true});
+  }
+
+  /* -- Chronic Conditions (line chart) -- */
+  var cc = REPORT_DATA.chronic_conditions || {};
+  if (cc.years && cc.conditions) {
+    var ccColors = ['#f87171','#fb923c','#fbbf24','#a3e635','#4ade80','#2dd4bf','#38bdf8','#818cf8','#a78bfa','#f472b6','#e2e8f0'];
+    var ccTraces = cc.conditions.map(function(c,i){
+      return {x:cc.years.map(String),y:c.rates,mode:'lines+markers',name:c.condition,line:{color:ccColors[i%ccColors.length],width:2},marker:{size:6}};
+    });
+    Plotly.newPlot('chart-chronic',ccTraces,
+      Object.assign({},dark,{title:'Chronic Condition Prevalence by Year (%)',xaxis:{title:'Year',gridcolor:gridColor},yaxis:{title:'Prevalence (%)',gridcolor:gridColor},legend:{bgcolor:'rgba(0,0,0,0)',font:{size:10}},height:400}),{responsive:true});
+  }
+
+  /* -- Sidebar active section highlighting (IntersectionObserver) -- */
+  var sidebarLinks = document.querySelectorAll('#sidebar a[data-section]');
+  var sectionIds = Array.from(sidebarLinks).map(function(a){return a.getAttribute('data-section');});
+  var sectionEls = sectionIds.map(function(id){return document.getElementById(id);}).filter(Boolean);
+
+  if (sectionEls.length && 'IntersectionObserver' in window) {
+    var currentActive = null;
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          var id = entry.target.id;
+          if (currentActive !== id) {
+            currentActive = id;
+            sidebarLinks.forEach(function(a) {
+              a.classList.toggle('active', a.getAttribute('data-section') === id);
+            });
+          }
+        }
+      });
+    }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+    sectionEls.forEach(function(el) { observer.observe(el); });
+  }
+
+  /* -- Table sorting -- */
+  document.querySelectorAll('table').forEach(function(table) {
+    var headers = table.querySelectorAll('th');
+    headers.forEach(function(th, colIdx) {
+      var arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      th.appendChild(arrow);
+      th.addEventListener('click', function() {
+        var isAsc = th.classList.contains('sort-asc');
+        headers.forEach(function(h) { h.classList.remove('sort-asc', 'sort-desc'); });
+        th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+        var tbody = table.querySelector('tbody') || table;
+        var rows = Array.from(tbody.querySelectorAll('tr'));
+        if (tbody === table) {
+          rows = rows.filter(function(r) { return !r.querySelector('th'); });
+        }
+        rows.sort(function(a, b) {
+          var aCell = a.cells[colIdx];
+          var bCell = b.cells[colIdx];
+          if (!aCell || !bCell) return 0;
+          var aText = aCell.textContent.trim();
+          var bText = bCell.textContent.trim();
+          var aNum = parseFloat(aText.replace(/[,%$]/g, ''));
+          var bNum = parseFloat(bText.replace(/[,%$]/g, ''));
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return isAsc ? bNum - aNum : aNum - bNum;
+          }
+          return isAsc ? bText.localeCompare(aText) : aText.localeCompare(bText);
+        });
+        rows.forEach(function(row) { (tbody === table ? table : tbody).appendChild(row); });
+      });
+    });
+  });
+});
+</script>
+</body>
+</html>

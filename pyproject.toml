@@ -1,0 +1,26 @@
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+
+# Strict for core pipeline code
+[[tool.mypy.overrides]]
+module = "src.pipeline.*"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "src.adapters.*"
+disallow_untyped_defs = true
+
+# DuckDB stubs type fetchone() as tuple | None; in practice
+# COUNT(*) and similar always return a row.  Suppress the noise.
+[[tool.mypy.overrides]]
+module = [
+    "src.report", "src.validate", "src.profile", "src.ingest",
+    "src.compare", "src.db_utils",
+    "src.pipeline.step3_ingest", "src.pipeline.step5_compare",
+]
+disable_error_code = ["index"]

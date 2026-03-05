@@ -200,7 +200,7 @@ def check_financial_reconciliation(con: duckdb.DuckDBPyConnection) -> list[Valid
                 MAX({col_diff}) AS max_diff
             FROM _financial_recon
         """).fetchone()
-
+        assert stats is not None
         total, mismatches, avg_diff, max_diff = stats
         results.append(ValidationResult(
             check_name=f"financial_recon_{metric.lower()}",

@@ -6,6 +6,17 @@ Built for the USDS Data Engineering Take-Home Assessment.
 
 ---
 
+## Prerequisites
+
+| Approach | What you need |
+|----------|---------------|
+| **Docker (recommended)** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) — nothing else required |
+| **Local Python** | Python 3.14+ and `pip install -r requirements.txt` |
+
+All Python libraries (DuckDB, Pandas, Plotly, Jinja2, pytest) are listed in `requirements.txt` — there are **no system-level dependencies** beyond Python itself.
+
+---
+
 ## Quick Start
 
 ### Option A: Docker (recommended)
@@ -16,47 +27,59 @@ Docker is the simplest way to run the pipeline on any machine. No Python install
 # 1. Build the image
 docker build -t cms-pipeline .
 
-# 2. Place your data
-#    - Old system CSVs → data/raw/
-#    - New system CSVs → data/new/  (when available)
+# 2. Place ZIP archives in data/original_downloads/  (see "Data Setup" below)
+#    If new system CSVs are in data/new_system/, they are auto-detected.
 
-# 3. Run the full pipeline + serve docs (all-in-one)
+# 3. Run everything
 docker run --rm -p 8888:8888 \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/reports:/app/reports" \
   cms-pipeline
 
-# Then open http://localhost:8888 for the full documentation hub:
-#   - Comparison Report, Architecture diagrams, Schema Explorer
-#   - Parquet Viewer, SQL Explorer (query exports in-browser)
-#   - Solution Design, Pipeline Reference, Data Dictionary
+# 4. Open http://localhost:8888
+```
 
-# 4. Pipeline-only (no web server)
+That's it. The entrypoint automatically:
+1. Extracts ZIPs → runs the 6-step pipeline → writes report
+2. Runs the test suite
+3. Renders markdown docs as styled HTML
+4. Starts a documentation web server on port 8888
+
+Reports are also saved to `reports/comparison_report.html` for standalone viewing.
+
+<details>
+<summary><strong>Advanced Docker options</strong></summary>
+
+```bash
+# Pipeline-only (no web server, no tests)
 docker run --rm \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/reports:/app/reports" \
   cms-pipeline python -m src.main
 
-# 5. With new system data
-docker run --rm -p 8888:8888 \
-  -v "$(pwd)/data:/app/data" \
-  -v "$(pwd)/reports:/app/reports" \
-  cms-pipeline ./entrypoint.sh --new-data /app/data/new/
-
-# 6. Skip ingest on re-runs (reuses DuckDB)
+# Skip ingest on re-runs (reuses existing DuckDB)
 docker run --rm -p 8888:8888 \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/reports:/app/reports" \
   cms-pipeline ./entrypoint.sh --skip-ingest
+
+# Skip tests (faster re-runs)
+docker run --rm -p 8888:8888 \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/reports:/app/reports" \
+  cms-pipeline ./entrypoint.sh --skip-tests
 ```
 
-The entrypoint runs the pipeline, tests, renders markdown docs, then starts a web server on port 8888.
-Reports are also written to `reports/comparison_report.html` for standalone viewing.
+> **Note:** Overriding the command (e.g., `python -m src.main`) replaces the entire entrypoint —
+> tests, doc rendering, and the web server will **not** run. To customize pipeline arguments while
+> keeping the full entrypoint, pass them after `./entrypoint.sh`.
+
+</details>
 
 ### Option B: Local Python
 
 ```bash
-# Requires Python 3.13+ (3.14 recommended)
+# Requires Python 3.14+
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -67,7 +90,7 @@ pip install -r requirements.txt
 python -m src.main
 
 # With new system data
-python -m src.main --new-data data/new/
+python -m src.main --new-data data/new_system/
 
 # Skip ingest on re-runs
 python -m src.main --skip-ingest
@@ -89,20 +112,69 @@ Upload old system CSVs → optionally upload new system CSVs → run pipeline �
 
 ### Data Setup
 
-1. Download the **old system** (legacy) files from [CMS DE-SynPUF Sample 1](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf/de10-sample-1):
-   - DE1.0 Sample 1 2008 Beneficiary Summary File (ZIP)
-   - DE1.0 Sample 1 2009 Beneficiary Summary File (ZIP)
-   - DE1.0 Sample 1 2010 Beneficiary Summary File (ZIP)
-   - DE1.0 Sample 1 2008-2010 Carrier Claims 1 (ZIP)
-   - DE1.0 Sample 1 2008-2010 Carrier Claims 2 (ZIP)
+The pipeline needs **5 old system CSV files** (required) and optionally **new system CSV files** for comparison. You can provide them as ZIP archives or pre-extracted CSVs.
 
-2. Unzip into `data/raw/`:
-   ```bash
-   mkdir -p data/raw
-   for f in data/*.zip; do unzip -o "$f" -d data/raw/; done
-   ```
+#### Old System Data (required)
 
-3. *(When available)* Place **new system** CSVs into `data/new/`.
+Download **Sample 1** from [CMS DE-SynPUF](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf/de10-sample-1):
+
+| Download link on CMS site | Extracted CSV filename |
+|---------------------------|----------------------|
+| DE1.0 Sample 1 2008 Beneficiary Summary File | `DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv` |
+| DE1.0 Sample 1 2009 Beneficiary Summary File | `DE1_0_2009_Beneficiary_Summary_File_Sample_1.csv` |
+| DE1.0 Sample 1 2010 Beneficiary Summary File | `DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv` |
+| DE1.0 Sample 1 Carrier Claims A | `DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv` |
+| DE1.0 Sample 1 Carrier Claims B | `DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv` |
+
+**Option 1 — Place ZIP archives (auto-extracted):**
+```bash
+mv *.zip data/original_downloads/
+```
+The pipeline **automatically extracts** ZIPs into `data/old_system/` during Step 1. No manual unzipping required.
+
+**Option 2 — Place pre-extracted CSVs directly:**
+```bash
+mv *.csv data/old_system/
+```
+If CSVs are already in `data/old_system/`, the pipeline skips extraction and uses them directly.
+
+#### New System Data (optional — for comparison)
+
+Place the new system CSVs into `data/new_system/`:
+```bash
+# If you have a ZIP:
+unzip "New Claims System Outputs.zip" -d data/new_system/
+
+# Or if you have CSVs:
+mv *_NEWSYSTEM.csv data/new_system/
+```
+The entrypoint **auto-detects** CSVs in `data/new_system/` — no extra flags needed. New system files are matched by header content (files containing `Beneficiary` or `Carrier` column patterns), not by filename.
+
+#### Expected folder structure after setup
+
+```
+data/
+├── original_downloads/      # Option 1: place ZIPs here (auto-extracted)
+│   ├── README.md             # Detailed file listing (tracked in git)
+│   └── *.zip
+├── old_system/               # CSVs end up here (5 files)
+│   ├── DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv
+│   ├── DE1_0_2009_Beneficiary_Summary_File_Sample_1.csv
+│   ├── DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv
+│   ├── DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv
+│   └── DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv
+├── new_system/               # Optional: new system CSVs for comparison
+│   └── *.csv
+└── database/                 # Auto-generated by pipeline
+    └── cms_claims.duckdb
+```
+
+**Data lineage:**
+```
+data/original_downloads/*.zip  →  Step 1: auto-extract  →  data/old_system/*.csv
+                                                                    ↓
+data/new_system/*.csv  ─────────────────────────────────→  Step 3: Ingest  →  data/database/cms_claims.duckdb
+```
 
 ---
 
@@ -112,7 +184,7 @@ Upload old system CSVs → optionally upload new system CSVs → run pipeline �
 
 | Component | Purpose | Required? |
 |-----------|---------|-----------|
-| **Python 3.13+** | Runtime | Yes (or use Docker) |
+| **Python 3.14+** | Runtime | Yes (or use Docker) |
 | **DuckDB** | Analytical database — zero-config, embedded, handles GBs of CSVs natively | Yes (pip install) |
 | **Pandas** | DataFrame conversion for chart building | Yes (pip install) |
 | **Plotly** | Interactive charts in the HTML report | Yes (pip install) |
@@ -125,7 +197,7 @@ All Python dependencies are in `requirements.txt`. There are **no system-level d
 
 ### Python Version
 
-The Dockerfile pins `python:3.13-slim`. Python 3.13 is the latest stable release with full binary wheel support across all our dependencies (DuckDB, Pandas, Plotly, etc.) on macOS, Linux, and Windows. Python 3.12 also works — the codebase uses no version-specific features.
+The Dockerfile pins `python:3.14-slim`. The codebase requires Python 3.10+ (for `X | Y` union types and `dict[str, ...]` generics). Python 3.14 is the current stable release (October 2025) with full binary wheel support across all dependencies.
 
 ### Python Libraries
 
@@ -136,17 +208,19 @@ The Dockerfile pins `python:3.13-slim`. Python 3.13 is the latest stable release
 | **plotly** | ≥5.18.0 | Generates interactive HTML charts (bar, box, scatter). Charts are embedded directly in the report as self-contained HTML — no server needed. |
 | **jinja2** | ≥3.1.0 | HTML report templating. The report template is a single Jinja2 string with loops, conditionals, and variable interpolation. |
 | **pytest** | ≥8.0.0 | Test runner. Dev dependency only — not needed to run the pipeline. |
+| **fastapi** | ≥0.110.0 | Web upload UI (`web/server.py`). Optional — install via `pip install -r requirements-web.txt`. |
+| **uvicorn** | ≥0.27.0 | ASGI server for FastAPI. Optional — same as above. |
 
 ### What You Provide
 
 > **Detailed reference:** See [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md) for full column definitions, table schemas, and instructions for using other CMS samples.
 
-| Input | Description | Format |
-|-------|-------------|--------|
-| **Old system data** | CMS DE-SynPUF files from cms.gov | 5 CSVs: 3 beneficiary summary (2008-2010) + 2 carrier claims |
-| **New system data** | Replacement system output (password-protected zip from assessment) | CSVs with same schema, or a zip file |
+| Input | Where to put it | Format |
+|-------|----------------|--------|
+| **Old system data** (required) | ZIPs → `data/original_downloads/` **or** CSVs → `data/old_system/` | 5 files: 3 beneficiary summary (2008-2010) + 2 carrier claims |
+| **New system data** (optional) | CSVs → `data/new_system/` | CSVs with beneficiary/carrier column headers |
 
-The pipeline auto-detects file types by reading CSV headers — it doesn't rely on filenames.
+See [Data Setup](#data-setup) above for download links and step-by-step instructions. The pipeline auto-detects file types by reading CSV headers — it doesn't rely on filenames.
 
 ### What You Get
 
@@ -154,7 +228,7 @@ The pipeline auto-detects file types by reading CSV headers — it doesn't rely 
 |--------|----------|-------------|
 | **HTML Report** | `reports/comparison_report.html` | Interactive report with sidebar nav, Plotly charts, sortable tables |
 | **JSON Data** | `reports/report_data.json` | Canonical data artifact — all metrics as structured JSON |
-| **DuckDB Database** | `data/db/cms_claims.duckdb` | Persistent analytical database — query directly with DuckDB CLI |
+| **DuckDB Database** | `data/database/cms_claims.duckdb` | Persistent analytical database — query directly with DuckDB CLI |
 | **CSV Exports** | `reports/exports/*.csv` | Raw analysis tables — human-readable, Excel-compatible |
 | **Parquet Exports** | `reports/exports/*.parquet` | Same tables in ZSTD-compressed columnar format for downstream tools (Spark, Pandas, BigQuery) |
 
@@ -173,7 +247,7 @@ The pipeline auto-detects file types by reading CSV headers — it doesn't rely 
 │  3. INGEST & PROFILE  Load into DuckDB, profile quality │
 │  ↓ Null rates, distributions, anomaly detection         │
 ├─────────────────────────────────────────────────────────┤
-│  4. MATCH             Record matching by primary keys   │
+│  4. MATCH & VALIDATE  Record matching + consistency checks│
 │  ↓ FULL OUTER JOIN, classify: matched/old-only/new-only │
 ├─────────────────────────────────────────────────────────┤
 │  5. COMPARE           Field-level diffs, trend analysis │
@@ -237,7 +311,7 @@ python -m src.main [OPTIONS]
 Options:
   --new-data PATH    Path to directory or zip containing new system CSVs
   --skip-ingest      Skip ingestion, reuse existing DuckDB database
-  --db-path PATH     Custom DuckDB database path (default: data/db/cms_claims.duckdb)
+  --db-path PATH     Custom DuckDB database path (default: data/database/cms_claims.duckdb)
 ```
 
 ---
@@ -355,7 +429,7 @@ sam deploy --guided --profile personal
 sam deploy --profile personal
 
 # Upload data to S3
-aws s3 cp data/raw/ s3://<BUCKET>/raw/ --recursive --profile personal
+aws s3 cp data/original_downloads/ s3://<BUCKET>/original_downloads/ --recursive --profile personal
 ```
 
 After the report step completes, the pipeline syncs `docs/` and `reports/` to the S3 static site bucket, making the documentation hub (including Parquet Viewer and SQL Explorer) accessible via the S3 website URL or CloudFront.
@@ -424,11 +498,14 @@ The local and cloud versions share all pipeline logic:
 
 ```
 ├── Dockerfile               # Local container build (Python 3.14-slim)
+├── entrypoint.sh            # Docker entrypoint: pipeline → tests → docs → web server (auto-detects new system data)
 ├── .dockerignore             # Keep image small
 ├── .gitignore               # Excludes data/, caches, IDE files
 ├── README.md                 # This file
+├── REVIEWER_README.md        # Guided walkthrough for reviewers (with screenshots)
 ├── FEEDBACK.md               # Assessment feedback (per spec)
-├── requirements.txt          # Python dependencies (local)
+├── requirements.txt          # Core Python dependencies
+├── requirements-web.txt      # Optional: FastAPI/uvicorn for web upload UI
 │
 ├── src/
 │   ├── __init__.py
@@ -438,6 +515,9 @@ The local and cloud versions share all pipeline logic:
 │   ├── validate.py           # Internal consistency checks
 │   ├── compare.py            # Old vs New comparison engine
 │   ├── report.py             # HTML report + Plotly charts
+│   ├── db_utils.py           # Shared DuckDB utilities (table_exists, etc.)
+│   ├── templates/
+│   │   └── report.html.j2    # Jinja2 HTML report template
 │   ├── adapters/
 │   │   ├── __init__.py       # StorageAdapter protocol
 │   │   ├── local.py          # Local filesystem adapter
@@ -465,21 +545,21 @@ The local and cloud versions share all pipeline logic:
 ├── web/                      # FastAPI web UI (drag-and-drop uploads)
 │   └── server.py             # Self-contained server + frontend
 │
-├── tests/                    # 54 tests (pytest)
+├── tests/                    # 87 tests (pytest)
 │   ├── conftest.py           # Shared fixtures (in-memory DuckDB + sample data)
 │   ├── test_compare.py
 │   ├── test_pipeline.py      # Pipeline step tests
 │   ├── test_profile.py
+│   ├── test_real_data.py     # Real CMS data validation (auto-skipped if data not present)
 │   ├── test_report.py
 │   └── test_validate.py
 │
-├── viewer/                  # React diff viewer (Vite + TypeScript)
-│   ├── src/                 # Components, types, demo data generator
-│   ├── package.json
-│   └── vite.config.ts
+├── scripts/                 # Utility scripts
+│   ├── render_md_docs.py     # Convert markdown docs → styled HTML
+│   └── teardown_cloud.sh     # AWS resource cleanup
 │
-├── docs/                    # Our authored documentation
-│   ├── index.html            # Documentation hub (links to all pages)
+├── docs/                    # Documentation hub (served at localhost:8888)
+│   ├── index.html            # Landing page (links to all pages)
 │   ├── SOLUTION.md           # Architecture decisions and design rationale
 │   ├── REQUIREMENTS_TRACEABILITY.md  # Requirement → implementation mapping
 │   ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook ref
@@ -487,7 +567,9 @@ The local and cloud versions share all pipeline logic:
 │   ├── architecture.html     # Interactive architecture diagrams (Mermaid.js)
 │   ├── schema_explorer.html  # Interactive schema explorer (drag, zoom, search)
 │   ├── parquet_viewer.html   # In-browser Parquet file viewer (hyparquet)
-│   └── sql_explorer.html     # In-browser SQL queries on Parquet (Squirreling)
+│   ├── sql_explorer.html     # In-browser SQL queries on Parquet (Squirreling)
+│   ├── exports → ../reports/exports   # Symlink for web serving
+│   └── reports → ../reports           # Symlink for web serving
 │
 ├── specs/                   # Assessment spec + reference materials
 │   ├── 02A. Data Engineer Take Home Assessment.md  # Assessment spec
@@ -495,10 +577,11 @@ The local and cloud versions share all pipeline logic:
 │   ├── DE 1.0 Frequently Asked Questions.pdf      # CMS FAQ
 │   └── SynPUF_DUG.pdf                             # Data Users Guide
 │
-├── data/                    # ⚠ gitignored — download per Quick Start
-│   ├── raw/                 # Old system CSVs (unzipped)
-│   ├── new_claims_system_outputs/  # New system CSVs (from zip)
-│   └── db/                  # DuckDB database file (generated)
+├── data/                    # Data directory (large files gitignored)
+│   ├── original_downloads/  # Place ZIP archives here (tracked README)
+│   ├── old_system/          # Old system CSVs (auto-extracted by Step 1)
+│   ├── new_system/          # New system CSVs (when available)
+│   └── database/            # DuckDB database (auto-generated by Step 3)
 │
 ├── reports/                 # Pipeline outputs
 │   ├── comparison_report.html     # Self-contained HTML report (tracked)

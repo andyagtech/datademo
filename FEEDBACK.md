@@ -2,13 +2,17 @@
 
 ## Duration
 
-Approximately X hours (update before submission).
+Approximately 6 hours coding and another hour for writing and taking screenshots.
+
+I have a component from another personal project that I considered adding in here.
+
+I also added a bit more to the data exploration part than was originally asked for - showing the use of an in-browser Parquet viewer and query engine that was made by someone I know.
 
 ## Approach
 
 My approach prioritized building a reliable, well-structured pipeline over maximizing the number of checks. The key decisions:
 
-1. **DuckDB over Pandas** for the analytical workload — SQL is clearer for the complex joins and aggregations needed for financial reconciliation, and DuckDB handles the 2.4 GB carrier claims files without memory pressure.
+1. **DuckDB** for the analytical workload — SQL is clearer than tools like Pandasfor the complex joins and aggregations needed for matching records. DuckDB is not a trad works on files easily without needed persistent processes.  and can handle the 2.4 GB carrier claims files without memory pressure.
 
 2. **6-step pipeline with gate logic** — rather than a monolithic script, each step is independently testable and can halt early on bad input. This mirrors how production data pipelines should work.
 
@@ -20,7 +24,9 @@ My approach prioritized building a reliable, well-structured pipeline over maxim
 
 ## How My Expertise Fits This Assessment
 
-This assessment is fundamentally about **building trustworthy data infrastructure for a healthcare migration** — exactly the kind of work USDS does when modernizing government systems. My approach reflects that context:
+This assessment is fundamentally about **evaluating the migration of a healthcare claims processing system** — exactly the kind of work USDS does when modernizing government systems.
+
+My approach reflects that context:
 
 - **Production pipeline thinking:** The 6-step pipeline with gate logic, halting on bad input, and structured error reporting mirrors how I would build a real migration validation tool — not a one-off script, but something a team can maintain and re-run.
 - **Domain awareness:** I read the CMS codebook to understand the financial reconciliation rules (LINE_PRCSG_IND_CD filtering, MEDREIMB_CAR derivation). The validation checks are informed by the data's semantics, not just its structure.
@@ -38,13 +44,12 @@ This assessment is fundamentally about **building trustworthy data infrastructur
 
 ## Assessment Feedback
 
-- The assessment is well-scoped — the 4-6 hour estimate is realistic for a baseline solution. The open-ended nature (depth of analysis, report medium, tech choices) lets candidates demonstrate their strengths.
+- The assessment is well-scoped — the 4-6 hour estimate is realistic for a decent solution.
+- It is a fair evaluation. The open-ended nature (depth of analysis, report medium, tech choices) can let us show off different strengths.
 - The CMS DE-SynPUF data is a good choice — it's realistic, publicly available, and large enough to test performance decisions.
-- Having the new system data password-protected adds realism but creates a dependency on the link staying active. Consider including the zip directly in the repository or providing a backup download method.
-- The codebook is essential for understanding the financial reconciliation logic (e.g., which LINE_PRCSG_IND_CD values to filter on). Candidates who don't read it will miss important validation checks.
+- Working off a codebook is .
 
 ## Suggestions for Improving the Assessment
 
-- Consider providing a **sample expected output** (even partial) so candidates can self-validate their comparison logic. Without ground truth, it's hard to know if you've found all the intentional issues.
-- A brief **scoring rubric** (even at a high level — e.g., "we value depth over breadth") would help candidates allocate their time effectively.
-- The 20 DE-SynPUF samples offer a natural extension: "run your tool against a different sample" would test whether solutions are genuinely reusable vs. hardcoded to Sample 1.
+- A brief **scoring rubric** (even at a high level — e.g., "we value depth over breadth") could help us figure out the best use of our time.
+- As someone who makes data pipelines, I would want to see how candidates handle the other 20 DE-SynPUF samples, and if they make solutions that handle those well. 

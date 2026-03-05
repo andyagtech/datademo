@@ -14,20 +14,13 @@ import duckdb
 
 logger = logging.getLogger(__name__)
 
-RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
-DB_DIR = Path(__file__).resolve().parent.parent / "data" / "db"
+RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "old_system"
+DB_DIR = Path(__file__).resolve().parent.parent / "data" / "database"
 DB_PATH = DB_DIR / "cms_claims.duckdb"
 
-BENEFICIARY_FILES = {
-    2008: "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv",
-    2009: "DE1_0_2009_Beneficiary_Summary_File_Sample_1.csv",
-    2010: "DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv",
-}
-
-CARRIER_CLAIMS_FILES = [
-    "DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv",
-    "DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv",
-]
+# File discovery patterns — works with any CMS DE-SynPUF sample (1–20)
+BENEFICIARY_PATTERN = "*Beneficiary*"
+CARRIER_PATTERN = "*Carrier*"
 
 
 def get_connection(db_path: Path = DB_PATH) -> duckdb.DuckDBPyConnection:
@@ -42,22 +35,31 @@ def ingest_beneficiary_summaries(con: duckdb.DuckDBPyConnection) -> None:
 
     con.execute("DROP TABLE IF EXISTS beneficiary_summary")
 
+    bene_files = sorted(RAW_DIR.glob(BENEFICIARY_PATTERN))
+    bene_files = [f for f in bene_files if f.suffix == ".csv"]
+
     parts = []
-    for year, filename in sorted(BENEFICIARY_FILES.items()):
-        csv_path = RAW_DIR / filename
-        if not csv_path.exists():
-            logger.warning(f"Missing file: {csv_path}")
-            continue
-        logger.info(f"  Reading {filename} (year={year})...")
-        parts.append(
-            f"SELECT *, {year} AS summary_year FROM read_csv_auto('{csv_path}', header=true, all_varchar=false)"
-        )
+    for csv_path in bene_files:
+        year = _extract_year_from_filename(csv_path.name)
+        if year:
+            logger.info(f"  Reading {csv_path.name} (year={year})...")
+            parts.append(
+                f"SELECT *, {year} AS summary_year FROM read_csv_auto('{csv_path}', header=true, all_varchar=false)"
+            )
+        else:
+            logger.warning(f"  Could not extract year from {csv_path.name}, skipping")
 
     if not parts:
-        raise FileNotFoundError("No beneficiary summary files found in data/raw/")
+        raise FileNotFoundError("No beneficiary summary files found in data/old_system/. Place ZIP archives in data/original_downloads/ and re-run.")
 
     union_query = " UNION ALL ".join(parts)
-    con.execute(f"CREATE TABLE beneficiary_summary AS ({union_query})")
+    try:
+        con.execute(f"CREATE TABLE beneficiary_summary AS ({union_query})")
+    except duckdb.Error as e:
+        raise ValueError(
+            f"Failed to load beneficiary CSV files — check that files are valid CSVs "
+            f"with expected headers (see docs/DATA_DICTIONARY.md). DuckDB error: {e}"
+        ) from e
 
     count = con.execute("SELECT COUNT(*) FROM beneficiary_summary").fetchone()[0]
     logger.info(f"  Loaded {count:,} beneficiary summary records.")
@@ -69,22 +71,27 @@ def ingest_carrier_claims(con: duckdb.DuckDBPyConnection) -> None:
 
     con.execute("DROP TABLE IF EXISTS carrier_claims")
 
+    carrier_files = sorted(RAW_DIR.glob(CARRIER_PATTERN))
+    carrier_files = [f for f in carrier_files if f.suffix == ".csv"]
+
     parts = []
-    for filename in CARRIER_CLAIMS_FILES:
-        csv_path = RAW_DIR / filename
-        if not csv_path.exists():
-            logger.warning(f"Missing file: {csv_path}")
-            continue
-        logger.info(f"  Reading {filename}...")
+    for csv_path in carrier_files:
+        logger.info(f"  Reading {csv_path.name}...")
         parts.append(
             f"SELECT * FROM read_csv_auto('{csv_path}', header=true, all_varchar=false)"
         )
 
     if not parts:
-        raise FileNotFoundError("No carrier claims files found in data/raw/")
+        raise FileNotFoundError("No carrier claims files found in data/old_system/. Place ZIP archives in data/original_downloads/ and re-run.")
 
     union_query = " UNION ALL ".join(parts)
-    con.execute(f"CREATE TABLE carrier_claims AS ({union_query})")
+    try:
+        con.execute(f"CREATE TABLE carrier_claims AS ({union_query})")
+    except duckdb.Error as e:
+        raise ValueError(
+            f"Failed to load carrier claims CSV files — check that files are valid CSVs "
+            f"with expected headers (see docs/DATA_DICTIONARY.md). DuckDB error: {e}"
+        ) from e
 
     count = con.execute("SELECT COUNT(*) FROM carrier_claims").fetchone()[0]
     logger.info(f"  Loaded {count:,} carrier claims records.")

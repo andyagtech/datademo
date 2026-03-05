@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 def run(ctx: PipelineContext) -> StepResult:
     """Execute Step 6: Report generation."""
-    errors = []
-    warnings = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     profiles = ctx.results.get("profiles", {})
     validations = ctx.results.get("validations", [])

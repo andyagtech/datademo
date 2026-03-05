@@ -10,9 +10,9 @@
 
 1. [Pipeline Overview](#pipeline-overview)
 2. [Step 1 — Receive & Verify](#step-1--receive--verify)
-3. [Step 2 — Schema Validation](#step-2--schema-validation)
+3. [Step 2 — Schema Validate](#step-2--schema-validate)
 4. [Step 3 — Ingest & Profile](#step-3--ingest--profile)
-5. [Step 4 — Record Matching & Validation](#step-4--record-matching--validation)
+5. [Step 4 — Match & Validate](#step-4--match--validate)
 6. [Step 5 — Compare & Analyze](#step-5--compare--analyze)
 7. [Step 6 — Report](#step-6--report)
 8. [Data Model](#data-model)
@@ -30,9 +30,9 @@ CSV Files (old + new system)
     ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │  Step 1: Receive & Verify     — file discovery, checksums        │
-│  Step 2: Schema Validation    — header checks, file classification│
+│  Step 2: Schema Validate      — header checks, file classification│
 │  Step 3: Ingest & Profile     — DuckDB loading, column profiling │
-│  Step 4: Record Matching      — FULL OUTER JOIN, validation      │
+│  Step 4: Match & Validate     — FULL OUTER JOIN, consistency     │
 │  Step 5: Compare & Analyze    — field-level diffs, aggregates    │
 │  Step 6: Report               — JSON data + HTML + CSV exports   │
 └──────────────────────────────────────────────────────────────────┘
@@ -43,7 +43,7 @@ reports/comparison_report.html  (interactive HTML report)
 reports/exports/*.csv           (raw diff tables)
 ```
 
-**Execution model:** Each step is a pure function `run(ctx: PipelineContext) -> StepResult`. The runner (`src/runner.py`) calls them in sequence. If any step sets `ctx.halted = True`, the pipeline stops with a clear error message. The same functions run locally (sequential) or in AWS (Step Functions + Lambda).
+**Execution model:** Each step is a pure function `run(ctx: PipelineContext) -> StepResult`. The runner (`src/pipeline/runner.py`) calls them in sequence. If any step sets `ctx.halted = True`, the pipeline stops with a clear error message. The same functions run locally (sequential) or in AWS (Step Functions + Lambda).
 
 **Key types:**
 - `PipelineContext` — carries the DuckDB connection, config, storage adapter, and accumulated results across steps.
@@ -58,7 +58,7 @@ reports/exports/*.csv           (raw diff tables)
 **Purpose:** Discover input CSV files, verify integrity, build a complete file inventory.
 
 **Process:**
-1. Scan `data/` directory (or S3 bucket via `StorageAdapter`) for CSV files matching glob patterns `*Beneficiary*` and `*Carrier*`.
+1. Scan `data/original_downloads/` for ZIP archives and `data/old_system/` for extracted CSVs (or S3 bucket via `StorageAdapter`).
 2. If a `--new-data` path is provided, scan it separately for new system files.
 3. Extract any `.zip` archives found.
 4. Compute SHA-256 checksums for integrity verification.
@@ -79,7 +79,7 @@ reports/exports/*.csv           (raw diff tables)
         }
     },
     "new_system": {
-        "source_dir": "data/new_claims_system_outputs/...",
+        "source_dir": "data/new_system/...",
         "inventory": { ... }
     }
 }
@@ -89,9 +89,9 @@ reports/exports/*.csv           (raw diff tables)
 
 ---
 
-## Step 2 — Schema Validation
+## Step 2 — Schema Validate
 
-**Source:** `src/pipeline/step2_schema.py`
+**Source:** `src/pipeline/step2_schema_validate.py`
 
 **Purpose:** Validate CSV headers before the expensive ingestion step. Fail fast on malformed input.
 
@@ -103,7 +103,7 @@ reports/exports/*.csv           (raw diff tables)
 3. Check for missing required columns and unexpected extra columns.
 4. Report schema errors per file.
 
-**Outputs stored in `ctx.results["schema"]`:**
+**Outputs stored in `ctx.results["schema_validate"]`:**
 ```python
 {
     "validated_count": 10,
@@ -156,7 +156,7 @@ For every column in every table, computes:
 
 ---
 
-## Step 4 — Record Matching & Validation
+## Step 4 — Match & Validate
 
 **Source:** `src/pipeline/step4_match.py`, `src/validate.py`
 
@@ -496,7 +496,7 @@ Parquet files are produced natively by DuckDB (no pyarrow dependency) and can be
 
 | File | Description |
 |------|-------------|
-| `data/db/cms_claims.duckdb` | Persistent DuckDB database with all 8 tables — queryable via CLI, Python, or any DuckDB binding |
+| `data/database/cms_claims.duckdb` | Persistent DuckDB database with all 8 tables — queryable via CLI, Python, or any DuckDB binding |
 
 ---
 

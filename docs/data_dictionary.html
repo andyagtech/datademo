@@ -871,11 +871,10 @@ PPPYMT_CAR = SUM(LINE_BENE_PRMRY_PYR_PD_AMT) [same filter]
 <p><strong>Download</strong> the desired sample files from the <a href="https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf">CMS DE-SynPUF page</a>.</p>
 </li>
 <li>
-<p><strong>Place the CSVs</strong> in <code>data/raw/</code>:<br />
+<p><strong>Place the ZIP archives</strong> in <code>data/original_downloads/</code>:<br />
 <code>bash
-   mkdir -p data/raw
-   # Unzip the downloaded files
-   for f in *.zip; do unzip -o "$f" -d data/raw/; done</code></p>
+   mv *.zip data/original_downloads/</code><br />
+   The pipeline auto-extracts ZIPs into <code>data/old_system/</code> during Step 1.</p>
 </li>
 <li>
 <p><strong>Run the pipeline</strong> — file detection is automatic (matches glob patterns <code>*Beneficiary*</code> and <code>*Carrier*</code>):<br />

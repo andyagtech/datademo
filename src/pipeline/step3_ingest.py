@@ -46,8 +46,8 @@ def _detect_anomalies(con: duckdb.DuckDBPyConnection) -> list[dict]:
                     "count": r[0],
                     "severity": "high",
                 })
-        except Exception:
-            pass
+        except duckdb.Error as e:
+            logger.debug(f"Anomaly check skipped for {col}: {e}")
 
     # Future birth dates (BENE_BIRTH_DT > 20250101)
     try:
@@ -63,8 +63,8 @@ def _detect_anomalies(con: duckdb.DuckDBPyConnection) -> list[dict]:
                 "count": r[0],
                 "severity": "high",
             })
-    except Exception:
-        pass
+    except duckdb.Error as e:
+        logger.debug(f"Anomaly check skipped for BENE_BIRTH_DT: {e}")
 
     # Invalid sex codes (should be 1 or 2)
     try:
@@ -80,8 +80,8 @@ def _detect_anomalies(con: duckdb.DuckDBPyConnection) -> list[dict]:
                 "count": r[0],
                 "severity": "medium",
             })
-    except Exception:
-        pass
+    except duckdb.Error as e:
+        logger.debug(f"Anomaly check skipped for BENE_SEX_IDENT_CD: {e}")
 
     # Claims with zero or negative payment across all lines
     try:
@@ -109,16 +109,16 @@ def _detect_anomalies(con: duckdb.DuckDBPyConnection) -> list[dict]:
                 "count": r[0],
                 "severity": "medium",
             })
-    except Exception:
-        pass
+    except duckdb.Error as e:
+        logger.debug(f"Anomaly check skipped for zero_total_payment: {e}")
 
     return anomalies
 
 
 def run(ctx: PipelineContext) -> StepResult:
     """Execute Step 3: Ingest into DuckDB and profile."""
-    errors = []
-    warnings = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     # Get or create DB connection
     if ctx.skip_ingest and ctx.con:
@@ -144,7 +144,7 @@ def run(ctx: PipelineContext) -> StepResult:
         try:
             ingest_beneficiary_summaries(con)
             ingest_carrier_claims(con)
-        except FileNotFoundError as e:
+        except (FileNotFoundError, ValueError) as e:
             return StepResult(
                 step_name="ingest",
                 success=False,
@@ -176,7 +176,8 @@ def run(ctx: PipelineContext) -> StepResult:
     try:
         bene_count = con.execute("SELECT COUNT(*) FROM beneficiary_summary").fetchone()[0]
         claim_count = con.execute("SELECT COUNT(*) FROM carrier_claims").fetchone()[0]
-    except Exception:
+    except duckdb.Error as e:
+        logger.warning(f"Could not query row counts: {e}")
         bene_count = 0
         claim_count = 0
 

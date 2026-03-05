@@ -519,8 +519,8 @@ flowchart TB
 %%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1e293b', 'primaryBorderColor': '#38bdf8', 'primaryTextColor': '#e2e8f0', 'lineColor': '#38bdf8', 'secondaryColor': '#334155', 'tertiaryColor': '#0f172a'}}}%%
 flowchart TB
     subgraph DISK["Disk (Input)"]
-        F1["data/*.csv<br/>(old system)"]
-        F2["data/new_claims_system_outputs/*.csv<br/>(new system)"]
+        F1["data/old_system/*.csv<br/>(old system)"]
+        F2["data/new_system/*.csv<br/>(new system)"]
     end
 
     subgraph DUCKDB["DuckDB In-Memory"]

@@ -251,12 +251,11 @@ The pipeline is designed to work with **any DE-SynPUF sample** (1–20). To use 
 
 1. **Download** the desired sample files from the [CMS DE-SynPUF page](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf).
 
-2. **Place the CSVs** in `data/raw/`:
+2. **Place the ZIP archives** in `data/original_downloads/`:
    ```bash
-   mkdir -p data/raw
-   # Unzip the downloaded files
-   for f in *.zip; do unzip -o "$f" -d data/raw/; done
+   mv *.zip data/original_downloads/
    ```
+   The pipeline auto-extracts ZIPs into `data/old_system/` during Step 1.
 
 3. **Run the pipeline** — file detection is automatic (matches glob patterns `*Beneficiary*` and `*Carrier*`):
    ```bash

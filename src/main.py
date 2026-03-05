@@ -2,12 +2,12 @@
 CMS Claims Comparison Pipeline — Main Orchestrator
 
 6-Step Pipeline:
-  1. RECEIVE    — Accept files, verify integrity, extract zips
-  2. VALIDATE   — Schema validation gate
-  3. INGEST     — Load into DuckDB, profile data quality
-  4. MATCH      — Record matching by primary keys
-  5. COMPARE    — Field-level diffs, trend analysis
-  6. REPORT     — Generate HTML report
+  1. RECEIVE          — Accept files, verify integrity, extract zips
+  2. SCHEMA VALIDATE  — Gate check on headers, types, expected files
+  3. INGEST & PROFILE — Load into DuckDB, profile data quality
+  4. MATCH & VALIDATE — Record matching + internal consistency checks
+  5. COMPARE          — Field-level diffs, trend analysis
+  6. REPORT           — Generate HTML report
 
 Usage:
     python -m src.main                     # Run full pipeline on legacy data
@@ -23,7 +23,7 @@ from pathlib import Path
 from src.adapters.local import LocalStorage
 from src.pipeline import PipelineContext
 from src.pipeline.runner import run_pipeline
-from src.ingest import DB_PATH, get_connection
+from src.ingest import DB_PATH, RAW_DIR, get_connection
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,10 +32,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pipeline")
 
-RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
-
 
 def main() -> None:
+    """Parse CLI arguments and execute the 6-step pipeline."""
     parser = argparse.ArgumentParser(description="CMS Claims Comparison Pipeline")
     parser.add_argument(
         "--new-data",
@@ -52,7 +51,7 @@ def main() -> None:
         "--db-path",
         type=str,
         default=None,
-        help="Path to DuckDB database file (default: data/db/cms_claims.duckdb)",
+        help="Path to DuckDB database file (default: data/database/cms_claims.duckdb)",
     )
     args = parser.parse_args()
 
@@ -60,7 +59,7 @@ def main() -> None:
     db_path = Path(args.db_path) if args.db_path else DB_PATH
 
     # Build pipeline context with local storage adapter
-    data_dir = RAW_DIR.parent  # data/ directory (has raw/ inside)
+    data_dir = RAW_DIR.parent  # data/ directory (has old_system/ inside)
     storage = LocalStorage(base_dir=data_dir)
 
     ctx = PipelineContext(
@@ -80,14 +79,15 @@ def main() -> None:
         ctx.con = get_connection(db_path)
 
     # Run the 6-step pipeline
-    results = run_pipeline(ctx)
+    try:
+        results = run_pipeline(ctx)
+    finally:
+        if ctx.con:
+            ctx.con.close()
 
     # Exit with error code if pipeline halted
     if ctx.halted:
         sys.exit(1)
-
-    if ctx.con:
-        ctx.con.close()
 
 
 if __name__ == "__main__":

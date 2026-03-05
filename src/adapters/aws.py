@@ -37,21 +37,26 @@ class S3Storage:
         return key
 
     def read_bytes(self, key: str) -> bytes:
+        """Read an S3 object's contents as bytes."""
         resp = self.s3.get_object(Bucket=self.bucket, Key=self._full_key(key))
         return resp["Body"].read()
 
     def write_bytes(self, key: str, data: bytes) -> str:
+        """Write bytes to an S3 object. Returns the s3:// URI."""
         full_key = self._full_key(key)
         self.s3.put_object(Bucket=self.bucket, Key=full_key, Body=data)
         return f"s3://{self.bucket}/{full_key}"
 
     def read_text(self, key: str, encoding: str = "utf-8") -> str:
+        """Read an S3 object's contents as a string."""
         return self.read_bytes(key).decode(encoding)
 
     def write_text(self, key: str, data: str, encoding: str = "utf-8") -> str:
+        """Write a string to an S3 object. Returns the s3:// URI."""
         return self.write_bytes(key, data.encode(encoding))
 
     def list_files(self, prefix: str, pattern: str = "*") -> list[str]:
+        """List S3 objects under a prefix matching an optional glob pattern."""
         full_prefix = self._full_key(prefix)
         if not full_prefix.endswith("/"):
             full_prefix += "/"
@@ -72,6 +77,7 @@ class S3Storage:
         return sorted(results)
 
     def file_exists(self, key: str) -> bool:
+        """Check if an S3 object exists."""
         try:
             self.s3.head_object(Bucket=self.bucket, Key=self._full_key(key))
             return True
@@ -79,6 +85,7 @@ class S3Storage:
             return False
 
     def file_size(self, key: str) -> int:
+        """Return S3 object size in bytes."""
         resp = self.s3.head_object(Bucket=self.bucket, Key=self._full_key(key))
         return resp["ContentLength"]
 
