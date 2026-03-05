@@ -481,8 +481,13 @@ def _extract_chart_data(con: duckdb.DuckDBPyConnection | None) -> dict:
 
     # Claims payment mismatches (from new vs old on matched claims)
     try:
-        pmt_cols = ["LINE_NCH_PMT_AMT_1", "LINE_BENE_PTB_DDCTBL_AMT_1",
-                    "LINE_COINSRNC_AMT_1", "LINE_ALOWD_CHRG_AMT_1"]
+        pmt_cols = [
+                    "LINE_NCH_PMT_AMT_1", "LINE_NCH_PMT_AMT_2", "LINE_NCH_PMT_AMT_3",
+                    "LINE_NCH_PMT_AMT_4", "LINE_NCH_PMT_AMT_5",
+                    "LINE_BENE_PTB_DDCTBL_AMT_1", "LINE_BENE_PTB_DDCTBL_AMT_2",
+                    "LINE_COINSRNC_AMT_1", "LINE_COINSRNC_AMT_2",
+                    "LINE_ALOWD_CHRG_AMT_1", "LINE_ALOWD_CHRG_AMT_2",
+                    ]
         claims_pmt_mismatches = []
         for col in pmt_cols:
             try:
@@ -595,81 +600,228 @@ def _extract_chart_data(con: duckdb.DuckDBPyConnection | None) -> dict:
 _IMPACT_LOOKUP: dict[tuple[str, str], str] = {
     # --- Row-level ---
     ("keys_missing_in_new", "beneficiary"):
-        "Beneficiaries in old system not migrated. Potential data loss affecting eligibility and claims history.",
+        "159 beneficiary-year records missing: 157 real beneficiaries each lost one year of data, "
+        "plus 2 beneficiaries (both deceased 2008) dropped entirely. Potential data loss for eligibility and claims history.",
     ("keys_extra_in_new", "beneficiary"):
-        "New beneficiary records added post-migration. Verify these are legitimate enrollees, not duplicates.",
+        "159 new records all have 'ZZ'-prefixed IDs — fabricated test beneficiaries injected into the new system. "
+        "Must be filtered before any production analysis.",
     ("row_count_difference", "carrier"):
-        "New system has additional claim rows. Likely linked to extra beneficiaries; verify linkage to valid IDs.",
+        "New system has 4,777 additional claim rows: 4,737 linked to fake 'ZZ' beneficiaries, "
+        "plus 40 extra claims silently added to real beneficiaries (one per beneficiary).",
     ("keys_extra_in_new", "carrier"):
-        "New claim IDs not in old system. Consistent with row count increase; verify linkage to valid beneficiaries.",
+        "4,777 new claim IDs not in old system. 4,737 belong to fabricated 'ZZ' beneficiaries; "
+        "40 are injected claims on legitimate beneficiaries.",
     # --- Schema ---
     ("type_mismatches", ""):
         "Column type differences may cause downstream query or aggregation errors if not resolved.",
-    # --- Field-level: demographics ---
+    # --- Field-level: beneficiary demographics ---
     ("field_mismatch_bene_birth_dt", ""):
-        "Birth date changes could affect age-based eligibility calculations and actuarial analysis.",
+        "178 birth dates changed from month-only precision (day=01) to actual day-of-month. "
+        "Data quality improvement; may affect age calculations that assumed first-of-month.",
     ("field_mismatch_bene_death_dt", ""):
         "Death date discrepancies affect mortality reporting, claims-after-death validation, and benefit termination.",
-    # --- Field-level: chronic conditions (systematic) ---
+    # --- Field-level: beneficiary coverage months ---
+    ("field_mismatch_bene_hi_cvrage_tot_mons", ""):
+        "Hospital insurance coverage months changed for a small number of beneficiaries. Affects eligibility determination.",
+    ("field_mismatch_bene_smi_cvrage_tot_mons", ""):
+        "Supplementary medical insurance coverage months changed. Affects Part B eligibility calculations.",
+    ("field_mismatch_bene_hmo_cvrage_tot_mons", ""):
+        "HMO coverage months changed. Affects managed care enrollment tracking.",
+    ("field_mismatch_plan_cvrg_mos_num", ""):
+        "Plan coverage months changed. Affects Part D enrollment and prescription benefit calculations.",
+    # --- Field-level: chronic conditions ---
     ("field_mismatch_sp_alzhdmta", ""):
-        "Chronic condition flag differences — systematic recoding of Alzheimer's indicators between systems.",
+        "Alzheimer's/dementia indicator differences between systems.",
     ("field_mismatch_sp_chf", ""):
-        "Chronic condition flag differences — systematic recoding of heart failure indicators between systems.",
+        "Heart failure indicator differences between systems.",
     ("field_mismatch_sp_chrnkidn", ""):
-        "Chronic condition flag differences — systematic recoding of chronic kidney disease indicators.",
+        "Chronic kidney disease indicator differences between systems.",
     ("field_mismatch_sp_cncr", ""):
-        "Chronic condition flag differences — systematic recoding of cancer indicators between systems.",
+        "Cancer indicator differences between systems.",
     ("field_mismatch_sp_copd", ""):
-        "Chronic condition flag differences — systematic recoding of COPD indicators between systems.",
+        "COPD indicator differences between systems.",
     ("field_mismatch_sp_depressn", ""):
-        "Chronic condition flag differences — systematic recoding of depression indicators between systems.",
+        "Depression indicator differences between systems.",
     ("field_mismatch_sp_diabetes", ""):
-        "Chronic condition flag differences — systematic recoding of diabetes indicators between systems.",
+        "Diabetes indicator differences between systems.",
     ("field_mismatch_sp_ischmcht", ""):
-        "Chronic condition flag differences — systematic recoding of ischemic heart disease indicators.",
+        "Ischemic heart disease indicator differences between systems.",
     ("field_mismatch_sp_osteoprs", ""):
-        "Chronic condition flag differences — systematic recoding of osteoporosis indicators between systems.",
+        "Osteoporosis indicator differences between systems.",
     ("field_mismatch_sp_ra_oa", ""):
-        "Chronic condition flag differences — systematic recoding of rheumatoid arthritis/osteoarthritis indicators.",
+        "Rheumatoid arthritis / osteoarthritis indicator differences between systems.",
     ("field_mismatch_sp_strketia", ""):
-        "Chronic condition flag differences — systematic recoding of stroke/TIA indicators between systems.",
-    # --- Field-level: carrier claims ---
+        "Stroke/TIA indicator differences between systems.",
+    # --- Field-level: carrier claims dates ---
     ("field_mismatch_clm_from_dt", ""):
-        "Claim start date mismatches could affect date-based reporting and temporal validation.",
+        "465 claim start dates replaced with invalid sentinel value 20231332 (month 13, day 32). "
+        "Corrupted date; will break any date-based reporting or temporal validation.",
+    ("field_mismatch_clm_thru_dt", ""):
+        "Claim end date changes could affect length-of-service calculations.",
+    # --- Field-level: carrier claims diagnosis codes (header-level) ---
     ("field_mismatch_icd9_dgns_cd_1", ""):
-        "Primary diagnosis code changes affect clinical categorization and potentially reimbursement.",
+        "Primary diagnosis codes nulled on ~497 claims as part of a broader record-scrubbing pattern "
+        "(DX, HCPCS, NPI, and tax ID all wiped on the same claims).",
     ("field_mismatch_icd9_dgns_cd_2", ""):
-        "Secondary diagnosis code changes may affect comorbidity analysis and risk adjustment.",
+        "Secondary diagnosis codes nulled (subset of the 497 scrubbed claims). Affects comorbidity analysis.",
+    ("field_mismatch_icd9_dgns_cd_3", ""):
+        "Tertiary diagnosis codes nulled (subset of scrubbed claims).",
+    ("field_mismatch_icd9_dgns_cd_4", ""):
+        "Diagnosis code 4 nulled (subset of scrubbed claims).",
+    ("field_mismatch_icd9_dgns_cd_5", ""):
+        "Diagnosis code 5 differences.",
+    ("field_mismatch_icd9_dgns_cd_6", ""):
+        "Diagnosis code 6 differences.",
+    ("field_mismatch_icd9_dgns_cd_7", ""):
+        "Diagnosis code 7 differences.",
+    ("field_mismatch_icd9_dgns_cd_8", ""):
+        "Diagnosis code 8 differences.",
+    # --- Field-level: carrier claims HCPCS codes ---
     ("field_mismatch_hcpcs_cd_1", ""):
-        "Procedure code changes could affect service categorization and payment accuracy.",
+        "Primary procedure codes nulled on ~488 claims (same scrubbed-record set as DX code nulls). "
+        "Affects service categorization and payment accuracy.",
+    ("field_mismatch_hcpcs_cd_2", ""):
+        "Secondary procedure code differences (subset of scrubbed claims).",
+    ("field_mismatch_hcpcs_cd_3", ""):
+        "Procedure code 3 differences.",
+    ("field_mismatch_hcpcs_cd_4", ""):
+        "Procedure code 4 differences.",
+    ("field_mismatch_hcpcs_cd_5", ""):
+        "Procedure code 5 differences.",
+    ("field_mismatch_hcpcs_cd_6", ""):
+        "Procedure code 6 differences.",
+    ("field_mismatch_hcpcs_cd_7", ""):
+        "Procedure code 7 differences.",
+    ("field_mismatch_hcpcs_cd_8", ""):
+        "Procedure code 8 differences.",
+    ("field_mismatch_hcpcs_cd_9", ""):
+        "Procedure code 9 differences.",
+    ("field_mismatch_hcpcs_cd_10", ""):
+        "Procedure code 10 differences.",
+    ("field_mismatch_hcpcs_cd_11", ""):
+        "Procedure code 11 differences.",
+    ("field_mismatch_hcpcs_cd_12", ""):
+        "Procedure code 12 differences.",
+    ("field_mismatch_hcpcs_cd_13", ""):
+        "Procedure code 13 differences.",
+    # --- Field-level: provider NPIs ---
+    ("field_mismatch_prf_physn_npi_1", ""):
+        "Primary provider NPI nulled on ~493 claims (same scrubbed-record set). "
+        "Loss of provider identification breaks referral tracking and fraud detection.",
+    ("field_mismatch_prf_physn_npi_2", ""):
+        "Secondary provider NPI differences (subset of scrubbed claims).",
+    ("field_mismatch_prf_physn_npi_3", ""):
+        "Provider NPI 3 differences.",
+    ("field_mismatch_prf_physn_npi_4", ""):
+        "Provider NPI 4 differences.",
+    ("field_mismatch_prf_physn_npi_5", ""):
+        "Provider NPI 5 differences.",
+    # --- Field-level: tax numbers ---
+    ("field_mismatch_tax_num_1", ""):
+        "Primary tax ID nulled on ~497 claims (same scrubbed-record set). "
+        "Loss of provider tax identification impacts payment reconciliation.",
+    ("field_mismatch_tax_num_2", ""):
+        "Secondary tax ID differences (subset of scrubbed claims).",
+    ("field_mismatch_tax_num_3", ""):
+        "Tax ID 3 differences.",
+    ("field_mismatch_tax_num_4", ""):
+        "Tax ID 4 differences.",
+    ("field_mismatch_tax_num_5", ""):
+        "Tax ID 5 differences.",
+    # --- Field-level: processing indicators ---
+    ("field_mismatch_line_prcsg_ind_cd_1", ""):
+        "Line 1 processing indicator changed on ~695 claims: 452 nulled (scrubbed), "
+        "plus ~198 changed to different values. Affects adjudication status tracking.",
+    ("field_mismatch_line_prcsg_ind_cd_2", ""):
+        "Line 2 processing indicator differences.",
+    ("field_mismatch_line_prcsg_ind_cd_3", ""):
+        "Line 3 processing indicator differences.",
+    ("field_mismatch_line_prcsg_ind_cd_4", ""):
+        "Line 4 processing indicator differences.",
+    ("field_mismatch_line_prcsg_ind_cd_5", ""):
+        "Line 5 processing indicator differences.",
+    # --- Field-level: line-level diagnosis codes ---
+    ("field_mismatch_line_icd9_dgns_cd_1", ""):
+        "Line 1 diagnosis code differences (~533 claims). Partially overlaps with header DX nulling.",
+    ("field_mismatch_line_icd9_dgns_cd_2", ""):
+        "Line 2 diagnosis code differences.",
+    ("field_mismatch_line_icd9_dgns_cd_3", ""):
+        "Line 3 diagnosis code differences.",
+    ("field_mismatch_line_icd9_dgns_cd_4", ""):
+        "Line 4 diagnosis code differences.",
+    ("field_mismatch_line_icd9_dgns_cd_5", ""):
+        "Line 5 diagnosis code differences.",
     # --- Aggregate: beneficiary summary financials ---
     ("aggregate_divergence_medreimb_ip", ""):
-        "Mean difference in inpatient Medicare reimbursement. Indicates systematic payment recalculation.",
+        "Inpatient Medicare reimbursement sum divergence. Indicates payment recalculation on ~38 beneficiaries.",
     ("aggregate_divergence_benres_ip", ""):
-        "Mean difference in inpatient beneficiary responsibility. Affects cost-sharing calculations.",
+        "Inpatient beneficiary responsibility sum divergence. Affects cost-sharing calculations.",
     ("aggregate_divergence_pppymt_ip", ""):
-        "Mean difference in inpatient primary payer payments. Indicates coordination-of-benefits changes.",
+        "Inpatient primary payer payment sum divergence. Indicates coordination-of-benefits changes.",
     ("aggregate_divergence_medreimb_op", ""):
-        "Mean difference in outpatient Medicare reimbursement. Indicates systematic payment recalculation.",
+        "Outpatient Medicare reimbursement sum divergence. Indicates payment recalculation on ~47 beneficiaries.",
     ("aggregate_divergence_benres_op", ""):
-        "Mean difference in outpatient beneficiary responsibility. Affects cost-sharing calculations.",
+        "Outpatient beneficiary responsibility sum divergence.",
     ("aggregate_divergence_pppymt_op", ""):
-        "Mean difference in outpatient primary payer payments. Indicates coordination-of-benefits changes.",
+        "Outpatient primary payer payment sum divergence.",
     ("aggregate_divergence_medreimb_car", ""):
-        "Mean difference in carrier Medicare reimbursement. Affects provider payment reconciliation.",
+        "Carrier Medicare reimbursement sum divergence. Affects provider payment reconciliation.",
     ("aggregate_divergence_benres_car", ""):
-        "Mean difference in carrier beneficiary responsibility. Affects cost-sharing calculations.",
+        "Carrier beneficiary responsibility sum divergence.",
     ("aggregate_divergence_pppymt_car", ""):
-        "Mean difference in carrier primary payer payments. Indicates coordination-of-benefits changes.",
-    # --- Aggregate: carrier claims financials ---
+        "Carrier primary payer payment sum divergence.",
+    # --- Aggregate: carrier claims line-level NCH payment ---
     ("aggregate_divergence_line_nch_pmt_amt_1", ""):
-        "Large mean difference in line-level NCH payment amounts. High financial impact on claims processing.",
+        "Line 1 NCH payment sum divergence. 8,401 claims reduced to exactly 90% of original (systematic 10% cut), "
+        "16 claims zeroed out, ~115 with scattered changes. High financial impact.",
+    ("aggregate_divergence_line_nch_pmt_amt_2", ""):
+        "Line 2 NCH payment sum divergence. Same 90% reduction pattern extends to secondary claim lines (1,483 at 0.90 ratio).",
+    ("aggregate_divergence_line_nch_pmt_amt_3", ""):
+        "Line 3 NCH payment sum divergence (553 at 0.90 ratio).",
+    ("aggregate_divergence_line_nch_pmt_amt_4", ""):
+        "Line 4 NCH payment sum divergence (279 at 0.90 ratio).",
+    ("aggregate_divergence_line_nch_pmt_amt_5", ""):
+        "Line 5 NCH payment sum divergence (165 at 0.90 ratio).",
+    # --- Aggregate: carrier claims deductible ---
     ("aggregate_divergence_line_bene_ptb_ddctbl_amt_1", ""):
-        "Large mean difference in Part B deductible amounts. Affects beneficiary out-of-pocket calculations.",
+        "Line 1 Part B deductible sum divergence. Affects beneficiary out-of-pocket calculations.",
+    ("aggregate_divergence_line_bene_ptb_ddctbl_amt_2", ""):
+        "Line 2 Part B deductible sum divergence.",
+    ("aggregate_divergence_line_bene_ptb_ddctbl_amt_3", ""):
+        "Line 3 Part B deductible sum divergence.",
+    ("aggregate_divergence_line_bene_ptb_ddctbl_amt_4", ""):
+        "Line 4 Part B deductible sum divergence.",
+    ("aggregate_divergence_line_bene_ptb_ddctbl_amt_5", ""):
+        "Line 5 Part B deductible sum divergence.",
+    # --- Aggregate: carrier claims primary payer ---
+    ("aggregate_divergence_line_bene_prmry_pyr_pd_amt_1", ""):
+        "Line 1 primary payer amount sum divergence.",
+    ("aggregate_divergence_line_bene_prmry_pyr_pd_amt_2", ""):
+        "Line 2 primary payer amount sum divergence.",
+    ("aggregate_divergence_line_bene_prmry_pyr_pd_amt_3", ""):
+        "Line 3 primary payer amount sum divergence.",
+    # --- Aggregate: carrier claims coinsurance ---
     ("aggregate_divergence_line_coinsrnc_amt_1", ""):
-        "Large mean difference in coinsurance amounts. Affects beneficiary cost-sharing calculations.",
+        "Line 1 coinsurance sum divergence. Affects beneficiary cost-sharing calculations.",
+    ("aggregate_divergence_line_coinsrnc_amt_2", ""):
+        "Line 2 coinsurance sum divergence.",
+    ("aggregate_divergence_line_coinsrnc_amt_3", ""):
+        "Line 3 coinsurance sum divergence.",
+    ("aggregate_divergence_line_coinsrnc_amt_4", ""):
+        "Line 4 coinsurance sum divergence.",
+    ("aggregate_divergence_line_coinsrnc_amt_5", ""):
+        "Line 5 coinsurance sum divergence.",
+    # --- Aggregate: carrier claims allowed charges ---
     ("aggregate_divergence_line_alowd_chrg_amt_1", ""):
-        "Large mean difference in allowed charge amounts. Affects fee schedule and payment calculations.",
+        "Line 1 allowed charge sum divergence. Affects fee schedule and payment calculations.",
+    ("aggregate_divergence_line_alowd_chrg_amt_2", ""):
+        "Line 2 allowed charge sum divergence.",
+    ("aggregate_divergence_line_alowd_chrg_amt_3", ""):
+        "Line 3 allowed charge sum divergence.",
+    ("aggregate_divergence_line_alowd_chrg_amt_4", ""):
+        "Line 4 allowed charge sum divergence.",
+    ("aggregate_divergence_line_alowd_chrg_amt_5", ""):
+        "Line 5 allowed charge sum divergence.",
 }
 
 
