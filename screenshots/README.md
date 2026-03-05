@@ -23,4 +23,6 @@ Screenshots referenced by [`REVIEWER_README.md`](../REVIEWER_README.md). Each im
 | `screenshot_7.png` | System Comparison | Old-vs-new dashboard — schema diffs, row-level, field-level, aggregates |
 | `screenshot_8.png` | Year-over-Year Trends | Interactive Plotly charts showing 2008–2010 trends |
 | `screenshot_9.png` | Documentation Hub | `docs/index.html` landing page with card grid |
-| `screenshot_10.png` | Interactive Tools | Schema Explorer, SQL Explorer, or Parquet Viewer in action |
+| `screenshot_10.png` | Schema Explorer | `docs/schema_explorer.html` — ERD viewer with table cards, column details, zoom/pan |
+| `screenshot_11.png` | SQL Explorer | `docs/sql_explorer.html` — query editor with sample SQL results against Parquet files |
+| `screenshot_12.png` | Parquet Viewer | `docs/parquet_viewer.html` — drag-and-drop file viewer showing schema and data preview |

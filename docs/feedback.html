@@ -135,6 +135,13 @@
     margin: 2rem 0;
   }
 
+  /* -- Images -- */
+  .content img {
+    max-width: 100%; height: auto; display: block;
+    margin: 1rem 0; border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
   /* -- Source badge -- */
   .source-badge {
     display: inline-block; font-size: 0.65rem; padding: 2px 8px;
@@ -148,7 +155,7 @@
 <nav class="project-nav">
   <a href="index.html" class="nav-home">Project Docs Index</a>
   <span class="nav-sep">|</span>
-  <a href="reports/comparison_report.html">Report</a>
+  <a href="../reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
   <a href="schema_explorer.html">Schema</a>
   <a href="parquet_viewer.html">Parquet</a>

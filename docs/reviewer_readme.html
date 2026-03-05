@@ -135,6 +135,13 @@
     margin: 2rem 0;
   }
 
+  /* -- Images -- */
+  .content img {
+    max-width: 100%; height: auto; display: block;
+    margin: 1rem 0; border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
   /* -- Source badge -- */
   .source-badge {
     display: inline-block; font-size: 0.65rem; padding: 2px 8px;
@@ -148,7 +155,7 @@
 <nav class="project-nav">
   <a href="index.html" class="nav-home">Project Docs Index</a>
   <span class="nav-sep">|</span>
-  <a href="reports/comparison_report.html">Report</a>
+  <a href="../reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
   <a href="schema_explorer.html">Schema</a>
   <a href="parquet_viewer.html">Parquet</a>
@@ -159,6 +166,7 @@
 <nav class="sidebar" id="toc">
   <div class="toc-title">Contents</div>
   <a href="#reviewer-walkthrough" class="">Reviewer Walkthrough</a>
+  <a href="#hosted-version" class="depth-2">Hosted Version</a>
   <a href="#0-data-setup-before-running-anything" class="depth-2">0. Data Setup before running anything</a>
   <a href="#1-running-the-pipeline-terminal" class="depth-2">1. Running the Pipeline Terminal</a>
   <a href="#local" class="">Local</a>
@@ -174,6 +182,9 @@
   <a href="#4-documentation-hub" class="depth-2">4. Documentation Hub</a>
   <a href="#landing-page" class="depth-3">Landing Page</a>
   <a href="#interactive-tools" class="depth-3">Interactive Tools</a>
+  <a href="#schema-explorer" class="depth-3">Schema Explorer</a>
+  <a href="#sql-explorer" class="depth-3">SQL Explorer</a>
+  <a href="#parquet-viewer" class="depth-3">Parquet Viewer</a>
   <a href="#code-reading-order" class="depth-2">Code Reading Order</a>
   <a href="#assessment-requirements-mapping" class="depth-2">Assessment Requirements Mapping</a>
   <a href="#key-design-decisions" class="depth-2">Key Design Decisions</a>
@@ -184,8 +195,16 @@
   <h1 id="reviewer-walkthrough">Reviewer Walkthrough</h1>
 <p>A guided tour of the CMS Claims Comparison Pipeline — what to look at, in what order, and why it matters.</p>
 <hr />
+<h2 id="hosted-version">Hosted Version</h2>
+<p>A live, read-only version of the reports and documentation is available — no setup required:</p>
+<ul>
+<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/reports/comparison_report.html">Comparison Report</a></strong> — the primary deliverable with KPIs, charts, and findings</li>
+<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/index.html">Documentation Hub</a></strong> — interactive tools, design docs, and architecture diagrams</li>
+<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/reviewer_readme.html">Reviewer Walkthrough</a></strong> — this page, hosted online with all screenshots</li>
+</ul>
+<hr />
 <h2 id="0-data-setup-before-running-anything">0. Data Setup (before running anything)</h2>
-<p>The pipeline requires CMS data files on disk. See <a href="README.md#data-setup">README.md → Data Setup</a> for full details, but in short:</p>
+<p>The pipeline requires CMS data files on disk. See <a href="../README.md#data-setup">README.md → Data Setup</a> for full details, but in short:</p>
 <p><strong>Old system data (required):</strong> Download <a href="https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf/de10-sample-1">CMS DE-SynPUF Sample 1</a> — 3 Beneficiary Summary ZIPs + 2 Carrier Claims ZIPs. Place them in <code>data/original_downloads/</code> (auto-extracted) or extract CSVs directly into <code>data/old_system/</code>.</p>
 <p><strong>New system data (for comparison):</strong> Unzip the assessment-provided <code>New Claims System Outputs.zip</code> into <code>data/new_system/</code>.</p>
 <pre><code>data/
@@ -209,7 +228,7 @@ docker run --rm -p 8888:8888 \
   cms-pipeline
 </code></pre>
 <p>All 6 pipeline steps execute in sequence with gate logic — Steps 1-2 halt early on bad input before expensive processing begins.</p>
-<p><img alt="Pipeline Run Output" src="screenshots/screenshot_1.png" /></p>
+<p><img alt="Pipeline Run Output" src="../screenshots/screenshot_1.png" /></p>
 <hr />
 <h2 id="2-test-suite">2. Test Suite</h2>
 <p>The project has <strong>87 tests</strong> across two categories:</p>
@@ -219,7 +238,7 @@ docker run --rm -p 8888:8888 \
 </ul>
 <pre><code class="language-bash">pytest tests/ -v
 </code></pre>
-<p><img alt="Test Suite Passing" src="screenshots/screenshot_2.png" /></p>
+<p><img alt="Test Suite Passing" src="../screenshots/screenshot_2.png" /></p>
 <hr />
 <h2 id="3-the-report">3. The Report</h2>
 <p>Start the local server first (interactive charts, Schema Explorer, SQL Explorer, and Parquet Viewer require HTTP):</p>
@@ -229,11 +248,11 @@ docker run --rm -p 8888:8888 \
 <h3 id="executive-summary">Executive Summary</h3>
 <p>The top of the report shows key metrics at a glance: total beneficiaries, total claims, matched/unmatched counts, and pass/fail indicators for each validation category.</p>
 <p>A reviewer should be able to answer "what's wrong and how bad is it" within 10 seconds of opening the report.</p>
-<p><img alt="Executive Summary" src="screenshots/screenshot_3.png" /></p>
+<p><img alt="Executive Summary" src="../screenshots/screenshot_3.png" /></p>
 <h3 id="key-findings">Key Findings</h3>
 <p>Below the KPIs is an interpretive narrative — not just numbers, but what they mean. This includes root cause hypotheses, risk assessment, and a clear recommendation on whether the new system is ready for cutover.</p>
 <p>This section demonstrates domain understanding: the analysis is informed by the CMS codebook, not just the data structure.</p>
-<p><img alt="Key Findings" src="screenshots/screenshot_4.png" /></p>
+<p><img alt="Key Findings" src="../screenshots/screenshot_4.png" /></p>
 <h3 id="validation-results">Validation Results</h3>
 <p>Internal consistency checks on the old system data. The bar chart shows issues found per check across four categories:</p>
 <table>
@@ -262,11 +281,11 @@ docker run --rm -p 8888:8888 \
 </tr>
 </tbody>
 </table>
-<p><img alt="Validation Results" src="screenshots/screenshot_5.png" /></p>
+<p><img alt="Validation Results" src="../screenshots/screenshot_5.png" /></p>
 <h3 id="financial-reconciliation">Financial Reconciliation</h3>
 <p>The financial reconciliation section deserves special attention. It compares beneficiary summary reimbursement totals against the sum of individual claim line items — the logic is derived from the CMS codebook (filtering on <code>LINE_PRCSG_IND_CD</code> values, summing <code>LINE_NCH_PMT_AMT</code> across 13 line items per claim).</p>
 <p>This directly addresses the assessment requirement: "Total number of Claims whose payments don't match."</p>
-<p><img alt="Financial Reconciliation" src="screenshots/screenshot_6.png" /></p>
+<p><img alt="Financial Reconciliation" src="../screenshots/screenshot_6.png" /></p>
 <h3 id="system-comparison-old-vs-new">System Comparison (Old vs New)</h3>
 <p>When new system data is loaded, the report adds a comparison dashboard:</p>
 <ul>
@@ -275,16 +294,16 @@ docker run --rm -p 8888:8888 \
 <li><strong>Field-level mismatches</strong> — per-field value diffs on matched records</li>
 <li><strong>Aggregate divergence</strong> — sum/mean differences in financial columns</li>
 </ul>
-<p><img alt="System Comparison" src="screenshots/screenshot_7.png" /></p>
+<p><img alt="System Comparison" src="../screenshots/screenshot_7.png" /></p>
 <h3 id="year-over-year-trends">Year-over-Year Trends</h3>
 <p>Interactive Plotly charts show how metrics change across 2008–2010. The assessment specifically asks to "identify any trends" — these charts surface patterns like increasing beneficiary attrition, financial drift, and seasonal claim volume shifts.</p>
-<p><img alt="Year-over-Year Trends" src="screenshots/screenshot_8.png" /></p>
+<p><img alt="Year-over-Year Trends" src="../screenshots/screenshot_8.png" /></p>
 <hr />
 <h2 id="4-documentation-hub">4. Documentation Hub</h2>
 <p>The project includes a documentation site with interactive tools and design documentation. When running via Docker, it's served at <code>http://localhost:8888</code>. Otherwise, open <code>docs/index.html</code> directly.</p>
 <h3 id="landing-page">Landing Page</h3>
 <p>The hub links to everything: the comparison report, interactive tools, design documentation, and CMS reference materials (codebook, FAQ, data users guide).</p>
-<p><img alt="Documentation Hub" src="screenshots/screenshot_9.png" /></p>
+<p><img alt="Documentation Hub" src="../screenshots/screenshot_9.png" /></p>
 <h3 id="interactive-tools">Interactive Tools</h3>
 <p>The project includes several in-browser tools that require no server:</p>
 <table>
@@ -313,7 +332,15 @@ docker run --rm -p 8888:8888 \
 </tr>
 </tbody>
 </table>
-<p><img alt="Interactive Tools" src="screenshots/screenshot_10.png" /></p>
+<h3 id="schema-explorer">Schema Explorer</h3>
+<p>The ERD viewer renders all 8 DuckDB tables as draggable cards with column names, types, and foreign key relationships. Click any table to expand its full column details. Supports zoom, pan, and search.</p>
+<p><img alt="Schema Explorer" src="../screenshots/screenshot_10.png" /></p>
+<h3 id="sql-explorer">SQL Explorer</h3>
+<p>A browser-based SQL query editor powered by Squirreling's async SQL engine + hyparquet. Load any exported Parquet file and run ad-hoc queries — no server or database connection required. Includes sample queries to get started.</p>
+<p><img alt="SQL Explorer" src="../screenshots/screenshot_11.png" /></p>
+<h3 id="parquet-viewer">Parquet Viewer</h3>
+<p>Drag and drop any <code>.parquet</code> file to instantly view its schema (column names, types, row count) and preview the first N rows in a formatted table. Powered by hyparquet for fully client-side parsing.</p>
+<p><img alt="Parquet Viewer" src="../screenshots/screenshot_12.png" /></p>
 <hr />
 <h2 id="code-reading-order">Code Reading Order</h2>
 <p>For reviewers who want to understand the code:</p>

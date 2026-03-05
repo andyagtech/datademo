@@ -9,6 +9,8 @@ Usage:
     python scripts/render_md_docs.py
 """
 
+import re
+
 import markdown
 from pathlib import Path
 
@@ -30,7 +32,7 @@ NAV_BAR = """\
 <nav class="project-nav">
   <a href="index.html" class="nav-home">Project Docs Index</a>
   <span class="nav-sep">|</span>
-  <a href="reports/comparison_report.html">Report</a>
+  <a href="../reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
   <a href="schema_explorer.html">Schema</a>
   <a href="parquet_viewer.html">Parquet</a>
@@ -176,6 +178,13 @@ HTML_TEMPLATE = """\
     margin: 2rem 0;
   }}
 
+  /* -- Images -- */
+  .content img {{
+    max-width: 100%; height: auto; display: block;
+    margin: 1rem 0; border-radius: 8px;
+    border: 1px solid var(--border);
+  }}
+
   /* -- Source badge -- */
   .source-badge {{
     display: inline-block; font-size: 0.65rem; padding: 2px 8px;
@@ -229,6 +238,26 @@ def build_toc_html(toc: list[tuple[int, str, str]]) -> str:
     return "\n  ".join(links)
 
 
+def _rebase_paths(html: str, md_path: Path) -> str:
+    """Rewrite relative src/href paths for .md files outside docs/.
+
+    When a root-level file like REVIEWER_README.md references
+    screenshots/screenshot_1.png, the rendered HTML in docs/ needs
+    ../screenshots/screenshot_1.png instead.
+    """
+    if md_path.parent == DOCS_DIR:
+        return html  # already in docs/, paths are fine
+
+    def _prepend_parent(m: re.Match) -> str:
+        attr, quote, path = m.group(1), m.group(2), m.group(3)
+        # Skip absolute URLs, anchors, and paths already going up
+        if path.startswith(('http://', 'https://', '#', '/', 'mailto:', '../')):
+            return m.group(0)
+        return f'{attr}={quote}../{path}{quote}'
+
+    return re.sub(r'(src|href)=(["\'])([^"\']*?)\2', _prepend_parent, html)
+
+
 def render_md(md_path: Path, title: str) -> str:
     """Render a Markdown file to a styled HTML page with TOC sidebar."""
     md_text = md_path.read_text(encoding="utf-8")
@@ -244,6 +273,9 @@ def render_md(md_path: Path, title: str) -> str:
         extensions=extensions,
         extension_configs={"toc": {"permalink": False, "slugify": lambda value, separator: __import__("re").sub(r'[^a-z0-9]+', '-', __import__("re").sub(r'[`*_\[\]()]', '', value.lower())).strip('-')}},
     )
+
+    # Fix relative paths for files sourced from outside docs/
+    body = _rebase_paths(body, md_path)
 
     return HTML_TEMPLATE.format(
         title=title,

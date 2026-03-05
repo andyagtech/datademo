@@ -4,6 +4,16 @@ A guided tour of the CMS Claims Comparison Pipeline — what to look at, in what
 
 ---
 
+## Hosted Version
+
+A live, read-only version of the reports and documentation is available — no setup required:
+
+- **[Comparison Report](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, and findings
+- **[Documentation Hub](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/index.html)** — interactive tools, design docs, and architecture diagrams
+- **[Reviewer Walkthrough](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/reviewer_readme.html)** — this page, hosted online with all screenshots
+
+---
+
 ## 0. Data Setup (before running anything)
 
 The pipeline requires CMS data files on disk. See [README.md → Data Setup](README.md#data-setup) for full details, but in short:
@@ -148,7 +158,23 @@ The project includes several in-browser tools that require no server:
 | **SQL Explorer** | Run SQL queries on Parquet files in the browser. No server needed. |
 | **Architecture Diagrams** | Interactive Mermaid.js diagrams of the pipeline, data flow, and cloud deployment. |
 
-![Interactive Tools](screenshots/screenshot_10.png)
+### Schema Explorer
+
+The ERD viewer renders all 8 DuckDB tables as draggable cards with column names, types, and foreign key relationships. Click any table to expand its full column details. Supports zoom, pan, and search.
+
+![Schema Explorer](screenshots/screenshot_10.png)
+
+### SQL Explorer
+
+A browser-based SQL query editor powered by Squirreling's async SQL engine + hyparquet. Load any exported Parquet file and run ad-hoc queries — no server or database connection required. Includes sample queries to get started.
+
+![SQL Explorer](screenshots/screenshot_11.png)
+
+### Parquet Viewer
+
+Drag and drop any `.parquet` file to instantly view its schema (column names, types, row count) and preview the first N rows in a formatted table. Powered by hyparquet for fully client-side parsing.
+
+![Parquet Viewer](screenshots/screenshot_12.png)
 
 ---
 

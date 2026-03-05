@@ -49,7 +49,17 @@
   .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
   .section { margin-bottom: 2.5rem; }
   .null-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--accent); }
-  .impact-cell { font-size: 0.78rem; color: var(--muted); max-width: 280px; word-wrap: break-word; white-space: normal; line-height: 1.35; }
+  .impact-cell { font-size: 0.78rem; color: var(--muted); word-wrap: break-word; white-space: normal; line-height: 1.35; }
+  .comparison-scroll { overflow-x: auto; margin: 0.5rem 0; }
+  .comparison-table { table-layout: fixed; min-width: 1100px; }
+  .comparison-table .col-check { width: 16%; }
+  .comparison-table .col-category { width: 9%; }
+  .comparison-table .col-pair { width: 15%; }
+  .comparison-table .col-desc { width: 22%; }
+  .comparison-table .col-metric { width: 8%; }
+  .comparison-table .col-impact { width: 30%; }
+  .comparison-table td:first-child { word-break: break-all; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.75rem; }
+  .comparison-table td { vertical-align: top; }
 
   /* Collapsible sections */
   details { margin: 0.75rem 0; }
@@ -71,6 +81,7 @@
   details > .details-content {
     border: 1px solid var(--border); border-top: none;
     border-radius: 0 0 8px 8px; padding: 1rem; background: var(--surface);
+    overflow-x: auto;
   }
   .summary-meta { margin-left: auto; font-size: 0.8rem; color: var(--muted); font-weight: 400; }
 
@@ -417,8 +428,16 @@
         All Comparison Checks
         <span class="summary-meta">{{ comparisons|length }} checks across schema, row-level, field-level, and aggregate categories</span>
       </summary>
-      <div class="details-content">
-        <table>
+      <div class="details-content comparison-scroll">
+        <table class="comparison-table">
+          <colgroup>
+            <col class="col-check">
+            <col class="col-category">
+            <col class="col-pair">
+            <col class="col-desc">
+            <col class="col-metric">
+            <col class="col-impact">
+          </colgroup>
           <thead>
             <tr><th>Check</th><th>Category</th><th>Table Pair</th><th>Description</th><th>Metric</th><th>Impact</th></tr>
           </thead>

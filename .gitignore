@@ -39,6 +39,9 @@ Thumbs.db
 # Unused scaffolds
 viewer/
 
+# Deploy scripts (local only)
+.deploy/
+
 # IDE
 .vscode/
 .idea/

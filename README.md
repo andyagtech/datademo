@@ -540,6 +540,7 @@ Three of the documentation tools load JavaScript libraries from CDN at runtime:
 
 ### Other Future Improvements
 
+- **Pipeline execution dashboard** — generate an HTML page visualizing pipeline logs: per-step durations, a Gantt-style timeline, throughput metrics (rows/sec), and resource usage. Would make performance regressions and bottlenecks immediately visible.
 - **CI/CD pipeline** — GitHub Actions for automated testing on push
 - **CloudFront CDN** — for production cloud deployment of reports
 - **CloudWatch monitoring** — alarms and dashboards for Lambda pipeline steps
