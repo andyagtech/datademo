@@ -4,6 +4,8 @@ A data comparison and validation tool that compares outcomes from two healthcare
 
 Built for the USDS Data Engineering Take-Home Assessment.
 
+**Repository:** [github.com/andyagtech/cmsdata-assessment](https://github.com/andyagtech/cmsdata-assessment)
+
 ---
 
 ## Prerequisites
