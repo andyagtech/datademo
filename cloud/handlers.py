@@ -576,7 +576,7 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if not message:
         return {
             "statusCode": 400,
-            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "headers": {"Content-Type": "application/json"},
             "body": json.dumps({"error": "message is required"}),
         }
 
@@ -587,7 +587,7 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
         logger.exception("Chat setup failed")
         return {
             "statusCode": 500,
-            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "headers": {"Content-Type": "application/json"},
             "body": json.dumps({"error": str(e)}),
         }
 
@@ -622,7 +622,7 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 content = choice.message.content or ""
                 return {
                     "statusCode": 200,
-                    "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                    "headers": {"Content-Type": "application/json"},
                     "body": json.dumps({
                         "content": content,
                         "model": response.model or model,
@@ -674,7 +674,7 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
         content = response.choices[0].message.content or ""
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "headers": {"Content-Type": "application/json"},
             "body": json.dumps({
                 "content": content,
                 "model": response.model or model,
@@ -686,6 +686,6 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
         logger.exception("Chat API error")
         return {
             "statusCode": 500,
-            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "headers": {"Content-Type": "application/json"},
             "body": json.dumps({"error": f"Chat failed: {str(e)}"}),
         }

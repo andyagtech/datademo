@@ -4,9 +4,12 @@ A data comparison and validation tool that compares outcomes from two healthcare
 
 Built for the USDS Data Engineering Take-Home Assessment.
 
-**Repository:** [github.com/andyagtech/cmsdata-assessment](https://github.com/andyagtech/cmsdata-assessment)
-**Hosted Report:** [andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/)
-**Full Bundle Download:** [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip)
+| | |
+|---|---|
+| **Repository** | [github.com/andyagtech/cmsdata-assessment](https://github.com/andyagtech/cmsdata-assessment) |
+| **Hosted Report** | [andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/) |
+| **Full Bundle Download** | [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip) |
+
 ---
 
 ## Prerequisites
