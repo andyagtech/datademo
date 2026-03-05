@@ -9,8 +9,8 @@ Each answer uses the actual numbers from the pipeline run.
 from __future__ import annotations
 
 
-def generate_cached_answers(report_data: dict) -> dict[str, str]:
-    """Return a dict of {question: markdown_answer} built from live report data."""
+def generate_cached_answers(report_data: dict) -> dict[str, dict]:
+    """Return a dict of {question: {answer, queries}} built from live report data."""
     s = report_data.get("summary", {})
     cd = report_data.get("chart_data", {})
     af = cd.get("analysis_findings", {})
@@ -556,4 +556,168 @@ Key findings:
 
 Records with DESYNPUF_ID starting with "ZZ" are excluded from comparisons as they are known test/fabricated data."""
 
-    return answers
+    # ── SQL queries per answer (for "Review SQL" button) ──
+    queries = {}
+
+    queries["What are the most critical findings?"] = [
+        "-- Discrepancy summary by year\nSELECT summary_year, COUNT(*) AS total,\n  SUM(CASE WHEN total_diffs > 0 THEN 1 ELSE 0 END) AS mismatched,\n  ROUND(100.0 * SUM(CASE WHEN total_diffs > 0 THEN 1 ELSE 0 END) / COUNT(*), 2) AS pct\nFROM _discrepancy_detail\nGROUP BY summary_year ORDER BY summary_year;",
+        "-- Top mismatched fields\nSELECT 'BENE_BIRTH_DT' AS field, SUM(diff_BENE_BIRTH_DT) AS mismatches FROM _discrepancy_detail\nUNION ALL\nSELECT 'BENE_HI_CVRAGE_TOT_MONS', SUM(diff_BENE_HI_CVRAGE_TOT_MONS) FROM _discrepancy_detail\nORDER BY mismatches DESC;",
+        "-- Financial divergence totals\nSELECT SUM(ABS(total_dollar_diff)) AS total_abs_divergence,\n  AVG(total_dollar_diff) AS avg_divergence\nFROM _financial_recon;"
+    ]
+
+    queries["Explain the payment discrepancy between systems"] = [
+        "-- Payment ratio analysis (0.90 pattern)\nSELECT o.CLM_ID,\n  o.LINE_NCH_PMT_AMT_1 AS old_pmt,\n  n.LINE_NCH_PMT_AMT_1 AS new_pmt,\n  ROUND(n.LINE_NCH_PMT_AMT_1 / NULLIF(o.LINE_NCH_PMT_AMT_1, 0), 4) AS ratio\nFROM carrier_claims o\nJOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR\nWHERE o.LINE_NCH_PMT_AMT_1 != n.LINE_NCH_PMT_AMT_1\nORDER BY ABS(o.LINE_NCH_PMT_AMT_1 - n.LINE_NCH_PMT_AMT_1) DESC\nLIMIT 50;",
+        "-- Count mismatched claims per payment column\nSELECT 'LINE_NCH_PMT_AMT_1' AS col,\n  COUNT(*) AS mismatched\nFROM carrier_claims o\nJOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%'\n  AND o.LINE_NCH_PMT_AMT_1 != n.LINE_NCH_PMT_AMT_1;"
+    ]
+
+    queries["How many beneficiaries have data mismatches?"] = [
+        "-- Beneficiaries with mismatches by year\nSELECT summary_year,\n  COUNT(*) AS total,\n  SUM(CASE WHEN total_diffs > 0 THEN 1 ELSE 0 END) AS mismatched\nFROM _discrepancy_detail\nGROUP BY summary_year ORDER BY summary_year;",
+        "-- Distinct affected beneficiaries\nSELECT COUNT(DISTINCT DESYNPUF_ID) AS affected_benes\nFROM _discrepancy_detail\nWHERE total_diffs > 0;"
+    ]
+
+    queries["What is the overall accuracy rate?"] = [
+        "-- Overall accuracy calculation\nSELECT COUNT(*) AS total_matched,\n  SUM(CASE WHEN total_diffs = 0 THEN 1 ELSE 0 END) AS identical,\n  SUM(CASE WHEN total_diffs > 0 THEN 1 ELSE 0 END) AS mismatched,\n  ROUND(100.0 * SUM(CASE WHEN total_diffs = 0 THEN 1 ELSE 0 END) / COUNT(*), 2) AS accuracy_pct\nFROM _discrepancy_detail;"
+    ]
+
+    queries["Which fields have the most mismatches?"] = [
+        "-- Field-level mismatch counts\nSELECT 'BENE_BIRTH_DT' AS field, SUM(diff_BENE_BIRTH_DT) AS cnt FROM _discrepancy_detail\nUNION ALL SELECT 'BENE_HI_CVRAGE_TOT_MONS', SUM(diff_BENE_HI_CVRAGE_TOT_MONS) FROM _discrepancy_detail\nUNION ALL SELECT 'BENE_SMI_CVRAGE_TOT_MONS', SUM(diff_BENE_SMI_CVRAGE_TOT_MONS) FROM _discrepancy_detail\nUNION ALL SELECT 'PLAN_CVRG_MOS_NUM', SUM(diff_PLAN_CVRG_MOS_NUM) FROM _discrepancy_detail\nORDER BY cnt DESC;"
+    ]
+
+    queries["What are the phantom records in the new system?"] = [
+        "-- Phantom claims (in new but not old)\nSELECT COUNT(*) AS phantom_claims\nFROM new_carrier_claims n\nLEFT JOIN carrier_claims o ON n.CLM_ID::VARCHAR = o.CLM_ID::VARCHAR\nWHERE o.CLM_ID IS NULL;",
+        "-- Sample phantom claims\nSELECT n.CLM_ID, n.DESYNPUF_ID, n.CLM_FROM_DT, n.LINE_NCH_PMT_AMT_1\nFROM new_carrier_claims n\nLEFT JOIN carrier_claims o ON n.CLM_ID::VARCHAR = o.CLM_ID::VARCHAR\nWHERE o.CLM_ID IS NULL\nLIMIT 25;",
+        "-- Phantom beneficiaries\nSELECT COUNT(*) AS phantom_benes\nFROM new_beneficiary_summary n\nLEFT JOIN beneficiary_summary o ON n.DESYNPUF_ID = o.DESYNPUF_ID AND n.summary_year = o.summary_year\nWHERE o.DESYNPUF_ID IS NULL;"
+    ]
+
+    queries["Why are there extra claims in the new system?"] = [
+        "-- Volume comparison\nSELECT 'old' AS system, COUNT(*) AS cnt FROM carrier_claims\nUNION ALL\nSELECT 'new', COUNT(*) FROM new_carrier_claims;",
+        "-- ZZ claims contributing to extras\nSELECT COUNT(*) AS zz_claims\nFROM new_carrier_claims\nWHERE DESYNPUF_ID LIKE 'ZZ%';"
+    ]
+
+    queries["What is the BENE_BIRTH_DT mismatch pattern?"] = [
+        "-- Birth date mismatches by year\nSELECT summary_year,\n  SUM(diff_BENE_BIRTH_DT) AS birth_dt_mismatches,\n  COUNT(*) AS total\nFROM _discrepancy_detail\nGROUP BY summary_year ORDER BY summary_year;",
+        "-- Sample birth date differences\nSELECT d.DESYNPUF_ID, d.summary_year,\n  o.BENE_BIRTH_DT AS old_birth_dt,\n  n.BENE_BIRTH_DT AS new_birth_dt\nFROM _discrepancy_detail d\nJOIN beneficiary_summary o ON d.DESYNPUF_ID = o.DESYNPUF_ID AND d.summary_year = o.summary_year\nJOIN new_beneficiary_summary n ON d.DESYNPUF_ID = n.DESYNPUF_ID AND d.summary_year = n.summary_year\nWHERE d.diff_BENE_BIRTH_DT = 1\nLIMIT 20;"
+    ]
+
+    queries["Explain the 0.90 payment ratio pattern"] = [
+        "-- Payment ratio distribution\nSELECT ROUND(n.LINE_NCH_PMT_AMT_1 / NULLIF(o.LINE_NCH_PMT_AMT_1, 0), 2) AS ratio,\n  COUNT(*) AS cnt\nFROM carrier_claims o\nJOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%'\n  AND o.LINE_NCH_PMT_AMT_1 > 0 AND n.LINE_NCH_PMT_AMT_1 > 0\nGROUP BY ratio ORDER BY cnt DESC LIMIT 20;",
+        "-- Aggregate old vs new payment sums\nSELECT SUM(o.LINE_NCH_PMT_AMT_1) AS old_total,\n  SUM(n.LINE_NCH_PMT_AMT_1) AS new_total,\n  ROUND(SUM(n.LINE_NCH_PMT_AMT_1) / NULLIF(SUM(o.LINE_NCH_PMT_AMT_1), 0), 4) AS overall_ratio\nFROM carrier_claims o\nJOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%';"
+    ]
+
+    queries["What are the ZZ fabricated beneficiaries?"] = [
+        "-- ZZ beneficiaries\nSELECT * FROM new_beneficiary_summary\nWHERE DESYNPUF_ID LIKE 'ZZ%'\nORDER BY DESYNPUF_ID, summary_year;",
+        "-- ZZ claims count\nSELECT COUNT(*) AS zz_claims\nFROM new_carrier_claims\nWHERE DESYNPUF_ID LIKE 'ZZ%';",
+        "-- Sample ZZ claims\nSELECT CLM_ID, DESYNPUF_ID, CLM_FROM_DT, LINE_NCH_PMT_AMT_1\nFROM new_carrier_claims\nWHERE DESYNPUF_ID LIKE 'ZZ%'\nLIMIT 25;"
+    ]
+
+    queries["Which validation checks failed?"] = [
+        "-- This data comes from the Python validation engine.\n-- Failed checks are computed by src/validate.py against DuckDB tables.\n-- You can inspect the underlying data with:\nSELECT table_name, column_name, COUNT(*) AS rows, SUM(CASE WHEN column_name IS NULL THEN 1 ELSE 0 END) AS nulls\nFROM information_schema.columns\nWHERE table_name IN ('beneficiary_summary', 'carrier_claims')\nGROUP BY table_name, column_name;"
+    ]
+
+    queries["What is the total financial divergence amount?"] = [
+        "-- Financial divergence per column (beneficiary reimbursements)\nSELECT 'MEDREIMB_IP' AS col,\n  SUM(o.MEDREIMB_IP) AS old_sum, SUM(n.MEDREIMB_IP) AS new_sum,\n  SUM(n.MEDREIMB_IP) - SUM(o.MEDREIMB_IP) AS diff\nFROM beneficiary_summary o\nJOIN new_beneficiary_summary n ON o.DESYNPUF_ID = n.DESYNPUF_ID AND o.summary_year = n.summary_year\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%'\nUNION ALL\nSELECT 'MEDREIMB_CAR',\n  SUM(o.MEDREIMB_CAR), SUM(n.MEDREIMB_CAR),\n  SUM(n.MEDREIMB_CAR) - SUM(o.MEDREIMB_CAR)\nFROM beneficiary_summary o\nJOIN new_beneficiary_summary n ON o.DESYNPUF_ID = n.DESYNPUF_ID AND o.summary_year = n.summary_year\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%';",
+        "-- Per-beneficiary financial recon (top divergences)\nSELECT * FROM _financial_recon\nORDER BY ABS(total_dollar_diff) DESC\nLIMIT 50;"
+    ]
+
+    queries["How does accuracy vary by year?"] = queries["How many beneficiaries have data mismatches?"]
+
+    queries["Which reimbursement columns have the largest differences?"] = queries["What is the total financial divergence amount?"]
+
+    queries["What are the top mismatched fields?"] = queries["Which fields have the most mismatches?"]
+
+    queries["Is the discrepancy rate stable across years?"] = queries["How many beneficiaries have data mismatches?"]
+
+    queries["How many claims have payment changes?"] = [
+        "-- Claims with any payment change\nSELECT COUNT(*) AS claims_with_changes\nFROM carrier_claims o\nJOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%'\n  AND (o.LINE_NCH_PMT_AMT_1 != n.LINE_NCH_PMT_AMT_1\n    OR o.LINE_NCH_PMT_AMT_2 IS DISTINCT FROM n.LINE_NCH_PMT_AMT_2);",
+        "-- Breakdown by payment column\nSELECT 'LINE_NCH_PMT_AMT_1' AS col,\n  COUNT(*) FILTER (WHERE o.LINE_NCH_PMT_AMT_1 != n.LINE_NCH_PMT_AMT_1) AS mismatched\nFROM carrier_claims o\nJOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%';"
+    ]
+
+    queries["What does the payment distribution look like?"] = [
+        "-- Carrier payment distribution stats\nSELECT\n  ROUND(AVG(MEDREIMB_CAR), 2) AS avg_medicare,\n  ROUND(MEDIAN(MEDREIMB_CAR), 2) AS med_medicare,\n  ROUND(AVG(BENRES_CAR), 2) AS avg_bene_resp,\n  ROUND(AVG(PPPYMT_CAR), 2) AS avg_primary_payer\nFROM beneficiary_summary\nWHERE MEDREIMB_CAR > 0;"
+    ]
+
+    queries["Are there any chronic condition trends?"] = [
+        "-- Chronic condition prevalence by year\nSELECT summary_year,\n  ROUND(100.0 * SUM(CASE WHEN SP_DIABETES = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS diabetes_pct,\n  ROUND(100.0 * SUM(CASE WHEN SP_ISCHMCHT = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS ischemic_pct,\n  ROUND(100.0 * SUM(CASE WHEN SP_CHF = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS chf_pct,\n  ROUND(100.0 * SUM(CASE WHEN SP_DEPRESSN = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS depression_pct\nFROM beneficiary_summary\nGROUP BY summary_year ORDER BY summary_year;"
+    ]
+
+    queries["What is the record matching rate?"] = [
+        "-- Beneficiary match stats\nSELECT 'matched' AS status, COUNT(*) AS cnt FROM _match_beneficiary WHERE match_status = 'matched'\nUNION ALL SELECT 'old_only', COUNT(*) FROM _match_beneficiary WHERE match_status = 'old_only'\nUNION ALL SELECT 'new_only', COUNT(*) FROM _match_beneficiary WHERE match_status = 'new_only';",
+        "-- Claims match stats\nSELECT 'matched' AS status, COUNT(*) AS cnt FROM _match_claims WHERE match_status = 'matched'\nUNION ALL SELECT 'old_only', COUNT(*) FROM _match_claims WHERE match_status = 'old_only'\nUNION ALL SELECT 'new_only', COUNT(*) FROM _match_claims WHERE match_status = 'new_only';"
+    ]
+
+    queries["How many beneficiaries are affected by changes?"] = queries["How many beneficiaries have data mismatches?"]
+
+    queries["What is the dollar impact per beneficiary?"] = [
+        "-- Dollar impact per beneficiary\nSELECT DESYNPUF_ID,\n  SUM(total_dollar_diff) AS total_diff,\n  COUNT(*) AS year_records\nFROM _financial_recon\nWHERE ABS(total_dollar_diff) > 0\nGROUP BY DESYNPUF_ID\nORDER BY ABS(SUM(total_dollar_diff)) DESC\nLIMIT 50;"
+    ]
+
+    queries["Which system overstates reimbursements?"] = queries["What is the total financial divergence amount?"]
+
+    queries["Are there schema differences between systems?"] = [
+        "-- Compare column lists between old and new beneficiary tables\nSELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'beneficiary_summary' ORDER BY ordinal_position;",
+        "-- Compare column lists for new beneficiary table\nSELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'new_beneficiary_summary' ORDER BY ordinal_position;"
+    ]
+
+    queries["What are the injected test records?"] = queries["What are the ZZ fabricated beneficiaries?"]
+
+    queries["How do inpatient vs outpatient payments compare?"] = [
+        "-- Reimbursement totals by year and type\nSELECT summary_year,\n  SUM(MEDREIMB_IP) AS inpatient,\n  SUM(MEDREIMB_OP) AS outpatient,\n  SUM(MEDREIMB_CAR) AS carrier\nFROM beneficiary_summary\nGROUP BY summary_year ORDER BY summary_year;"
+    ]
+
+    queries["What is the carrier claims discrepancy?"] = [
+        "-- Carrier claims volume comparison\nSELECT 'old' AS system, COUNT(*) AS cnt FROM carrier_claims\nUNION ALL SELECT 'new', COUNT(*) FROM new_carrier_claims;",
+        "-- Payment mismatches on matched claims\nSELECT o.CLM_ID,\n  o.LINE_NCH_PMT_AMT_1 AS old_pmt, n.LINE_NCH_PMT_AMT_1 AS new_pmt,\n  n.LINE_NCH_PMT_AMT_1 - o.LINE_NCH_PMT_AMT_1 AS diff\nFROM carrier_claims o\nJOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR\nWHERE n.DESYNPUF_ID NOT LIKE 'ZZ%'\n  AND o.LINE_NCH_PMT_AMT_1 != n.LINE_NCH_PMT_AMT_1\nORDER BY ABS(diff) DESC LIMIT 50;"
+    ]
+
+    queries["Suggest SQL queries to investigate further"] = []  # Already has SQL in the answer text
+
+    queries["What bugs should be fixed before production cutover?"] = queries["What are the most critical findings?"]
+
+    queries["How does Medicare reimbursement compare by year?"] = queries["How do inpatient vs outpatient payments compare?"]
+
+    queries["What is the beneficiary discrepancy trend?"] = queries["How many beneficiaries have data mismatches?"]
+
+    queries["Are there geographic patterns in the discrepancies?"] = [
+        "-- State-level discrepancy rates (if SP_STATE_CODE available)\nSELECT o.SP_STATE_CODE,\n  COUNT(*) AS total,\n  SUM(CASE WHEN d.total_diffs > 0 THEN 1 ELSE 0 END) AS mismatched\nFROM _discrepancy_detail d\nJOIN beneficiary_summary o ON d.DESYNPUF_ID = o.DESYNPUF_ID AND d.summary_year = o.summary_year\nGROUP BY o.SP_STATE_CODE\nORDER BY mismatched DESC;"
+    ]
+
+    queries["What is the LINE_NCH_PMT_AMT_1 issue?"] = queries["Explain the payment discrepancy between systems"]
+
+    queries["How many records are in each system?"] = [
+        "-- Record counts across all tables\nSELECT 'beneficiary_summary (old)' AS tbl, COUNT(*) AS cnt FROM beneficiary_summary\nUNION ALL SELECT 'new_beneficiary_summary', COUNT(*) FROM new_beneficiary_summary\nUNION ALL SELECT 'carrier_claims (old)', COUNT(*) FROM carrier_claims\nUNION ALL SELECT 'new_carrier_claims', COUNT(*) FROM new_carrier_claims;"
+    ]
+
+    queries["What data quality checks were performed?"] = queries["Which validation checks failed?"]
+
+    queries["What is the risk assessment for the new system?"] = queries["What are the most critical findings?"]
+
+    queries["How does the new system compare overall?"] = queries["What are the most critical findings?"]
+
+    queries["What is the total reimbursement amount?"] = queries["How do inpatient vs outpatient payments compare?"]
+
+    queries["Are discrepancies random or systematic?"] = [
+        "-- Year-over-year consistency check\nSELECT summary_year,\n  ROUND(100.0 * SUM(CASE WHEN total_diffs > 0 THEN 1 ELSE 0 END) / COUNT(*), 2) AS pct\nFROM _discrepancy_detail\nGROUP BY summary_year ORDER BY summary_year;",
+        "-- Field concentration check\nSELECT SUM(diff_BENE_BIRTH_DT) AS birth_dt,\n  SUM(diff_BENE_HI_CVRAGE_TOT_MONS) AS hi_cvg,\n  SUM(diff_BENE_SMI_CVRAGE_TOT_MONS) AS smi_cvg\nFROM _discrepancy_detail;"
+    ]
+
+    queries["What are the two distinct bugs mentioned?"] = queries["What bugs should be fixed before production cutover?"]
+
+    queries["Show me a SQL query for beneficiary mismatches"] = []  # Already has SQL in the answer text
+
+    queries["What is the new system readiness status?"] = queries["What are the most critical findings?"]
+
+    queries["Summarize the executive summary"] = queries["What are the most critical findings?"]
+
+    queries["What does the financial reconciliation show?"] = queries["What is the total financial divergence amount?"]
+
+    queries["How are claims matched between systems?"] = queries["What is the record matching rate?"]
+
+    # ── Combine answers + queries into structured output ──
+    result = {}
+    for q_key, answer_text in answers.items():
+        result[q_key] = {
+            "answer": answer_text,
+            "queries": queries.get(q_key, [])
+        }
+
+    return result

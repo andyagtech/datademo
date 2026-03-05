@@ -222,11 +222,19 @@
     '.chat-suggest-item .suggest-match{color:#38bdf8}',
     '.chat-suggest-hint{padding:3px 16px;font-size:.58rem;color:#475569;display:flex;align-items:center;gap:4px}',
     '.chat-suggest-hint kbd{background:#1e293b;border:1px solid #334155;border-radius:3px;padding:0 4px;font-size:.56rem;font-family:inherit;color:#64748b}',
-    '.chat-deepdive{display:flex;align-items:center;gap:6px;margin-top:8px;padding:6px 12px;background:rgba(129,140,248,0.1);border:1px solid rgba(129,140,248,0.25);border-radius:8px;color:#818cf8;font-size:.73rem;cursor:pointer;transition:all .15s;font-family:inherit;width:100%}',
-    '.chat-deepdive:hover{background:rgba(129,140,248,0.2);border-color:#818cf8;color:#a5b4fc}',
-    '.chat-deepdive svg{width:14px;height:14px;flex-shrink:0}',
+    '.chat-followup-bar{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}',
+    '.chat-followup-btn{display:flex;align-items:center;gap:5px;padding:6px 12px;background:rgba(129,140,248,0.1);border:1px solid rgba(129,140,248,0.25);border-radius:8px;color:#818cf8;font-size:.73rem;cursor:pointer;transition:all .15s;font-family:inherit;flex:1;min-width:0}',
+    '.chat-followup-btn:hover{background:rgba(129,140,248,0.2);border-color:#818cf8;color:#a5b4fc}',
+    '.chat-followup-btn.sql-btn{background:rgba(56,189,248,0.08);border-color:rgba(56,189,248,0.25);color:#38bdf8}',
+    '.chat-followup-btn.sql-btn:hover{background:rgba(56,189,248,0.15);border-color:#38bdf8;color:#7dd3fc}',
+    '.chat-followup-btn svg{width:13px;height:13px;flex-shrink:0}',
     '.chat-cached-badge{display:inline-block;font-size:.58rem;color:#64748b;margin-bottom:4px;letter-spacing:.03em}',
     '.chat-cached-badge svg{width:10px;height:10px;vertical-align:middle;margin-right:2px}',
+    '.chat-sql-reveal{margin-top:8px;border:1px solid #334155;border-radius:8px;overflow:hidden}',
+    '.chat-sql-reveal summary{padding:6px 12px;font-size:.7rem;color:#64748b;cursor:pointer;user-select:none;background:#0f172a}',
+    '.chat-sql-reveal summary:hover{color:#94a3b8}',
+    '.chat-sql-reveal pre{margin:0;padding:8px 12px;background:rgba(0,0,0,0.3);font-size:.72rem;overflow-x:auto;border-top:1px solid #334155}',
+    '.chat-sql-reveal .sql-label{display:block;color:#475569;font-size:.6rem;margin-bottom:2px;font-family:inherit}',
     '.chat-history-overlay{display:none;position:absolute;inset:0;z-index:10;background:#0f172af0;flex-direction:column}',
     '.chat-history-overlay.open{display:flex}',
     '.chat-history-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #334155;flex-shrink:0}',
@@ -780,16 +788,19 @@
     // Check cached answers first for instant response
     var cached = findCachedAnswer(text);
     if (cached) {
+      var answerText = cached.answer || cached;
+      var answerQueries = cached.queries || [];
+
       var badge = document.createElement('div');
       badge.className = 'chat-cached-badge';
       badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Instant answer';
       messagesEl.appendChild(badge);
 
-      var msgDiv = addMessage('assistant', cached);
-      conversationHistory.push({ role: 'assistant', content: cached });
+      var msgDiv = addMessage('assistant', answerText);
+      conversationHistory.push({ role: 'assistant', content: answerText });
 
       // Auto-navigate to relevant report section
-      var combinedText = text + ' ' + cached;
+      var combinedText = text + ' ' + answerText;
       var section = detectSection(combinedText);
       if (section && document.getElementById(section.id)) {
         addSectionPill(msgDiv, section);
@@ -797,17 +808,54 @@
         messagesEl.scrollTop = messagesEl.scrollHeight;
       }
 
-      // "Want more details?" button
+      // Follow-up buttons bar
+      var bar = document.createElement('div');
+      bar.className = 'chat-followup-bar';
+
+      // Button 1: Explain in more detail (AI)
       var deepBtn = document.createElement('button');
-      deepBtn.className = 'chat-deepdive';
-      deepBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg> Want more details? Ask AI for a deeper analysis';
+      deepBtn.className = 'chat-followup-btn';
+      deepBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg> Explain in more detail';
       deepBtn.addEventListener('click', function () {
-        deepBtn.remove();
+        bar.remove();
         sendToApi(text);
       });
-      msgDiv.appendChild(deepBtn);
+      bar.appendChild(deepBtn);
 
-      saveHistoryEntry(text, cached, []);
+      // Button 2: Review SQL queries
+      if (answerQueries.length > 0) {
+        var sqlBtn = document.createElement('button');
+        sqlBtn.className = 'chat-followup-btn sql-btn';
+        sqlBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Review SQL queries';
+        sqlBtn.addEventListener('click', function () {
+          sqlBtn.remove();
+          var details = document.createElement('details');
+          details.className = 'chat-sql-reveal';
+          details.open = true;
+          var summary = document.createElement('summary');
+          summary.textContent = answerQueries.length + ' SQL quer' + (answerQueries.length === 1 ? 'y' : 'ies') + ' used for this answer';
+          details.appendChild(summary);
+          answerQueries.forEach(function (sql, idx) {
+            var label = document.createElement('span');
+            label.className = 'sql-label';
+            label.textContent = 'Query ' + (idx + 1);
+            details.appendChild(label);
+            var pre = document.createElement('pre');
+            var code = document.createElement('code');
+            code.textContent = sql;
+            pre.appendChild(code);
+            details.appendChild(pre);
+          });
+          msgDiv.appendChild(details);
+          addSqlInteractivity(details);
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        });
+        bar.appendChild(sqlBtn);
+      }
+
+      msgDiv.appendChild(bar);
+
+      saveHistoryEntry(text, answerText, []);
       saveSession();
       return;
     }
