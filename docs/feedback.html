@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assessment Feedback — CMS Claims Comparison Pipeline</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #232733;
+    --border: #2d3148; --text: #e2e8f0; --muted: #8892b0;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --orange: #fb923c; --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.7; }
+
+  /* -- Project Nav -- */
+  .project-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: 32px; background: #0b0d14; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 6px;
+    font-size: 0.7rem;
+  }
+  .project-nav a {
+    color: var(--muted); text-decoration: none; padding: 3px 8px;
+    border-radius: 4px; transition: all 0.15s; white-space: nowrap;
+  }
+  .project-nav a:hover { color: var(--text); background: rgba(56,189,248,0.08); }
+  .project-nav a.active { color: var(--accent); background: rgba(56,189,248,0.1); }
+  .project-nav .nav-sep { color: var(--border); margin: 0 2px; }
+  .project-nav .nav-home { font-weight: 700; color: var(--accent); }
+
+  /* -- Sidebar TOC -- */
+  .sidebar {
+    position: fixed; top: 32px; left: 0; width: 240px; bottom: 0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 16px 12px; font-size: 0.75rem;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar .toc-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px;
+  }
+  .sidebar a {
+    display: block; padding: 4px 8px; margin: 1px 0; border-radius: 4px;
+    color: var(--muted); text-decoration: none; transition: all 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .sidebar a.depth-2 { padding-left: 20px; font-size: 0.7rem; }
+
+  /* -- Content -- */
+  .content {
+    margin-left: 240px; margin-top: 32px; padding: 32px 48px 80px;
+    max-width: 960px;
+  }
+  @media (max-width: 800px) {
+    .sidebar { display: none; }
+    .content { margin-left: 0; padding: 24px 20px 60px; }
+  }
+
+  /* -- Typography -- */
+  .content h1 {
+    font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;
+    color: var(--accent); border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .content h2 {
+    font-size: 1.15rem; font-weight: 700; margin-top: 2.2rem; margin-bottom: 0.6rem;
+    color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .content h3 {
+    font-size: 0.95rem; font-weight: 700; margin-top: 1.6rem; margin-bottom: 0.4rem;
+    color: var(--accent2);
+  }
+  .content h4 {
+    font-size: 0.85rem; font-weight: 700; margin-top: 1.2rem; margin-bottom: 0.3rem;
+    color: var(--muted);
+  }
+  .content p { margin-bottom: 0.9rem; font-size: 0.88rem; }
+  .content a { color: var(--accent); text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .content strong { color: var(--text); font-weight: 700; }
+  .content em { color: var(--muted); }
+  .content ul, .content ol { padding-left: 1.5em; margin-bottom: 1rem; font-size: 0.88rem; }
+  .content li { margin-bottom: 0.3rem; }
+  .content li > ul, .content li > ol { margin-top: 0.3rem; margin-bottom: 0; }
+
+  /* -- Code -- */
+  .content code {
+    font-family: var(--mono); font-size: 0.78rem;
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+    color: var(--orange);
+  }
+  .content pre {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; overflow-x: auto;
+    margin-bottom: 1.2rem;
+  }
+  .content pre code {
+    background: none; padding: 0; color: var(--text); font-size: 0.76rem;
+    line-height: 1.6;
+  }
+
+  /* -- Tables -- */
+  .content table {
+    width: 100%; border-collapse: collapse; margin-bottom: 1.2rem;
+    font-size: 0.8rem;
+  }
+  .content th {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 8px 12px; text-align: left; font-weight: 700;
+    color: var(--accent); font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .content td {
+    border: 1px solid var(--border); padding: 6px 12px;
+    vertical-align: top;
+  }
+  .content tr:nth-child(even) { background: rgba(26,29,39,0.5); }
+
+  /* -- Blockquote -- */
+  .content blockquote {
+    border-left: 3px solid var(--accent); margin: 1rem 0;
+    padding: 8px 16px; background: rgba(56,189,248,0.04);
+    font-size: 0.85rem; color: var(--muted);
+  }
+
+  /* -- HR -- */
+  .content hr {
+    border: none; height: 1px; background: var(--border);
+    margin: 2rem 0;
+  }
+
+  /* -- Source badge -- */
+  .source-badge {
+    display: inline-block; font-size: 0.65rem; padding: 2px 8px;
+    border-radius: 3px; background: rgba(56,189,248,0.1);
+    color: var(--accent); font-family: var(--mono); margin-bottom: 1.2rem;
+  }
+</style>
+</head>
+<body>
+
+<nav class="project-nav">
+  <a href="index.html" class="nav-home">Project Docs Index</a>
+  <span class="nav-sep">|</span>
+  <a href="reports/comparison_report.html">Report</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="schema_explorer.html">Schema</a>
+  <a href="parquet_viewer.html">Parquet</a>
+  <a href="sql_explorer.html">SQL</a>
+  <a href="reviewer_readme.html">Reviewer Guide</a>
+</nav>
+
+<nav class="sidebar" id="toc">
+  <div class="toc-title">Contents</div>
+  <a href="#feedback" class="">Feedback</a>
+  <a href="#duration" class="depth-2">Duration</a>
+  <a href="#approach" class="depth-2">Approach</a>
+  <a href="#how-my-expertise-fits-this-assessment" class="depth-2">How My Expertise Fits This Assessment</a>
+  <a href="#skills-demonstrated" class="depth-2">Skills Demonstrated</a>
+  <a href="#assessment-feedback" class="depth-2">Assessment Feedback</a>
+  <a href="#suggestions-for-improving-the-assessment" class="depth-2">Suggestions for Improving the Assessment</a>
+</nav>
+
+<div class="content">
+  <span class="source-badge">Source: FEEDBACK.md</span>
+  <h1 id="feedback">Feedback</h1>
+<h2 id="duration">Duration</h2>
+<p>Approximately 6 hours coding and another hour for writing and taking screenshots.</p>
+<p>I have a component from another personal project that I considered adding in here.</p>
+<p>I also added a bit more to the data exploration part than was originally asked for - showing the use of an in-browser Parquet viewer and query engine that was made by someone I know.</p>
+<h2 id="approach">Approach</h2>
+<p>My approach prioritized building a reliable, well-structured pipeline over maximizing the number of checks. The key decisions:</p>
+<ol>
+<li>
+<p><strong>DuckDB</strong> for the analytical workload — SQL is clearer than tools like Pandasfor the complex joins and aggregations needed for matching records. DuckDB is not a trad works on files easily without needed persistent processes.  and can handle the 2.4 GB carrier claims files without memory pressure.</p>
+</li>
+<li>
+<p><strong>6-step pipeline with gate logic</strong> — rather than a monolithic script, each step is independently testable and can halt early on bad input. This mirrors how production data pipelines should work.</p>
+</li>
+<li>
+<p><strong>Report designed to communicate, not just display</strong> — executive summary and failed checks upfront, interactive charts for trends, data profiles collapsed as reference material. The report should answer "what's wrong and how bad is it" within 10 seconds of opening.</p>
+</li>
+<li>
+<p><strong>Docker for portability</strong> — a single <code>docker build &amp;&amp; docker run</code> command runs the full pipeline on any machine, with data volume-mounted to keep the image small.</p>
+</li>
+<li>
+<p><strong>Interpretive analysis over raw numbers</strong> — the report doesn't just show discrepancy counts, it explains what they mean: root cause hypotheses, risk assessment, and a clear recommendation (not ready for cutover, two bugs to fix).</p>
+</li>
+</ol>
+<h2 id="how-my-expertise-fits-this-assessment">How My Expertise Fits This Assessment</h2>
+<p>This assessment is fundamentally about <strong>evaluating the migration of a healthcare claims processing system</strong> — exactly the kind of work USDS does when modernizing government systems.</p>
+<p>My approach reflects that context:</p>
+<ul>
+<li><strong>Production pipeline thinking:</strong> The 6-step pipeline with gate logic, halting on bad input, and structured error reporting mirrors how I would build a real migration validation tool — not a one-off script, but something a team can maintain and re-run.</li>
+<li><strong>Domain awareness:</strong> I read the CMS codebook to understand the financial reconciliation rules (LINE_PRCSG_IND_CD filtering, MEDREIMB_CAR derivation). The validation checks are informed by the data's semantics, not just its structure.</li>
+<li><strong>Communication as a deliverable:</strong> At USDS, the audience for a report like this includes both engineers and non-technical stakeholders. The report is designed for progressive disclosure: KPIs → Key Findings narrative → detailed charts → raw data profiles.</li>
+<li><strong>Cloud-ready architecture:</strong> The StorageAdapter pattern and AWS SAM infrastructure (Lambda + Step Functions + S3) demonstrate readiness for government cloud environments, even though the assessment only requires local execution.</li>
+</ul>
+<h2 id="skills-demonstrated">Skills Demonstrated</h2>
+<ul>
+<li><strong>Data engineering:</strong> CSV ingestion, schema validation, ETL into an analytical database, data quality profiling, record matching with composite keys</li>
+<li><strong>SQL:</strong> Complex multi-table joins, UNPIVOT-style queries for 13-line carrier claims, financial reconciliation logic derived from the CMS codebook, window functions for discrepancy analysis</li>
+<li><strong>Python:</strong> Clean module architecture, dataclasses, type hints, pytest fixtures, Jinja2 templating, FastAPI web server</li>
+<li><strong>Data analysis:</strong> Identifying anomalies (negative payments, future dates, demographic drift), quantifying discrepancy impact in dollar terms, root cause hypothesis generation, trend analysis</li>
+<li><strong>Communication:</strong> Interactive HTML report with sidebar navigation, Plotly charts, sortable tables, interpretive Key Findings narrative, risk assessment</li>
+<li><strong>Infrastructure:</strong> Docker containerization, AWS SAM (Lambda + Step Functions + S3 + API Gateway), StorageAdapter abstraction pattern</li>
+</ul>
+<h2 id="assessment-feedback">Assessment Feedback</h2>
+<ul>
+<li>The assessment is well-scoped — the 4-6 hour estimate is realistic for a decent solution.</li>
+<li>It is a fair evaluation. The open-ended nature (depth of analysis, report medium, tech choices) can let us show off different strengths.</li>
+<li>The CMS DE-SynPUF data is a good choice — it's realistic, publicly available, and large enough to test performance decisions.</li>
+<li>Working off a codebook is .</li>
+</ul>
+<h2 id="suggestions-for-improving-the-assessment">Suggestions for Improving the Assessment</h2>
+<ul>
+<li>A brief <strong>scoring rubric</strong> (even at a high level — e.g., "we value depth over breadth") could help us figure out the best use of our time.</li>
+<li>As someone who makes data pipelines, I would want to see how candidates handle the other 20 DE-SynPUF samples, and if they make solutions that handle those well. </li>
+</ul>
+</div>
+
+</body>
+</html>

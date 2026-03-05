@@ -23,6 +23,7 @@ MD_FILES = {
     "DATA_DICTIONARY.md": "Data Dictionary",
     "REQUIREMENTS_TRACEABILITY.md": "Requirements Traceability",
     "REVIEWER_README.md": "Reviewer Walkthrough",
+    "FEEDBACK.md": "Assessment Feedback",
 }
 
 NAV_BAR = """\
