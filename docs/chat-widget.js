@@ -156,7 +156,7 @@
     '.chat-msg.assistant{align-self:flex-start;background:#334155;color:#e2e8f0;border-bottom-left-radius:4px}',
     '.chat-msg.assistant p{margin:0 0 8px 0}.chat-msg.assistant p:last-child{margin-bottom:0}',
     '.chat-msg.assistant code{background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:3px;font-size:.8rem}',
-    '.chat-msg.assistant pre{background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0;position:relative}',
+    '.chat-msg.assistant pre{background:rgba(0,0,0,0.3);padding:8px 10px 8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0;position:relative;white-space:pre-wrap;word-wrap:break-word;word-break:break-all}',
     '.chat-msg.assistant pre code{background:none;padding:0}',
     '.chat-msg.assistant strong{color:#38bdf8}',
     '.chat-msg.assistant ul,.chat-msg.assistant ol{margin:4px 0 4px 18px}.chat-msg.assistant li{margin-bottom:2px}',
@@ -199,10 +199,11 @@
     '.chat-history-card .h-nosql{font-size:.68rem;color:#475569;font-style:italic}',
     '.chat-history-clear{display:block;width:100%;padding:8px;margin-top:4px;background:none;border:1px solid #334155;border-radius:6px;color:#f87171;font-size:.75rem;cursor:pointer;text-align:center}',
     '.chat-history-clear:hover{background:#1e293b;border-color:#f87171}',
-    '.chat-sql-copy{position:absolute;top:4px;right:4px;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:.65rem;cursor:pointer;font-family:inherit;opacity:.7;transition:opacity .15s;z-index:2}',
-    '.chat-msg.assistant pre:hover .chat-sql-copy{opacity:1}',
-    '.chat-sql-copy:hover{opacity:1;background:rgba(56,189,248,0.25)}',
-    '.chat-sql-copy.copied{background:rgba(74,222,128,0.2);border-color:rgba(74,222,128,0.4);color:#4ade80;opacity:1}',
+    '.chat-sql-copy{position:absolute;top:6px;right:6px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.2);color:#94a3b8;border-radius:5px;padding:4px;cursor:pointer;opacity:.5;transition:all .15s;z-index:2;display:flex;align-items:center;justify-content:center;line-height:0}',
+    '.chat-msg.assistant pre:hover .chat-sql-copy{opacity:.8}',
+    '.chat-sql-copy:hover{opacity:1;color:#38bdf8;background:rgba(56,189,248,0.2);border-color:rgba(56,189,248,0.4)}',
+    '.chat-sql-copy svg{width:14px;height:14px}',
+    '.chat-sql-copy.copied{background:rgba(74,222,128,0.15);border-color:rgba(74,222,128,0.3);color:#4ade80;opacity:1}',
     '.chat-nav-pill{display:inline-block;margin-top:6px}',
     '.chat-nav-pill button{background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:12px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-family:inherit}',
     '.chat-nav-pill button:hover{background:rgba(56,189,248,0.25)}',
@@ -226,7 +227,7 @@
   panel.innerHTML = [
     '<div class="chat-header">',
     '  <div class="chat-header-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg></div>',
-    '  <div class="chat-header-title"><h4>Report Assistant</h4><span>AI-powered \u2014 knows this report\'s findings</span></div>',
+    '  <div class="chat-header-title"><h4>Report Assistant</h4></div>',
     '  <button class="chat-reset" id="chatHistory" title="Query history" style="margin-right:-4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>',
     '  <button class="chat-reset" id="chatReset" title="Reset conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>',
     '  <button class="chat-close" id="chatClose" title="Close chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>',
@@ -495,14 +496,15 @@
       // Copy button
       var copyBtn = document.createElement('button');
       copyBtn.className = 'chat-sql-copy';
-      copyBtn.textContent = 'Copy';
+      copyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      copyBtn.title = 'Copy to clipboard';
       copyBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         e.preventDefault();
         copyToClipboard(text).then(function () {
-          copyBtn.textContent = 'Copied!';
+          copyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
           copyBtn.classList.add('copied');
-          setTimeout(function () { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500);
+          setTimeout(function () { copyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; copyBtn.classList.remove('copied'); }, 1500);
         });
       });
       pre.style.position = 'relative';
@@ -514,15 +516,8 @@
       pre.addEventListener('dblclick', function () {
         var onSqlPage = window.location.pathname.indexOf('sql_explorer') !== -1;
         if (onSqlPage) {
-          // Already on SQL Explorer — fill editor directly
-          var editor = document.getElementById('queryEditor');
-          if (editor) {
-            editor.value = text;
-            editor.dispatchEvent(new Event('input', { bubbles: true }));
-            // Try to trigger run
-            var runBtn = document.getElementById('runBtn');
-            if (runBtn && !runBtn.disabled) runBtn.click();
-          }
+          // Already on SQL Explorer — dispatch custom event for the module script to handle
+          window.dispatchEvent(new CustomEvent('chat-fill-sql', { detail: { sql: text } }));
         } else {
           sessionStorage.setItem('cms_prefill_sql', text);
           window.location.href = getSqlExplorerUrl();

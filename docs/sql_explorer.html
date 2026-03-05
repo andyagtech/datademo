@@ -72,6 +72,22 @@
     background: rgba(56,189,248,0.04);
   }
   .sidebar-drop input { display: none; }
+  .query-history-section { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .query-history-list { flex: 1; overflow-y: auto; padding: 4px 10px 8px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .query-history-list::-webkit-scrollbar { width: 5px; }
+  .query-history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .qh-item {
+    padding: 5px 8px; font-size: 0.68rem; font-family: var(--mono);
+    color: var(--muted); cursor: pointer; border-radius: 4px;
+    transition: all 0.12s; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; border-left: 2px solid transparent;
+    margin-bottom: 2px;
+  }
+  .qh-item:hover { color: var(--text); background: rgba(56,189,248,0.06); border-left-color: var(--accent); }
+  .qh-item .qh-time { font-size: 0.58rem; color: var(--border); margin-right: 4px; }
+  .qh-empty { color: var(--border); font-size: 0.68rem; padding: 8px 4px; text-align: center; font-style: italic; }
+  .qh-clear { font-size: 0.6rem; color: var(--red); cursor: pointer; opacity: 0.5; transition: opacity 0.15s; padding: 2px 0; }
+  .qh-clear:hover { opacity: 1; }
   .export-item {
     padding: 5px 10px; font-size: 0.73rem; cursor: pointer;
     display: flex; align-items: center; gap: 6px;
@@ -227,6 +243,16 @@
         &#128451; Drop .parquet<br>or click to browse
       </div>
       <input type="file" id="fileInput" accept=".parquet,.parq" multiple>
+    </div>
+    <div style="height:1px;background:var(--border);margin:4px 14px"></div>
+    <div class="query-history-section">
+      <div class="sidebar-section" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Query History</span>
+        <span class="qh-clear" id="clearQueryHistory" title="Clear history">&times; clear</span>
+      </div>
+      <div class="query-history-list" id="queryHistoryList">
+        <div class="qh-empty">No queries yet</div>
+      </div>
     </div>
   </div>
 
@@ -460,6 +486,7 @@ async function runQuery() {
   const query = queryEditor.value.trim();
   if (!query) return;
 
+  addToQueryHistory(query);
   runBtn.disabled = true;
   setStatus('Running...', '');
   showRunning();
@@ -703,6 +730,65 @@ function getTypeName(col) {
 function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ============================================================
+// QUERY HISTORY
+// ============================================================
+const queryHistoryList = document.getElementById('queryHistoryList');
+const clearQueryHistoryBtn = document.getElementById('clearQueryHistory');
+const QH_KEY = 'cms_sql_query_history';
+let queryHistory = [];
+
+try { queryHistory = JSON.parse(sessionStorage.getItem(QH_KEY) || '[]'); } catch(_) {}
+renderQueryHistory();
+
+function addToQueryHistory(sql) {
+  const trimmed = sql.trim();
+  if (!trimmed) return;
+  // Remove duplicate if exists
+  queryHistory = queryHistory.filter(h => h.sql !== trimmed);
+  queryHistory.unshift({ sql: trimmed, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+  // Cap at 50
+  if (queryHistory.length > 50) queryHistory.length = 50;
+  try { sessionStorage.setItem(QH_KEY, JSON.stringify(queryHistory)); } catch(_) {}
+  renderQueryHistory();
+}
+
+function renderQueryHistory() {
+  if (!queryHistory.length) {
+    queryHistoryList.innerHTML = '<div class="qh-empty">No queries yet</div>';
+    return;
+  }
+  queryHistoryList.innerHTML = queryHistory.map((h, i) =>
+    `<div class="qh-item" data-qhi="${i}" title="${escapeHtml(h.sql)}"><span class="qh-time">${h.time}</span>${escapeHtml(h.sql.replace(/\n/g, ' ').substring(0, 80))}</div>`
+  ).join('');
+  queryHistoryList.querySelectorAll('.qh-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.qhi);
+      if (queryHistory[idx]) {
+        queryEditor.value = queryHistory[idx].sql;
+        runQuery();
+      }
+    });
+  });
+}
+
+clearQueryHistoryBtn.addEventListener('click', () => {
+  queryHistory = [];
+  try { sessionStorage.removeItem(QH_KEY); } catch(_) {}
+  renderQueryHistory();
+});
+
+// ============================================================
+// CHAT WIDGET BRIDGE — handle double-click SQL from chat
+// ============================================================
+window.addEventListener('chat-fill-sql', (e) => {
+  const sql = e.detail && e.detail.sql;
+  if (sql) {
+    queryEditor.value = sql;
+    runQuery();
+  }
+});
 </script>
 <script src="chat-widget.js"></script>
 </body>
