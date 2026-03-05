@@ -29,12 +29,12 @@ NAV_BAR = """\
 <nav class="project-nav">
   <a href="index.html" class="nav-home">Project Docs Index</a>
   <span class="nav-sep">|</span>
-  <a href="reviewer_readme.html">Reviewer Guide</a>
   <a href="reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
   <a href="schema_explorer.html">Schema</a>
   <a href="parquet_viewer.html">Parquet</a>
   <a href="sql_explorer.html">SQL</a>
+  <a href="reviewer_readme.html">Reviewer Guide</a>
 </nav>"""
 
 HTML_TEMPLATE = """\
