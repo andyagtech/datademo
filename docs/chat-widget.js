@@ -55,11 +55,33 @@
     claims_pmt_mismatch:    { label: 'Payment Mismatches',          section: 'kpi-claims-pmt' },
     financial_divergence:   { label: 'Financial Divergence',        section: 'kpi-fin-diverge' },
 
-    // Charts
-    field_mismatches_chart: { label: 'Field Mismatches Chart',      section: 'chart-field-mismatches' },
-    discrepancy_trend_chart:{ label: 'Discrepancy Trend Chart',     section: 'chart-discrepancy-trend' },
-    fin_divergence_chart:   { label: 'Financial Divergence Chart',  section: 'chart-fin-divergence' },
-    reimb_comparison_chart: { label: 'Reimbursement Comparison',    section: 'chart-reimb-comparison' }
+    // Charts (container wrappers for better scroll targeting)
+    field_mismatches_chart: { label: 'Field Mismatches Chart',      section: 'container-field-mismatches' },
+    discrepancy_trend_chart:{ label: 'Discrepancy Trend Chart',     section: 'container-discrepancy-trend' },
+    fin_divergence_chart:   { label: 'Financial Divergence Chart',  section: 'container-fin-divergence' },
+    reimb_comparison_chart: { label: 'Reimbursement Comparison',    section: 'container-reimb-comparison' },
+    discrepancy_charts:     { label: 'Discrepancy Charts',          section: 'discrepancy-charts' },
+
+    // Financial sub-charts
+    financial_trends_chart: { label: 'Financial Trends Chart',      section: 'container-financial-trends' },
+    payment_distribution:   { label: 'Payment Distribution',        section: 'container-financial-dist' },
+    chronic_conditions:     { label: 'Chronic Conditions',          section: 'container-chronic' },
+
+    // YoY sub-charts
+    yoy_beneficiaries:      { label: 'Beneficiaries by Year',       section: 'container-yoy-bene' },
+    yoy_claims:             { label: 'Claims by Year',              section: 'container-yoy-claims' },
+
+    // Validation
+    validation_table:       { label: 'Validation Table',            section: 'validation-table' },
+    issues_by_check:        { label: 'Issues by Check',             section: 'issues-by-check' },
+
+    // Comparison detail
+    comparison_checks:      { label: 'Comparison Checks',           section: 'comparison-checks-detail' },
+
+    // Headings
+    financial_heading:      { label: 'Financial Analysis',          section: 'financial-analysis-heading' },
+    validation_heading:     { label: 'Validation Results',          section: 'validation-results-heading' },
+    yoy_heading:            { label: 'YoY Trends',                  section: 'yoy-trends-heading' }
   };
 
   // ── Bold-text auto-linking: map common phrases to [[page_id]] ──
@@ -68,7 +90,12 @@
     { pattern: /beneficiary\s+discrepanc/i,   id: 'discrepancies',  reportHash: 'kpi-bene-mismatch' },
     { pattern: /claim\s+count\s+diff/i,       id: 'discrepancies',  reportHash: 'kpi-claims-pmt' },
     { pattern: /financial\s+discrepanc/i,      id: 'financial',      reportHash: 'kpi-fin-diverge' },
+    { pattern: /financial\s+analysis/i,         id: 'financial',      reportHash: 'financial' },
+    { pattern: /financial\s+reconcil/i,         id: 'financial',      reportHash: 'financial' },
     { pattern: /payment\s+(?:ratio|mismatch)/i,id: 'financial',      reportHash: 'kpi-claims-pmt' },
+    { pattern: /payment\s+distribution/i,      id: 'financial',      reportHash: 'container-financial-dist' },
+    { pattern: /chronic\s+condition/i,          id: 'financial',      reportHash: 'container-chronic' },
+    { pattern: /reimbursement\s+(?:total|comparison)/i, id: 'financial', reportHash: 'container-financial-trends' },
     { pattern: /phantom\s+record/i,            id: 'discrepancies',  reportHash: 'kpi-phantom' },
     { pattern: /data\s+quality/i,              id: 'validation',     reportHash: 'validation' },
     { pattern: /key\s+finding/i,               id: 'discrepancies',  reportHash: 'key-findings' },
@@ -678,12 +705,34 @@
   function navigateToSection(sectionId) {
     var el = document.getElementById(sectionId);
     if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Find the parent .section div so we scroll to its heading first
+    var parentSection = el.closest('.section');
+    var scrollTarget = el;
+    // If the target is inside a section but is NOT the section itself,
+    // scroll to the section heading so the header is visible, then highlight the target
+    if (parentSection && parentSection !== el && parentSection.id !== sectionId) {
+      var heading = parentSection.querySelector('h2[id]');
+      if (heading) scrollTarget = heading;
+    }
+
+    scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Update sidebar active state
     var sideLinks = document.querySelectorAll('#sidebar a[data-section]');
-    sideLinks.forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-section') === sectionId); });
-    el.style.transition = 'box-shadow 0.3s';
-    el.style.boxShadow = '0 0 0 2px rgba(56,189,248,0.5)';
-    setTimeout(function () { el.style.boxShadow = 'none'; }, 1500);
+    var closestSectionId = parentSection ? parentSection.id : sectionId;
+    sideLinks.forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-section') === closestSectionId); });
+
+    // Highlight the target element with CSS animation
+    setTimeout(function () {
+      if (scrollTarget !== el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      el.classList.remove('highlight-target');
+      void el.offsetWidth; // force reflow
+      el.classList.add('highlight-target');
+      el.addEventListener('animationend', function () { el.classList.remove('highlight-target'); }, { once: true });
+    }, scrollTarget !== el ? 600 : 300);
   }
 
   function addSectionPill(parentEl, section) {

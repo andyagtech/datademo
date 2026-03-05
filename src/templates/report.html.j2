@@ -48,6 +48,15 @@
   .badge-info { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
   .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
   .section { margin-bottom: 2.5rem; }
+  /* Scroll offset for fixed nav bar + breathing room */
+  [id] { scroll-margin-top: 52px; }
+  /* Highlight pulse when navigated to via chat or hash */
+  @keyframes highlightPulse {
+    0% { outline: 2px solid rgba(56,189,248,0.8); outline-offset: 2px; box-shadow: 0 0 15px rgba(56,189,248,0.4); }
+    50% { outline: 2px solid rgba(56,189,248,0.4); outline-offset: 4px; box-shadow: 0 0 25px rgba(56,189,248,0.2); }
+    100% { outline: 2px solid transparent; outline-offset: 6px; box-shadow: none; }
+  }
+  .highlight-target { animation: highlightPulse 1.8s ease-out forwards; border-radius: 8px; }
   .null-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--accent); }
   .impact-cell { font-size: 0.78rem; color: var(--muted); word-wrap: break-word; white-space: normal; line-height: 1.35; }
   .comparison-scroll { overflow-x: auto; margin: 0.5rem 0; }
@@ -369,19 +378,20 @@
     </div>
 
     <!-- Discrepancy charts -->
-    <div class="grid-2" style="margin-top: 1.5rem;">
-      <div class="chart-container">
+    <h3 id="discrepancy-charts" style="margin-top: 1.5rem;">Discrepancy Charts</h3>
+    <div class="grid-2">
+      <div class="chart-container" id="container-field-mismatches">
         <div id="chart-field-mismatches" style="width:100%;height:400px;"></div>
       </div>
-      <div class="chart-container">
+      <div class="chart-container" id="container-discrepancy-trend">
         <div id="chart-discrepancy-trend" style="width:100%;height:400px;"></div>
       </div>
     </div>
     <div class="grid-2">
-      <div class="chart-container">
+      <div class="chart-container" id="container-fin-divergence">
         <div id="chart-fin-divergence" style="width:100%;height:400px;"></div>
       </div>
-      <div class="chart-container">
+      <div class="chart-container" id="container-reimb-comparison">
         <div id="chart-reimb-comparison" style="width:100%;height:400px;"></div>
       </div>
     </div>
@@ -392,7 +402,7 @@
   <!-- ============================================================ -->
   <div class="section" id="validation">
     <h2 id="validation-results-heading">Validation Results</h2>
-    <table>
+    <table id="validation-table">
       <thead>
         <tr><th>Check</th><th>Category</th><th>Description</th><th>Checked</th><th>Issues</th><th>Rate</th><th>Status</th></tr>
       </thead>
@@ -422,8 +432,8 @@
   <div class="section" id="trends">
     <h2 id="yoy-trends-heading">Year-over-Year Trends</h2>
     <div class="grid-2">
-      <div class="chart-container"><div id="chart-yoy-bene" style="width:100%;height:350px;"></div></div>
-      <div class="chart-container"><div id="chart-yoy-claims" style="width:100%;height:350px;"></div></div>
+      <div class="chart-container" id="container-yoy-bene"><div id="chart-yoy-bene" style="width:100%;height:350px;"></div></div>
+      <div class="chart-container" id="container-yoy-claims"><div id="chart-yoy-claims" style="width:100%;height:350px;"></div></div>
     </div>
   </div>
 
@@ -432,10 +442,10 @@
   <!-- ============================================================ -->
   <div class="section" id="financial">
     <h2 id="financial-analysis-heading">Financial Analysis</h2>
-    <div class="chart-container"><div id="chart-financial-trends" style="width:100%;height:400px;"></div></div>
+    <div class="chart-container" id="container-financial-trends"><div id="chart-financial-trends" style="width:100%;height:400px;"></div></div>
     <div class="grid-2">
-      <div class="chart-container"><div id="chart-financial-dist" style="width:100%;height:400px;"></div></div>
-      <div class="chart-container"><div id="chart-chronic" style="width:100%;height:400px;"></div></div>
+      <div class="chart-container" id="container-financial-dist"><div id="chart-financial-dist" style="width:100%;height:400px;"></div></div>
+      <div class="chart-container" id="container-chronic"><div id="chart-chronic" style="width:100%;height:400px;"></div></div>
     </div>
   </div>
 
@@ -445,7 +455,7 @@
   <div class="section" id="comparison">
     <h2 id="system-comparison-heading">System Comparison</h2>
     {% if comparisons %}
-    <details open>
+    <details open id="comparison-checks-detail">
       <summary>
         All Comparison Checks
         <span class="summary-meta">{{ comparisons|length }} checks across schema, row-level, field-level, and aggregate categories</span>
@@ -834,6 +844,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
     sectionEls.forEach(function(el) { observer.observe(el); });
   }
+
+  /* -- Highlight target on hash navigation -- */
+  function highlightElement(el) {
+    if (!el) return;
+    el.classList.remove('highlight-target');
+    void el.offsetWidth; // force reflow to restart animation
+    el.classList.add('highlight-target');
+    el.addEventListener('animationend', function() { el.classList.remove('highlight-target'); }, { once: true });
+  }
+  if (window.location.hash) {
+    var hashEl = document.getElementById(window.location.hash.slice(1));
+    if (hashEl) {
+      setTimeout(function() { highlightElement(hashEl); }, 400);
+    }
+  }
+  window.addEventListener('hashchange', function() {
+    if (window.location.hash) {
+      var el = document.getElementById(window.location.hash.slice(1));
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); highlightElement(el); }
+    }
+  });
 
   /* -- Table sorting -- */
   document.querySelectorAll('table').forEach(function(table) {
