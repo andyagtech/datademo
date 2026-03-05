@@ -80,6 +80,7 @@ docker run --rm -p 8888:8888 \
 
 ```bash
 # Requires Python 3.14+
+# Create and activate a virtual environment (recommended)
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -98,6 +99,19 @@ python -m src.main --skip-ingest
 # Run tests
 pytest tests/ -v
 ```
+
+<details>
+<summary><strong>Alternative: using <code>uv</code> (faster)</strong></summary>
+
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager. If you have it installed:
+
+```bash
+uv venv --python 3.14
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+</details>
 
 ### Web UI (Drag-and-Drop)
 
