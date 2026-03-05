@@ -876,6 +876,53 @@ def build_report_data(
             pass
 
     failed_count = sum(1 for v in validations if not v.passed)
+
+    # Compute financial discrepancy headline numbers from comparison results
+    total_claims_pmt_divergence = 0.0
+    claims_with_pmt_changes = 0
+    benes_with_any_change = 0
+    if con:
+        try:
+            # Sum of absolute aggregate divergence across all carrier LINE_NCH_PMT_AMT lines
+            for c in comparisons:
+                if c.check_name.startswith("aggregate_divergence_line_nch_pmt_amt"):
+                    try:
+                        total_claims_pmt_divergence += abs(float(str(c.metric_value).replace(",", "")))
+                    except (ValueError, TypeError):
+                        pass
+            # Count of matched claims with any payment change (any line)
+            try:
+                claims_with_pmt_changes = con.execute("""
+                    SELECT COUNT(*) FROM carrier_claims o
+                    JOIN new_carrier_claims n ON o.CLM_ID::VARCHAR = n.CLM_ID::VARCHAR
+                    WHERE n.DESYNPUF_ID NOT LIKE 'ZZ%'
+                      AND (o.LINE_NCH_PMT_AMT_1 != n.LINE_NCH_PMT_AMT_1
+                        OR o.LINE_NCH_PMT_AMT_2 IS DISTINCT FROM n.LINE_NCH_PMT_AMT_2
+                        OR o.LINE_NCH_PMT_AMT_3 IS DISTINCT FROM n.LINE_NCH_PMT_AMT_3)
+                """).fetchone()[0]
+            except Exception:
+                pass
+            # Distinct beneficiaries with any field-level change
+            try:
+                benes_with_any_change = con.execute("""
+                    SELECT COUNT(DISTINCT o.DESYNPUF_ID)
+                    FROM beneficiary_summary o
+                    JOIN new_beneficiary_summary n
+                      ON o.DESYNPUF_ID = n.DESYNPUF_ID AND o.summary_year = n.summary_year
+                    WHERE n.DESYNPUF_ID NOT LIKE 'ZZ%'
+                      AND (o.BENE_BIRTH_DT::VARCHAR IS DISTINCT FROM n.BENE_BIRTH_DT::VARCHAR
+                        OR o.BENE_HI_CVRAGE_TOT_MONS::VARCHAR IS DISTINCT FROM n.BENE_HI_CVRAGE_TOT_MONS::VARCHAR
+                        OR o.BENE_SMI_CVRAGE_TOT_MONS::VARCHAR IS DISTINCT FROM n.BENE_SMI_CVRAGE_TOT_MONS::VARCHAR
+                        OR o.BENE_HMO_CVRAGE_TOT_MONS::VARCHAR IS DISTINCT FROM n.BENE_HMO_CVRAGE_TOT_MONS::VARCHAR
+                        OR o.PLAN_CVRG_MOS_NUM::VARCHAR IS DISTINCT FROM n.PLAN_CVRG_MOS_NUM::VARCHAR
+                        OR o.MEDREIMB_IP::VARCHAR IS DISTINCT FROM n.MEDREIMB_IP::VARCHAR
+                        OR o.MEDREIMB_CAR::VARCHAR IS DISTINCT FROM n.MEDREIMB_CAR::VARCHAR)
+                """).fetchone()[0]
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     summary = {
         "total_beneficiaries": f"{total_benes:,}",
         "total_claims": f"{total_claims:,}",
@@ -883,6 +930,9 @@ def build_report_data(
         "passed_checks": len(validations) - failed_count,
         "failed_checks": failed_count,
         "summary_years": summary_years,
+        "total_claims_pmt_divergence": f"${total_claims_pmt_divergence:,.2f}",
+        "claims_with_pmt_changes": f"{claims_with_pmt_changes:,}",
+        "benes_with_any_change": f"{benes_with_any_change:,}",
     }
 
     # ── Data Context: build file inventories from receive step results ──

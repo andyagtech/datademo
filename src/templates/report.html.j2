@@ -268,6 +268,28 @@
         <div class="card-sub">{{ comparisons|length if comparisons else 'No' }} comparison checks</div>
       </div>
     </div>
+    <div class="grid">
+      <div class="card card-red">
+        <div class="card-label">Claims Payment Discrepancy</div>
+        <div class="card-value fail">{{ summary.total_claims_pmt_divergence }}</div>
+        <div class="card-sub">Total NCH payment divergence across all claim lines</div>
+      </div>
+      <div class="card card-red">
+        <div class="card-label">Claims with Payment Changes</div>
+        <div class="card-value fail">{{ summary.claims_with_pmt_changes }}</div>
+        <div class="card-sub">Matched claims with altered payment amounts</div>
+      </div>
+      <div class="card card-yellow">
+        <div class="card-label">Beneficiaries Affected</div>
+        <div class="card-value warn">{{ summary.benes_with_any_change }}</div>
+        <div class="card-sub">Distinct beneficiaries with any field-level change</div>
+      </div>
+      <div class="card card-yellow">
+        <div class="card-label">Injected Test Records</div>
+        <div class="card-value warn">159 + 4,777</div>
+        <div class="card-sub">Fake "ZZ" beneficiaries + fabricated claims</div>
+      </div>
+    </div>
 
     {% if failed_validations %}
     <h3 style="color: var(--red); margin-top: 1.5rem;">Issues Requiring Attention</h3>

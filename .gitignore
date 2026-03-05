@@ -46,3 +46,4 @@ viewer/
 .vscode/
 .idea/
 *.swp
+*.tmp

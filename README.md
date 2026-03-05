@@ -6,7 +6,7 @@ Built for the USDS Data Engineering Take-Home Assessment.
 
 **Repository:** [github.com/andyagtech/cmsdata-assessment](https://github.com/andyagtech/cmsdata-assessment)
 **Hosted Report:** [andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/)
-
+**Full Bundle Download:** [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip)
 ---
 
 ## Prerequisites
@@ -612,6 +612,8 @@ Three of the documentation tools load JavaScript libraries from CDN at runtime:
 │   └── test_validate.py
 │
 ├── scripts/                 # Utility scripts
+│   ├── bundle.sh             # Create submission ZIP archive
+│   ├── upload_bundle.sh      # Upload bundle to S3 at persistent URL
 │   ├── render_md_docs.py     # Convert markdown docs → styled HTML
 │   └── teardown_cloud.sh     # AWS resource cleanup
 │
