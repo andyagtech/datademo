@@ -1084,6 +1084,22 @@ document.addEventListener('DOMContentLoaded', function() {
     checkConnection();
   });
 
+  // Pre-warm: fire a lightweight ping on page load so the Lambda downloads
+  // Parquet files and builds DuckDB *before* the user opens the chat.
+  (function preWarm() {
+    var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+    var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"message":"ping","conversationHistory":[]}'
+    })
+    .then(function(res) {
+      dotEl.className = 'dot ' + (res.ok || res.status === 500 ? 'connected' : 'disconnected');
+    })
+    .catch(function() { dotEl.className = 'dot disconnected'; });
+  })();
+
   // Open / close
   fab.addEventListener('click', function() {
     panel.classList.add('open');

@@ -337,18 +337,22 @@ Resources:
           BUCKET_NAME:
             Ref: ExistingDataBucket
           OPENAI_API_KEY_SSM: /cms-pipeline/openai-api-key
-          DB_S3_KEY: runs/latest/cms_claims.duckdb
-      FunctionUrlConfig:
-        AuthType: NONE
-        Cors:
-          AllowOrigins:
-          - '*'
-          AllowMethods:
-          - POST
-          - OPTIONS
-          AllowHeaders:
-          - Content-Type
-          MaxAge: 86400
+          PARQUET_S3_PREFIX: runs/latest/parquet
+      Events:
+        ChatPost:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: PipelineApi
+            Path: /api/chat
+            Method: POST
+        ChatOptions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: PipelineApi
+            Path: /api/chat
+            Method: OPTIONS
       ImageUri: receivefunction:latest
     Metadata:
       DockerContext: /Users/andy/assesment_1

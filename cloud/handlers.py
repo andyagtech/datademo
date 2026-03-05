@@ -346,34 +346,64 @@ def _get_openai_api_key() -> str:
     return _cached_api_key
 
 
+_PARQUET_TABLES = [
+    "beneficiary_summary",
+    "carrier_claims",
+    "new_beneficiary_summary",
+    "new_carrier_claims",
+    "_discrepancy_detail",
+    "_financial_recon",
+    "_match_beneficiary",
+    "_match_claims",
+]
+
+
 def _ensure_db_local(event: dict[str, Any]) -> Path:
-    """Download DuckDB snapshot from S3 to /tmp if not already cached."""
+    """Download Parquet files from S3 and build a lightweight DuckDB with views.
+
+    Much faster than downloading the 1.6 GB DuckDB file (~488 MB of Parquet).
+    On warm invocations the files are already cached in /tmp.
+    """
     global _cached_db_path
 
-    # Check for an explicit db_s3_key in the event, otherwise use latest run
-    db_s3_key = os.environ.get("DB_S3_KEY", "")
-    if not db_s3_key:
-        db_s3_key = event.get("db_s3_key", "")
-    if not db_s3_key:
-        # Fallback: try the results dict from the pipeline
-        db_s3_key = event.get("results", {}).get("db_s3_key", "")
+    parquet_dir = Path(tempfile.gettempdir()) / "parquet"
+    db_path = Path(tempfile.gettempdir()) / "chat_cms_claims.duckdb"
 
-    local_path = Path(tempfile.gettempdir()) / "chat_cms_claims.duckdb"
-
-    # Re-download if key changed or file doesn't exist
-    if _cached_db_path and _cached_db_path.exists() and str(_cached_db_path) == str(local_path):
-        logger.info("Using cached DuckDB file")
+    # Warm invocation — files already cached
+    if _cached_db_path and _cached_db_path.exists():
+        logger.info("Using cached DuckDB + Parquet files")
         return _cached_db_path
 
-    if db_s3_key:
-        storage = _get_storage()
-        db_bytes = storage.read_bytes(db_s3_key)
-        local_path.write_bytes(db_bytes)
-        logger.info(f"Downloaded DuckDB from {db_s3_key} ({len(db_bytes) / 1024 / 1024:.1f} MB)")
-        _cached_db_path = local_path
-        return local_path
+    parquet_dir.mkdir(parents=True, exist_ok=True)
 
-    raise RuntimeError("No DuckDB snapshot available. Run the pipeline first.")
+    # S3 prefix for parquet files
+    parquet_prefix = os.environ.get("PARQUET_S3_PREFIX", "runs/latest/parquet")
+    storage = _get_storage()
+    total_bytes = 0
+
+    for table_name in _PARQUET_TABLES:
+        s3_key = f"{parquet_prefix}/{table_name}.parquet"
+        local_file = parquet_dir / f"{table_name}.parquet"
+        if not local_file.exists():
+            data = storage.read_bytes(s3_key)
+            local_file.write_bytes(data)
+            total_bytes += len(data)
+            logger.info(f"Downloaded {s3_key} ({len(data) / 1024 / 1024:.1f} MB)")
+
+    logger.info(f"Total Parquet download: {total_bytes / 1024 / 1024:.1f} MB")
+
+    # Build DuckDB with lazy views over the Parquet files (no upfront materialization)
+    if db_path.exists():
+        db_path.unlink()
+    con = duckdb.connect(str(db_path))
+    for table_name in _PARQUET_TABLES:
+        pq_path = str(parquet_dir / f"{table_name}.parquet")
+        con.execute(f'CREATE VIEW "{table_name}" AS SELECT * FROM read_parquet(\'{pq_path}\')')
+    con.close()
+    logger.info("Built DuckDB views over Parquet files")
+
+    _cached_db_path = db_path
+    return db_path
 
 
 def _chat_execute_query(db_path: Path, sql: str) -> dict:
