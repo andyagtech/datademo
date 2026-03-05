@@ -1,0 +1,601 @@
+/**
+ * CMS Claims Report Assistant — Standalone Chat Widget
+ *
+ * Self-contained chat widget that can be included on any page.
+ * Persists conversation across page navigations via sessionStorage.
+ * Features: copy SQL, double-click SQL → SQL Explorer, section navigation.
+ *
+ * Usage: <script src="chat-widget.js"></script>
+ */
+(function () {
+  'use strict';
+
+  var LAMBDA_URL = 'https://zn5ugmlfnpuwwpabueyzgzaar40ovvmo.lambda-url.us-east-1.on.aws';
+  var SESSION_KEY = 'cms_chat_session';
+  var HISTORY_KEY = 'cms_chat_history';
+  var API_URL_KEY = 'cms_chat_api_url';
+
+  // ── Resolve relative path to SQL Explorer ──
+  function getSqlExplorerUrl() {
+    var loc = window.location.pathname;
+    if (loc.indexOf('/docs/') !== -1) return 'sql_explorer.html';
+    if (loc.indexOf('/reports/') !== -1) return '../docs/sql_explorer.html';
+    return 'docs/sql_explorer.html';
+  }
+
+  // ── Inject CSS ──
+  var style = document.createElement('style');
+  style.textContent = [
+    '.chat-fab{position:fixed;bottom:24px;right:24px;z-index:9999;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);border:none;cursor:pointer;box-shadow:0 4px 20px rgba(56,189,248,0.4);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}',
+    '.chat-fab:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(56,189,248,0.55)}',
+    '.chat-fab svg{width:26px;height:26px;fill:white}',
+    '.chat-panel{position:fixed;bottom:24px;right:24px;z-index:10000;width:400px;height:560px;max-height:calc(100vh - 80px);background:#1e293b;border:1px solid #334155;border-radius:16px;display:none;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.5);font-family:"Inter",system-ui,sans-serif}',
+    '.chat-panel.open{display:flex}',
+    '.chat-header{display:flex;align-items:center;gap:10px;padding:14px 16px;background:linear-gradient(135deg,#1e3a5f,#1e293b);border-bottom:1px solid #334155;flex-shrink:0}',
+    '.chat-header-icon{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;flex-shrink:0}',
+    '.chat-header-icon svg{width:18px;height:18px;fill:white}',
+    '.chat-header-title{flex:1}',
+    '.chat-header-title h4{margin:0;font-size:.9rem;color:#e2e8f0;font-weight:600}',
+    '.chat-header-title span{font-size:.7rem;color:#94a3b8}',
+    '.chat-close,.chat-reset{background:none;border:none;color:#94a3b8;cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;display:flex;align-items:center;justify-content:center}',
+    '.chat-close:hover,.chat-reset:hover{color:#e2e8f0;background:rgba(255,255,255,0.08)}',
+    '.chat-close svg,.chat-reset svg{width:18px;height:18px}',
+    '.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:#334155 transparent}',
+    '.chat-messages::-webkit-scrollbar{width:6px}',
+    '.chat-messages::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}',
+    '.chat-msg{max-width:85%;padding:10px 14px;border-radius:12px;font-size:.85rem;line-height:1.5;word-wrap:break-word}',
+    '.chat-msg.user{align-self:flex-end;background:#38bdf8;color:#0f172a;border-bottom-right-radius:4px}',
+    '.chat-msg.assistant{align-self:flex-start;background:#334155;color:#e2e8f0;border-bottom-left-radius:4px}',
+    '.chat-msg.assistant p{margin:0 0 8px 0}.chat-msg.assistant p:last-child{margin-bottom:0}',
+    '.chat-msg.assistant code{background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:3px;font-size:.8rem}',
+    '.chat-msg.assistant pre{background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;overflow-x:auto;margin:6px 0;position:relative}',
+    '.chat-msg.assistant pre code{background:none;padding:0}',
+    '.chat-msg.assistant strong{color:#38bdf8}',
+    '.chat-msg.assistant ul,.chat-msg.assistant ol{margin:4px 0 4px 18px}.chat-msg.assistant li{margin-bottom:2px}',
+    '.chat-msg.assistant table{border-collapse:collapse;margin:6px 0;font-size:.78rem;width:100%}',
+    '.chat-msg.assistant th,.chat-msg.assistant td{border:1px solid #475569;padding:3px 8px;text-align:left}',
+    '.chat-msg.assistant th{background:rgba(0,0,0,0.3);color:#38bdf8;font-size:.72rem}',
+    '.chat-msg.system{align-self:center;background:transparent;color:#94a3b8;font-size:.78rem;text-align:center;padding:4px 10px}',
+    '.chat-quick{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}',
+    '.chat-quick button{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.25);color:#38bdf8;padding:6px 12px;border-radius:20px;font-size:.75rem;cursor:pointer;transition:all .15s;white-space:nowrap}',
+    '.chat-quick button:hover{background:rgba(56,189,248,0.2);border-color:#38bdf8}',
+    '.chat-loading{display:flex;gap:4px;padding:10px 14px;align-self:flex-start}',
+    '.chat-loading span{width:8px;height:8px;border-radius:50%;background:#94a3b8;animation:chatBounce 1.2s infinite}',
+    '.chat-loading span:nth-child(2){animation-delay:.2s}.chat-loading span:nth-child(3){animation-delay:.4s}',
+    '@keyframes chatBounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}',
+    '.chat-input-area{display:flex;align-items:flex-end;gap:8px;padding:12px 16px;border-top:1px solid #334155;background:#1a2332;flex-shrink:0}',
+    '.chat-input-area textarea{flex:1;resize:none;border:1px solid #334155;border-radius:10px;background:#0f172a;color:#e2e8f0;padding:10px 12px;font-family:inherit;font-size:.85rem;line-height:1.4;max-height:100px;outline:none;transition:border-color .15s}',
+    '.chat-input-area textarea:focus{border-color:#38bdf8}',
+    '.chat-input-area textarea::placeholder{color:#64748b}',
+    '.chat-send{width:38px;height:38px;border-radius:50%;border:none;background:#38bdf8;color:#0f172a;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0}',
+    '.chat-send:hover{background:#60ccf8}.chat-send:disabled{opacity:.4;cursor:not-allowed}',
+    '.chat-send svg{width:18px;height:18px}',
+    '.chat-config{display:flex;align-items:center;gap:6px;padding:6px 16px;background:#0f172a;border-top:1px solid #334155;flex-shrink:0;font-size:.7rem;color:#64748b}',
+    '.chat-config input{flex:1;background:#1e293b;border:1px solid #334155;border-radius:4px;color:#94a3b8;padding:3px 6px;font-size:.7rem;font-family:monospace;outline:none}',
+    '.chat-config input:focus{border-color:#38bdf8}',
+    '.chat-config .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}',
+    '.chat-config .dot.connected{background:#4ade80}.chat-config .dot.disconnected{background:#f87171}',
+    '.chat-history-overlay{display:none;position:absolute;inset:0;z-index:10;background:#0f172af0;flex-direction:column}',
+    '.chat-history-overlay.open{display:flex}',
+    '.chat-history-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #334155;flex-shrink:0}',
+    '.chat-history-header h4{margin:0;color:#f1f5f9;font-size:.9rem}',
+    '.chat-history-header button{background:none;border:none;color:#94a3b8;cursor:pointer;padding:4px}',
+    '.chat-history-header button:hover{color:#f1f5f9}',
+    '.chat-history-list{flex:1;overflow-y:auto;padding:8px 12px}',
+    '.chat-history-empty{color:#64748b;text-align:center;padding:40px 16px;font-size:.85rem}',
+    '.chat-history-card{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s}',
+    '.chat-history-card:hover{border-color:#38bdf8}',
+    '.chat-history-card .h-time{font-size:.65rem;color:#64748b;margin-bottom:4px}',
+    '.chat-history-card .h-question{font-size:.8rem;color:#e2e8f0;font-weight:500;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.chat-history-card .h-sql{font-size:.68rem;color:#38bdf8;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.chat-history-card .h-nosql{font-size:.68rem;color:#475569;font-style:italic}',
+    '.chat-history-clear{display:block;width:100%;padding:8px;margin-top:4px;background:none;border:1px solid #334155;border-radius:6px;color:#f87171;font-size:.75rem;cursor:pointer;text-align:center}',
+    '.chat-history-clear:hover{background:#1e293b;border-color:#f87171}',
+    '.chat-sql-copy{position:absolute;top:4px;right:4px;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;border-radius:4px;padding:2px 6px;font-size:.6rem;cursor:pointer;font-family:inherit;opacity:0;transition:opacity .15s}',
+    '.chat-msg.assistant pre:hover .chat-sql-copy{opacity:1}',
+    '.chat-sql-copy.copied{background:rgba(74,222,128,0.2);border-color:rgba(74,222,128,0.4);color:#4ade80}',
+    '.chat-nav-pill{display:inline-block;margin-top:6px}',
+    '.chat-nav-pill button{background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:12px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-family:inherit}',
+    '.chat-nav-pill button:hover{background:rgba(56,189,248,0.25)}',
+    '@media(max-width:500px){.chat-panel{width:calc(100vw - 16px);right:8px;bottom:8px;height:calc(100vh - 16px);max-height:none;border-radius:12px}}'
+  ].join('\n');
+  document.head.appendChild(style);
+
+  // ── Build DOM ──
+  var fab = document.createElement('button');
+  fab.className = 'chat-fab';
+  fab.id = 'chatFab';
+  fab.title = 'Ask AI about this report';
+  fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/><path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>';
+
+  var panel = document.createElement('div');
+  panel.className = 'chat-panel';
+  panel.id = 'chatPanel';
+  panel.innerHTML = [
+    '<div class="chat-header">',
+    '  <div class="chat-header-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg></div>',
+    '  <div class="chat-header-title"><h4>Report Assistant</h4><span>AI-powered \u2014 knows this report\'s findings</span></div>',
+    '  <button class="chat-reset" id="chatHistory" title="Query history" style="margin-right:-4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>',
+    '  <button class="chat-reset" id="chatReset" title="Reset conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>',
+    '  <button class="chat-close" id="chatClose" title="Close chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>',
+    '</div>',
+    '<div class="chat-messages" id="chatMessages">',
+    '  <div class="chat-msg system">Ask me anything about the comparison report findings, data quality checks, or discrepancy impact.</div>',
+    '</div>',
+    '<div class="chat-quick" id="chatQuick">',
+    '  <button data-q="What are the most critical findings?">Critical findings</button>',
+    '  <button data-q="Explain the $1.99M payment discrepancy">Payment discrepancy</button>',
+    '  <button data-q="What are the \'ZZ\' fabricated beneficiaries?">ZZ beneficiaries</button>',
+    '  <button data-q="Which checks passed and which failed?">Check results</button>',
+    '  <button data-q="What is the 0.90 payment ratio pattern?">0.90 ratio pattern</button>',
+    '  <button data-q="Suggest SQL queries to investigate further">SQL queries</button>',
+    '</div>',
+    '<div class="chat-input-area">',
+    '  <textarea id="chatInput" rows="1" placeholder="Ask about the report findings..." maxlength="2000"></textarea>',
+    '  <button class="chat-send" id="chatSend" title="Send"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/></svg></button>',
+    '</div>',
+    '<div class="chat-config">',
+    '  <span class="dot disconnected" id="chatDot"></span>',
+    '  <span>API:</span>',
+    '  <input type="text" id="chatApiUrl" value="' + LAMBDA_URL + '" placeholder="' + LAMBDA_URL + '">',
+    '</div>',
+    '<div class="chat-history-overlay" id="chatHistoryOverlay">',
+    '  <div class="chat-history-header"><h4>Query History</h4><button id="chatHistoryClose" title="Close history"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>',
+    '  <div class="chat-history-list" id="chatHistoryList"></div>',
+    '</div>'
+  ].join('\n');
+
+  document.body.appendChild(fab);
+  document.body.appendChild(panel);
+
+  // ── Get elements ──
+  var closeBtn = document.getElementById('chatClose');
+  var resetBtn = document.getElementById('chatReset');
+  var messagesEl = document.getElementById('chatMessages');
+  var inputEl = document.getElementById('chatInput');
+  var sendBtn = document.getElementById('chatSend');
+  var quickEl = document.getElementById('chatQuick');
+  var apiUrlInput = document.getElementById('chatApiUrl');
+  var dotEl = document.getElementById('chatDot');
+  var historyBtn = document.getElementById('chatHistory');
+  var historyOverlay = document.getElementById('chatHistoryOverlay');
+  var historyCloseBtn = document.getElementById('chatHistoryClose');
+  var historyListEl = document.getElementById('chatHistoryList');
+
+  var conversationHistory = [];
+  var isLoading = false;
+
+  // ── Session persistence (survives page navigation) ──
+  function saveSession() {
+    var data = {
+      messages: messagesEl.innerHTML,
+      conversationHistory: conversationHistory,
+      isOpen: panel.classList.contains('open'),
+      quickHidden: quickEl.style.display === 'none'
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  }
+
+  function restoreSession() {
+    try {
+      var data = JSON.parse(sessionStorage.getItem(SESSION_KEY));
+      if (!data) return false;
+      if (data.messages) messagesEl.innerHTML = data.messages;
+      if (data.conversationHistory) conversationHistory = data.conversationHistory;
+      if (data.isOpen) {
+        panel.classList.add('open');
+        fab.style.display = 'none';
+      }
+      if (data.quickHidden) quickEl.style.display = 'none';
+      // Re-attach event listeners on restored SQL blocks
+      reattachSqlListeners();
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // Save session before navigating away
+  window.addEventListener('beforeunload', saveSession);
+
+  // ── API URL persistence ──
+  var savedUrl = localStorage.getItem(API_URL_KEY);
+  if (savedUrl) apiUrlInput.value = savedUrl;
+  apiUrlInput.addEventListener('change', function () {
+    localStorage.setItem(API_URL_KEY, apiUrlInput.value);
+    checkConnection();
+  });
+
+  // ── Pre-warm Lambda ──
+  (function preWarm() {
+    var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+    var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"message":"ping","conversationHistory":[]}'
+    })
+      .then(function (res) {
+        dotEl.className = 'dot ' + (res.ok || res.status === 500 ? 'connected' : 'disconnected');
+      })
+      .catch(function () { dotEl.className = 'dot disconnected'; });
+  })();
+
+  // ── History persistence ──
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function saveHistoryEntry(question, answer, queries) {
+    var h = loadHistory();
+    h.unshift({ ts: Date.now(), question: question, answer: answer.substring(0, 500), queries: queries || [] });
+    if (h.length > 100) h = h.slice(0, 100);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+  }
+  function renderHistory() {
+    var h = loadHistory();
+    if (!h.length) {
+      historyListEl.innerHTML = '<div class="chat-history-empty">No queries yet. Ask the assistant a question!</div>';
+      return;
+    }
+    var html = '';
+    h.forEach(function (entry, idx) {
+      var d = new Date(entry.ts);
+      var timeStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      var sqlHtml = '';
+      if (entry.queries && entry.queries.length > 0) {
+        entry.queries.forEach(function (q) {
+          sqlHtml += '<div class="h-sql">' + (q.sql || '').replace(/</g, '&lt;').substring(0, 120) + '</div>';
+        });
+      } else {
+        sqlHtml = '<div class="h-nosql">No SQL executed</div>';
+      }
+      html += '<div class="chat-history-card" data-idx="' + idx + '">' +
+        '<div class="h-time">' + timeStr + '</div>' +
+        '<div class="h-question">' + (entry.question || '').replace(/</g, '&lt;') + '</div>' +
+        sqlHtml + '</div>';
+    });
+    html += '<button class="chat-history-clear" id="chatHistoryClear">Clear all history</button>';
+    historyListEl.innerHTML = html;
+    var clearBtn = document.getElementById('chatHistoryClear');
+    if (clearBtn) clearBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      localStorage.removeItem(HISTORY_KEY);
+      renderHistory();
+    });
+    historyListEl.querySelectorAll('.chat-history-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var idx = parseInt(card.dataset.idx);
+        var entry = loadHistory()[idx];
+        if (entry) {
+          historyOverlay.classList.remove('open');
+          sendMessage(entry.question);
+        }
+      });
+    });
+  }
+
+  // ── History panel ──
+  historyBtn.addEventListener('click', function () { renderHistory(); historyOverlay.classList.add('open'); });
+  historyCloseBtn.addEventListener('click', function () { historyOverlay.classList.remove('open'); });
+
+  // ── Open / close / reset ──
+  fab.addEventListener('click', function () {
+    panel.classList.add('open');
+    fab.style.display = 'none';
+    inputEl.focus();
+    checkConnection();
+  });
+  closeBtn.addEventListener('click', function () {
+    panel.classList.remove('open');
+    fab.style.display = 'flex';
+    saveSession();
+  });
+  resetBtn.addEventListener('click', function () {
+    conversationHistory = [];
+    messagesEl.innerHTML = '<div class="chat-msg system">Conversation reset. Ask me anything about the report.</div>';
+    quickEl.style.display = 'flex';
+    saveSession();
+  });
+
+  // ── Quick questions ──
+  quickEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-q]');
+    if (btn) sendMessage(btn.dataset.q);
+  });
+
+  // ── Input handling ──
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputEl.value); }
+  });
+  sendBtn.addEventListener('click', function () { sendMessage(inputEl.value); });
+  inputEl.addEventListener('input', function () {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+  });
+
+  // ── Core functions ──
+  function addMessage(role, content) {
+    var div = document.createElement('div');
+    div.className = 'chat-msg ' + role;
+    if (role === 'assistant') {
+      div.innerHTML = renderMarkdown(content);
+      addSqlInteractivity(div);
+    } else {
+      div.textContent = content;
+    }
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return div;
+  }
+
+  function showLoading() {
+    var div = document.createElement('div');
+    div.className = 'chat-loading';
+    div.id = 'chatLoadingDots';
+    div.innerHTML = '<span></span><span></span><span></span>';
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function hideLoading() {
+    var dots = document.getElementById('chatLoadingDots');
+    if (dots) dots.remove();
+  }
+
+  // ── SQL interactivity: copy button + double-click → SQL Explorer ──
+  function addSqlInteractivity(container) {
+    container.querySelectorAll('pre').forEach(function (pre) {
+      var code = pre.querySelector('code');
+      if (!code) return;
+      var text = code.textContent || '';
+      // Only add to SQL-looking blocks
+      if (!/^\s*(SELECT|WITH|DESCRIBE|EXPLAIN|SHOW|PRAGMA|INSERT|CREATE)/i.test(text)) return;
+
+      // Copy button
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'chat-sql-copy';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text).then(function () {
+          copyBtn.textContent = 'Copied!';
+          copyBtn.classList.add('copied');
+          setTimeout(function () { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500);
+        });
+      });
+      pre.style.position = 'relative';
+      pre.appendChild(copyBtn);
+
+      // Double-click → navigate to SQL Explorer with query pre-filled
+      pre.style.cursor = 'pointer';
+      pre.title = 'Double-click to open in SQL Explorer';
+      pre.addEventListener('dblclick', function () {
+        sessionStorage.setItem('cms_prefill_sql', text);
+        window.location.href = getSqlExplorerUrl();
+      });
+    });
+  }
+
+  function reattachSqlListeners() {
+    messagesEl.querySelectorAll('.chat-msg.assistant').forEach(function (msg) {
+      // Only re-attach if no copy buttons exist yet
+      if (!msg.querySelector('.chat-sql-copy')) addSqlInteractivity(msg);
+    });
+    // Re-attach nav pill buttons
+    messagesEl.querySelectorAll('[data-nav-section]').forEach(function (btn) {
+      btn.addEventListener('click', function () { navigateToSection(btn.dataset.navSection); });
+    });
+  }
+
+  // ── Send message ──
+  function sendMessage(text) {
+    text = (text || '').trim();
+    if (!text || isLoading) return;
+
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    quickEl.style.display = 'none';
+
+    addMessage('user', text);
+    conversationHistory.push({ role: 'user', content: text });
+
+    isLoading = true;
+    sendBtn.disabled = true;
+    showLoading();
+
+    var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+    var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
+
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        conversationHistory: conversationHistory.slice(0, -1),
+        model: 'gpt-4o'
+      })
+    })
+      .then(function (res) {
+        if (!res.ok) return res.json().then(function (d) { throw new Error(d.detail || d.error || 'API error'); });
+        return res.json();
+      })
+      .then(function (data) {
+        hideLoading();
+        // Show SQL queries the AI ran
+        if (data.queries && data.queries.length > 0) {
+          data.queries.forEach(function (q, qi) {
+            var qDiv = document.createElement('div');
+            qDiv.className = 'chat-msg assistant';
+            qDiv.style.fontSize = '0.78rem';
+            qDiv.style.background = 'rgba(56,189,248,0.06)';
+            qDiv.style.borderLeft = '3px solid #38bdf8';
+            qDiv.style.padding = '8px 12px';
+            var resultLine = '';
+            if (q.result_preview.error) {
+              resultLine = '<span style="color:#f87171;">Error: ' + q.result_preview.error + '</span>';
+            } else {
+              resultLine = '<span style="color:#4ade80;">' + q.result_preview.row_count + ' row(s) returned</span>' +
+                (q.result_preview.truncated ? ' <span style="color:#fbbf24;">(truncated to 50)</span>' : '');
+            }
+            var explainHtml = q.explanation
+              ? '<div style="color:#e2e8f0;margin-bottom:6px;">' + q.explanation.replace(/</g, '&lt;') + '</div>'
+              : '';
+            qDiv.innerHTML =
+              '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+              '<strong style="color:#38bdf8;font-size:0.7rem;">QUERY ' + (qi + 1) + '</strong>' +
+              resultLine +
+              '</div>' +
+              explainHtml +
+              '<details style="margin:0;"><summary style="cursor:pointer;color:#64748b;font-size:0.7rem;user-select:none;">Show SQL</summary>' +
+              '<pre style="margin:4px 0 0;background:rgba(0,0,0,0.3);padding:6px 8px;border-radius:4px;overflow-x:auto;font-size:0.72rem;position:relative;"><code>' +
+              q.sql.replace(/</g, '&lt;') + '</code></pre></details>';
+            messagesEl.appendChild(qDiv);
+            addSqlInteractivity(qDiv);
+          });
+        }
+
+        var msgDiv = addMessage('assistant', data.content);
+        conversationHistory.push({ role: 'assistant', content: data.content });
+        saveHistoryEntry(text, data.content, data.queries || []);
+        dotEl.className = 'dot connected';
+
+        // Auto-navigate to relevant report section (only on report page)
+        var combinedText = text + ' ' + data.content;
+        var section = detectSection(combinedText);
+        if (section && document.getElementById(section.id)) {
+          addSectionPill(msgDiv, section);
+          navigateToSection(section.id);
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        // Add "Open in SQL Explorer" link if response contains SQL
+        if (data.queries && data.queries.length > 0) {
+          var sqlPill = document.createElement('div');
+          sqlPill.className = 'chat-nav-pill';
+          sqlPill.innerHTML = '<button data-goto-sql="1">\u279C Open SQL Explorer</button>';
+          msgDiv.appendChild(sqlPill);
+          sqlPill.querySelector('button').addEventListener('click', function () {
+            // Pre-fill with the first query
+            sessionStorage.setItem('cms_prefill_sql', data.queries[0].sql);
+            window.location.href = getSqlExplorerUrl();
+          });
+        }
+
+        saveSession();
+      })
+      .catch(function (err) {
+        hideLoading();
+        addMessage('system', 'Error: ' + err.message + '. Make sure the web server is running (pip install -r requirements-web.txt && OPENAI_API_KEY=sk-... uvicorn web.server:app --port 8000)');
+        dotEl.className = 'dot disconnected';
+        saveSession();
+      })
+      .finally(function () {
+        isLoading = false;
+        sendBtn.disabled = false;
+        inputEl.focus();
+      });
+  }
+
+  function checkConnection() {
+    var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+    var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
+    fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"message":"ping"}' })
+      .then(function (res) { dotEl.className = 'dot ' + (res.ok || res.status === 500 ? 'connected' : 'disconnected'); })
+      .catch(function () { dotEl.className = 'dot disconnected'; });
+  }
+
+  // ── Section navigation (report page only) ──
+  var SECTION_KEYWORDS = {
+    'discrepancies': { id: 'discrepancies', label: 'Discrepancies', patterns: /discrepanc|mismatch|diff(?:erence|s\b)|data.?mismatch/i },
+    'financial': { id: 'financial', label: 'Financial Analysis', patterns: /financial|payment|reimburs|cost|dollar|reimb|pppymt|benres|medreimb|0\.90.*ratio|payment.*ratio/i },
+    'validation': { id: 'validation', label: 'Validation', patterns: /validat|quality.?check|integrity|check.?result/i },
+    'trends': { id: 'trends', label: 'YoY Trends', patterns: /trend|year.?over|yoy|annual|yearly/i },
+    'comparison': { id: 'comparison', label: 'System Comparison', patterns: /system.?compar|old.?vs|new.?vs|side.?by.?side/i },
+    'profiles': { id: 'profiles', label: 'Data Profiles', patterns: /profile|column.?stat|data.?type|schema.?detail/i },
+    'summary': { id: 'summary', label: 'Executive Summary', patterns: /executive.?summary|overview|total.?beneficiar|total.?claim/i },
+    'data-context': { id: 'data-context', label: 'Data Context', patterns: /data.?context|file.?list|source.?file|csv.?file|under.?comparison/i }
+  };
+
+  function detectSection(text) {
+    var order = ['discrepancies', 'financial', 'validation', 'trends', 'comparison', 'profiles', 'summary', 'data-context'];
+    for (var i = 0; i < order.length; i++) {
+      var sec = SECTION_KEYWORDS[order[i]];
+      if (sec.patterns.test(text)) return sec;
+    }
+    return null;
+  }
+
+  function navigateToSection(sectionId) {
+    var el = document.getElementById(sectionId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var sideLinks = document.querySelectorAll('#sidebar a[data-section]');
+    sideLinks.forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-section') === sectionId); });
+    el.style.transition = 'box-shadow 0.3s';
+    el.style.boxShadow = '0 0 0 2px rgba(56,189,248,0.5)';
+    setTimeout(function () { el.style.boxShadow = 'none'; }, 1500);
+  }
+
+  function addSectionPill(parentEl, section) {
+    var pill = document.createElement('div');
+    pill.className = 'chat-nav-pill';
+    pill.innerHTML = '<button data-nav-section="' + section.id + '">\u279C Go to ' + section.label + '</button>';
+    parentEl.appendChild(pill);
+    pill.querySelector('button').addEventListener('click', function () { navigateToSection(section.id); });
+  }
+
+  // ── Markdown renderer ──
+  function renderMarkdown(text) {
+    if (!text) return '';
+    var html = text
+      .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/^\s*[-*]\s+(.+)/gm, '<li>$1</li>')
+      .replace(/^\s*\d+\.\s+(.+)/gm, '<li>$1</li>')
+      .replace(/^###\s+(.+)/gm, '<strong style="display:block;margin:8px 0 4px;color:#38bdf8;">$1</strong>')
+      .replace(/^##\s+(.+)/gm, '<strong style="display:block;margin:8px 0 4px;font-size:1rem;color:#38bdf8;">$1</strong>')
+      // Tables
+      .replace(/\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/g, function (match, headerLine, bodyLines) {
+        var headers = headerLine.split('|').map(function (h) { return h.trim(); }).filter(Boolean);
+        var rows = bodyLines.trim().split('\n').map(function (row) {
+          return row.split('|').map(function (c) { return c.trim(); }).filter(Boolean);
+        });
+        var table = '<table><thead><tr>' + headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>';
+        rows.forEach(function (r) { table += '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; });
+        return table + '</tbody></table>';
+      })
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+    html = html.replace(/(<li>.*?<\/li>(\s*<br>)?)+/g, function (match) {
+      return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
+    });
+    return '<p>' + html + '</p>';
+  }
+
+  // ── Restore previous session ──
+  restoreSession();
+
+  // ── Check if SQL Explorer should pre-fill a query ──
+  if (window.location.pathname.indexOf('sql_explorer') !== -1) {
+    var prefill = sessionStorage.getItem('cms_prefill_sql');
+    if (prefill) {
+      sessionStorage.removeItem('cms_prefill_sql');
+      // Wait for SQL Explorer to initialize, then fill the query
+      var attempts = 0;
+      var fillInterval = setInterval(function () {
+        var editor = document.getElementById('queryEditor');
+        if (editor) {
+          editor.value = prefill;
+          clearInterval(fillInterval);
+          // Try to trigger run
+          var runBtn = document.getElementById('runBtn');
+          if (runBtn && !runBtn.disabled) runBtn.click();
+        }
+        if (++attempts > 50) clearInterval(fillInterval);
+      }, 100);
+    }
+  }
+
+})();

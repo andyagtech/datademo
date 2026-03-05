@@ -207,6 +207,7 @@ HTML_TEMPLATE = """\
   {body}
 </div>
 
+<script src="chat-widget.js"></script>
 </body>
 </html>
 """
