@@ -15,6 +15,10 @@ Parameters:
     Type: String
     Default: cms-claims-pipeline
     Description: S3 bucket name suffix (prefixed with account ID)
+  ExistingDataBucket:
+    Type: String
+    Default: andy-barr-cmsdata-assessment
+    Description: Existing S3 bucket with pipeline data and DuckDB snapshots
 
 Globals:
   Function:
@@ -277,13 +281,14 @@ Resources:
         Size: 10240
       Policies:
         - S3CrudPolicy:
-            BucketName: !Ref DataBucket
+            BucketName: !Ref ExistingDataBucket
         - SSMParameterReadPolicy:
             ParameterName: "cms-pipeline/openai-api-key"
       Environment:
         Variables:
+          BUCKET_NAME: !Ref ExistingDataBucket
           OPENAI_API_KEY_SSM: "/cms-pipeline/openai-api-key"
-          DB_S3_KEY: !Sub "runs/latest/cms_claims.duckdb"
+          DB_S3_KEY: "runs/latest/cms_claims.duckdb"
       Events:
         ChatPost:
           Type: Api
