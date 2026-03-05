@@ -646,6 +646,11 @@ def build_report_data(
         old_inventory = _count_rows_for_inventory(con, old_inventory)
     old_system_files = _build_file_inventory(old_inventory)
     old_system_path = old_sys.get("source_dir", "data/")
+    # Show relative path in report so it's portable across machines
+    try:
+        old_system_path = str(Path(old_system_path).relative_to(Path.cwd()))
+    except ValueError:
+        pass  # already relative or on a different drive
 
     new_system_files = []
     new_system_path = ""
@@ -655,6 +660,10 @@ def build_report_data(
             new_inventory = _count_rows_for_inventory(con, new_inventory)
         new_system_files = _build_file_inventory(new_inventory)
         new_system_path = new_sys.get("source_dir", "")
+        try:
+            new_system_path = str(Path(new_system_path).relative_to(Path.cwd()))
+        except ValueError:
+            pass
 
     # ── Match summary from step 4 ──
     match_data = pipeline_results.get("match", {})
