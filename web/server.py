@@ -315,10 +315,10 @@ _TOOL_QUERY_DATABASE = {
                 },
                 "explanation": {
                     "type": "string",
-                    "description": "Brief explanation of what this query investigates."
+                    "description": "Plain-English explanation of what this query does, why you are running it, and what the results will tell us."
                 }
             },
-            "required": ["sql"]
+            "required": ["sql", "explanation"]
         }
     }
 }
@@ -342,8 +342,8 @@ def _execute_duckdb_query(sql: str) -> dict:
     # Safety: reject non-SELECT statements
     sql_stripped = sql.strip().rstrip(";").strip()
     first_word = sql_stripped.split()[0].upper() if sql_stripped else ""
-    if first_word not in ("SELECT", "WITH", "EXPLAIN"):
-        return {"error": f"Only SELECT/WITH/EXPLAIN queries are allowed. Got: {first_word}"}
+    if first_word not in ("SELECT", "WITH", "EXPLAIN", "DESCRIBE", "SHOW", "PRAGMA"):
+        return {"error": f"Only SELECT/WITH/EXPLAIN/DESCRIBE queries are allowed. Got: {first_word}"}
 
     try:
         con = duckdb.connect(str(_DB_PATH), read_only=True)

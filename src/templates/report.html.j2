@@ -1328,19 +1328,32 @@ document.addEventListener('DOMContentLoaded', function() {
       hideLoading();
       // Show SQL queries the AI ran (if any)
       if (data.queries && data.queries.length > 0) {
-        data.queries.forEach(function(q) {
+        data.queries.forEach(function(q, qi) {
           var qDiv = document.createElement('div');
           qDiv.className = 'chat-msg assistant';
-          qDiv.style.fontSize = '0.75rem';
-          qDiv.style.background = 'rgba(56,189,248,0.08)';
+          qDiv.style.fontSize = '0.78rem';
+          qDiv.style.background = 'rgba(56,189,248,0.06)';
           qDiv.style.borderLeft = '3px solid #38bdf8';
-          var errHtml = q.result_preview.error
-            ? '<br><span style="color:#f87171;">Error: ' + q.result_preview.error + '</span>'
-            : '<br><span style="color:#94a3b8;">' + q.result_preview.row_count + ' row(s)' + (q.result_preview.truncated ? ' (truncated)' : '') + '</span>';
-          qDiv.innerHTML = '<strong style="color:#38bdf8;">SQL Query</strong>' +
-            (q.explanation ? ' — <em>' + q.explanation + '</em>' : '') +
-            '<pre style="margin:4px 0;background:rgba(0,0,0,0.3);padding:6px 8px;border-radius:4px;overflow-x:auto;font-size:0.72rem;"><code>' +
-            q.sql.replace(/</g, '&lt;') + '</code></pre>' + errHtml;
+          qDiv.style.padding = '8px 12px';
+          var resultLine = '';
+          if (q.result_preview.error) {
+            resultLine = '<span style="color:#f87171;">Error: ' + q.result_preview.error + '</span>';
+          } else {
+            resultLine = '<span style="color:#4ade80;">' + q.result_preview.row_count + ' row(s) returned</span>' +
+              (q.result_preview.truncated ? ' <span style="color:#fbbf24;">(truncated to 50)</span>' : '');
+          }
+          var explainHtml = q.explanation
+            ? '<div style="color:#e2e8f0;margin-bottom:6px;">' + q.explanation.replace(/</g, '&lt;') + '</div>'
+            : '';
+          qDiv.innerHTML =
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+              '<strong style="color:#38bdf8;font-size:0.7rem;">QUERY ' + (qi + 1) + '</strong>' +
+              resultLine +
+            '</div>' +
+            explainHtml +
+            '<details style="margin:0;"><summary style="cursor:pointer;color:#64748b;font-size:0.7rem;user-select:none;">Show SQL</summary>' +
+            '<pre style="margin:4px 0 0;background:rgba(0,0,0,0.3);padding:6px 8px;border-radius:4px;overflow-x:auto;font-size:0.72rem;"><code>' +
+            q.sql.replace(/</g, '&lt;') + '</code></pre></details>';
           messagesEl.appendChild(qDiv);
         });
       }

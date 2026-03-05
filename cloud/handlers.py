@@ -327,7 +327,7 @@ def _snapshot_db(ctx: PipelineContext, event: dict[str, Any]) -> None:
 
 # Module-level caches (persist across warm Lambda invocations)
 _cached_api_key: str | None = None
-_cached_db_path: Path | None = None
+_cached_db_con: Any | None = None  # live duckdb.Connection with views over Parquet
 
 _MAX_ROWS = 50
 _MAX_TOOL_ROUNDS = 5
@@ -358,22 +358,21 @@ _PARQUET_TABLES = [
 ]
 
 
-def _ensure_db_local(event: dict[str, Any]) -> Path:
-    """Download Parquet files from S3 and build a lightweight DuckDB with views.
+def _ensure_db_ready(event: dict[str, Any]):
+    """Download Parquet files from S3 and return an in-memory DuckDB connection with views.
 
     Much faster than downloading the 1.6 GB DuckDB file (~488 MB of Parquet).
-    On warm invocations the files are already cached in /tmp.
+    On warm invocations the connection and Parquet files are already cached.
+    Returns a live duckdb.Connection — do NOT close it (it's reused across invocations).
     """
-    global _cached_db_path
+    global _cached_db_con
+
+    # Warm invocation — connection already cached
+    if _cached_db_con is not None:
+        logger.info("Using cached DuckDB connection + Parquet files")
+        return _cached_db_con
 
     parquet_dir = Path(tempfile.gettempdir()) / "parquet"
-    db_path = Path(tempfile.gettempdir()) / "chat_cms_claims.duckdb"
-
-    # Warm invocation — files already cached
-    if _cached_db_path and _cached_db_path.exists():
-        logger.info("Using cached DuckDB + Parquet files")
-        return _cached_db_path
-
     parquet_dir.mkdir(parents=True, exist_ok=True)
 
     # S3 prefix for parquet files
@@ -392,101 +391,94 @@ def _ensure_db_local(event: dict[str, Any]) -> Path:
 
     logger.info(f"Total Parquet download: {total_bytes / 1024 / 1024:.1f} MB")
 
-    # Build DuckDB with lazy views over the Parquet files (no upfront materialization)
-    if db_path.exists():
-        db_path.unlink()
-    con = duckdb.connect(str(db_path))
+    # Build in-memory DuckDB with lazy views (stays open for warm reuse)
+    # Try to EXCLUDE duckdb_schema metadata column (causes binder errors with aliases)
+    con = duckdb.connect(":memory:")
     for table_name in _PARQUET_TABLES:
         pq_path = str(parquet_dir / f"{table_name}.parquet")
-        con.execute(f'CREATE VIEW "{table_name}" AS SELECT * FROM read_parquet(\'{pq_path}\')')
-    con.close()
-    logger.info("Built DuckDB views over Parquet files")
+        try:
+            con.execute(f'CREATE VIEW "{table_name}" AS SELECT * EXCLUDE (duckdb_schema) FROM read_parquet(\'{pq_path}\')')
+        except Exception:
+            con.execute(f'CREATE VIEW "{table_name}" AS SELECT * FROM read_parquet(\'{pq_path}\')')
+    logger.info("Built in-memory DuckDB with views over Parquet files")
 
-    _cached_db_path = db_path
-    return db_path
+    _cached_db_con = con
+    return con
 
 
-def _chat_execute_query(db_path: Path, sql: str) -> dict:
-    """Execute a read-only SQL query against the DuckDB database."""
+def _chat_execute_query(con, sql: str) -> dict:
+    """Execute a read-only SQL query against the cached DuckDB connection."""
     sql_stripped = sql.strip().rstrip(";").strip()
     first_word = sql_stripped.split()[0].upper() if sql_stripped else ""
-    if first_word not in ("SELECT", "WITH", "EXPLAIN"):
-        return {"error": f"Only SELECT/WITH/EXPLAIN queries are allowed. Got: {first_word}"}
+    if first_word not in ("SELECT", "WITH", "EXPLAIN", "DESCRIBE", "SHOW", "PRAGMA"):
+        return {"error": f"Only SELECT/WITH/EXPLAIN/DESCRIBE queries are allowed. Got: {first_word}"}
 
     try:
-        con = duckdb.connect(str(db_path), read_only=True)
-        try:
-            result = con.execute(sql_stripped)
-            columns = [desc[0] for desc in result.description]
-            rows = result.fetchmany(_MAX_ROWS + 1)
-            truncated = len(rows) > _MAX_ROWS
-            if truncated:
-                rows = rows[:_MAX_ROWS]
-            clean_rows = []
-            for row in rows:
-                clean_row = []
-                for val in row:
-                    if val is None:
-                        clean_row.append(None)
-                    elif isinstance(val, (int, float, bool, str)):
-                        clean_row.append(val)
-                    else:
-                        clean_row.append(str(val))
-                clean_rows.append(clean_row)
-            return {
-                "columns": columns,
-                "rows": clean_rows,
-                "row_count": len(clean_rows),
-                "truncated": truncated,
-            }
-        finally:
-            con.close()
+        result = con.execute(sql_stripped)
+        columns = [desc[0] for desc in result.description]
+        rows = result.fetchmany(_MAX_ROWS + 1)
+        truncated = len(rows) > _MAX_ROWS
+        if truncated:
+            rows = rows[:_MAX_ROWS]
+        clean_rows = []
+        for row in rows:
+            clean_row = []
+            for val in row:
+                if val is None:
+                    clean_row.append(None)
+                elif isinstance(val, (int, float, bool, str)):
+                    clean_row.append(val)
+                else:
+                    clean_row.append(str(val))
+            clean_rows.append(clean_row)
+        return {
+            "columns": columns,
+            "rows": clean_rows,
+            "row_count": len(clean_rows),
+            "truncated": truncated,
+        }
     except Exception as e:
         return {"error": f"Query failed: {str(e)}"}
 
 
-def _build_chat_findings(db_path: Path) -> str:
-    """Build findings context by querying the database directly."""
+def _build_chat_findings(con) -> str:
+    """Build findings context by querying the cached DuckDB connection."""
     lines = []
     try:
-        con = duckdb.connect(str(db_path), read_only=True)
+        # Basic counts
+        bene_count = con.execute("SELECT COUNT(*) FROM beneficiary_summary").fetchone()[0]
+        claim_count = con.execute("SELECT COUNT(*) FROM carrier_claims").fetchone()[0]
+        lines.append(f"- Total beneficiaries (old): {bene_count:,}")
+        lines.append(f"- Total carrier claims (old): {claim_count:,}")
+
+        # Check for new system tables
         try:
-            # Basic counts
-            bene_count = con.execute("SELECT COUNT(*) FROM beneficiary_summary").fetchone()[0]
-            claim_count = con.execute("SELECT COUNT(*) FROM carrier_claims").fetchone()[0]
-            lines.append(f"- Total beneficiaries (old): {bene_count:,}")
-            lines.append(f"- Total carrier claims (old): {claim_count:,}")
+            new_bene = con.execute("SELECT COUNT(*) FROM new_beneficiary_summary").fetchone()[0]
+            new_claims = con.execute("SELECT COUNT(*) FROM new_carrier_claims").fetchone()[0]
+            lines.append(f"- Total beneficiaries (new): {new_bene:,}")
+            lines.append(f"- Total carrier claims (new): {new_claims:,}")
+        except Exception:
+            lines.append("- New system tables not available")
 
-            # Check for new system tables
-            try:
-                new_bene = con.execute("SELECT COUNT(*) FROM new_beneficiary_summary").fetchone()[0]
-                new_claims = con.execute("SELECT COUNT(*) FROM new_carrier_claims").fetchone()[0]
-                lines.append(f"- Total beneficiaries (new): {new_bene:,}")
-                lines.append(f"- Total carrier claims (new): {new_claims:,}")
-            except Exception:
-                lines.append("- New system tables not available")
+        # Discrepancy summary
+        try:
+            disc = con.execute("SELECT COUNT(*), SUM(total_diffs) FROM _discrepancy_detail WHERE total_diffs > 0").fetchone()
+            lines.append(f"- Beneficiaries with discrepancies: {disc[0]:,} ({disc[1]:,} total diffs)")
+        except Exception:
+            pass
 
-            # Discrepancy summary
-            try:
-                disc = con.execute("SELECT COUNT(*), SUM(total_diffs) FROM _discrepancy_detail WHERE total_diffs > 0").fetchone()
-                lines.append(f"- Beneficiaries with discrepancies: {disc[0]:,} ({disc[1]:,} total diffs)")
-            except Exception:
-                pass
+        # Match status
+        try:
+            match_stats = con.execute("""
+                SELECT match_status, COUNT(*) as cnt
+                FROM _match_beneficiary
+                GROUP BY match_status
+            """).fetchall()
+            for status, cnt in match_stats:
+                lines.append(f"- Beneficiary match '{status}': {cnt:,}")
+        except Exception:
+            pass
 
-            # Match status
-            try:
-                match_stats = con.execute("""
-                    SELECT match_status, COUNT(*) as cnt
-                    FROM _match_beneficiary
-                    GROUP BY match_status
-                """).fetchall()
-                for status, cnt in match_stats:
-                    lines.append(f"- Beneficiary match '{status}': {cnt:,}")
-            except Exception:
-                pass
-
-        finally:
-            con.close()
     except Exception as e:
         lines.append(f"- Could not query database for findings: {e}")
 
@@ -512,24 +504,38 @@ Use SELECT queries only — the database is read-only. Always add LIMIT (max 50)
 
 ### Database Schema
 **beneficiary_summary** / **new_beneficiary_summary** (33 cols each):
-  Key: DESYNPUF_ID + summary_year. Demographics, chronic conditions, financials.
+  Key: DESYNPUF_ID + summary_year.
+  Demographics: BENE_BIRTH_DT, BENE_DEATH_DT, BENE_SEX_IDENT_CD, BENE_RACE_CD, SP_STATE_CODE, BENE_COUNTY_CD.
+  Coverage: BENE_HI_CVRAGE_TOT_MONS, BENE_SMI_CVRAGE_TOT_MONS, BENE_HMO_CVRAGE_TOT_MONS, PLAN_CVRG_MOS_NUM.
+  Chronic conditions (1=yes): SP_ALZHDMTA, SP_CHF, SP_CHRNKIDN, SP_CNCR, SP_COPD, SP_DEPRESSN, SP_DIABETES, SP_ISCHMCHT, SP_OSTEOPRSS, SP_RA_OA, SP_STRKETIA.
+  Financials: MEDREIMB_IP, BENRES_IP, PPPYMT_IP, MEDREIMB_OP, BENRES_OP, PPPYMT_OP, MEDREIMB_CAR, BENRES_CAR, PPPYMT_CAR.
 
 **carrier_claims** / **new_carrier_claims** (142 cols each):
-  Key: CLM_ID (BIGINT old / VARCHAR new), DESYNPUF_ID. Diagnoses, procedures, payments (13 lines each).
+  Key: CLM_ID (BIGINT old / VARCHAR new), DESYNPUF_ID.
+  Dates: CLM_FROM_DT, CLM_THRU_DT.
+  Diagnoses: ICD9_DGNS_CD_1..8. Provider NPIs: PRF_PHYSN_NPI_1..13.
+  HCPCS: HCPCS_CD_1..13, LINE_CMS_TYPE_SRVC_CD_1..13, LINE_PLACE_OF_SRVC_CD_1..13.
+  **Payment columns are line-level ONLY (no claim-level totals):**
+    LINE_NCH_PMT_AMT_1..13, LINE_BENE_PTB_DDCTBL_AMT_1..13,
+    LINE_BENE_PRMRY_PYR_PD_AMT_1..13, LINE_COINSRNC_AMT_1..13, LINE_ALOWD_CHRG_AMT_1..13.
+  Both old and new tables share identical column names.
 
 **_discrepancy_detail** (37 cols): Per-beneficiary diffs. diff_* (1=mismatch), delta_* (dollars), total_diffs.
 **_financial_recon** (11 cols): reported_* vs calc_* with *_diff columns.
 **_match_beneficiary** / **_match_claims**: match_status (matched/old_only/new_only).
 
-### Notes
-- "ZZ" prefix = fabricated test records from new system
-- Join old/new claims on CLM_ID::VARCHAR
-- 0.90 payment ratio pattern: new payments = old * 0.90
+### Important SQL Notes
+- NEVER use `new` or `old` as table aliases — they are reserved keywords in DuckDB. Use `oc`/`nc` or `old_claims`/`new_claims`.
+- "ZZ" prefix on DESYNPUF_ID = fabricated test records from new system.
+- Join old/new claims: `carrier_claims oc JOIN new_carrier_claims nc ON oc.CLM_ID::VARCHAR = nc.CLM_ID`
+- 0.90 payment ratio pattern: new payments = old * 0.90.
+- Use DESCRIBE tablename or SELECT * FROM information_schema.columns WHERE table_name='...' to discover columns if unsure.
 
 ## Guidelines
-1. Be concise and data-driven. Query the database to verify.
-2. Show SQL and summarize results in markdown tables.
-3. Explain technical terms in plain language.
+1. Be concise and data-driven. Query the database to verify claims.
+2. **Always explain your SQL queries** — what they do and what the results mean.
+3. Summarize results in markdown tables when appropriate.
+4. Explain technical terms (ICD-9, HCPCS, NPI, etc.) in plain language.
 """
 
 _LAMBDA_TOOL = {
@@ -541,9 +547,9 @@ _LAMBDA_TOOL = {
             "type": "object",
             "properties": {
                 "sql": {"type": "string", "description": "SQL SELECT query to execute."},
-                "explanation": {"type": "string", "description": "Brief explanation of what this query investigates."}
+                "explanation": {"type": "string", "description": "Plain-English explanation of what this query does, why you are running it, and what the results will tell us."}
             },
-            "required": ["sql"]
+            "required": ["sql", "explanation"]
         }
     }
 }
@@ -576,7 +582,7 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     try:
         api_key = _get_openai_api_key()
-        db_path = _ensure_db_local(event)
+        db_con = _ensure_db_ready(event)
     except Exception as e:
         logger.exception("Chat setup failed")
         return {
@@ -586,7 +592,7 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
         }
 
     # Build system prompt
-    findings = _build_chat_findings(db_path)
+    findings = _build_chat_findings(db_con)
     system_prompt = _LAMBDA_SYSTEM_PROMPT.format(findings_context=findings)
 
     messages = [
@@ -637,7 +643,7 @@ def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     explanation = args.get("explanation", "")
                     logger.info(f"[chat] SQL: {sql[:200]}")
 
-                    result = _chat_execute_query(db_path, sql)
+                    result = _chat_execute_query(db_con, sql)
                     sql_queries_run.append({
                         "sql": sql,
                         "explanation": explanation,
