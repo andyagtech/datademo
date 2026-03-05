@@ -13,6 +13,9 @@ COPY scripts/ scripts/
 COPY docs/ docs/
 COPY specs/ specs/
 
+# Root-level files needed by render_md_docs.py and pytest
+COPY REVIEWER_README.md FEEDBACK.md pyproject.toml ./
+
 # Create output directories and symlinks expected by the web UI
 RUN mkdir -p reports/exports \
     && ln -sfn ../reports/exports docs/exports \
