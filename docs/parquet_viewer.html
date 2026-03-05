@@ -302,6 +302,8 @@ const CANDIDATE_BASES = ['exports/', '../reports/exports/', '/reports/exports/']
 let EXPORTS_BASE = null;
 
 async function detectExportsBase() {
+  // fetch() is blocked over file:// due to CORS — skip auto-probe
+  if (location.protocol === 'file:') return null;
   const testFile = KNOWN_EXPORTS[0].file;
   for (const base of CANDIDATE_BASES) {
     try {
@@ -316,7 +318,10 @@ async function probeExports() {
   const grid = document.getElementById('exportGrid');
   EXPORTS_BASE = await detectExportsBase();
   if (!EXPORTS_BASE) {
-    grid.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;padding:8px">No exports found. Run the pipeline first, or drop a file below.</div>';
+    const msg = location.protocol === 'file:'
+      ? 'Auto-loading is not available when browsing via file://. Drop a .parquet file below, or use the Docker web server (port 8888) for auto-loading.'
+      : 'No exports found. Run the pipeline first, or drop a file below.';
+    grid.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;padding:8px">' + msg + '</div>';
     return;
   }
   const cards = [];

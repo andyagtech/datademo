@@ -589,6 +589,103 @@ def _extract_chart_data(con: duckdb.DuckDBPyConnection | None) -> dict:
     return chart_data
 
 
+# Hardcoded impact descriptions for System Comparison checks.
+# Keyed by (check_name, table_prefix) where table_prefix is "beneficiary" or "carrier".
+# A key of (check_name, "") acts as a fallback for any table.
+_IMPACT_LOOKUP: dict[tuple[str, str], str] = {
+    # --- Row-level ---
+    ("keys_missing_in_new", "beneficiary"):
+        "Beneficiaries in old system not migrated. Potential data loss affecting eligibility and claims history.",
+    ("keys_extra_in_new", "beneficiary"):
+        "New beneficiary records added post-migration. Verify these are legitimate enrollees, not duplicates.",
+    ("row_count_difference", "carrier"):
+        "New system has additional claim rows. Likely linked to extra beneficiaries; verify linkage to valid IDs.",
+    ("keys_extra_in_new", "carrier"):
+        "New claim IDs not in old system. Consistent with row count increase; verify linkage to valid beneficiaries.",
+    # --- Schema ---
+    ("type_mismatches", ""):
+        "Column type differences may cause downstream query or aggregation errors if not resolved.",
+    # --- Field-level: demographics ---
+    ("field_mismatch_bene_birth_dt", ""):
+        "Birth date changes could affect age-based eligibility calculations and actuarial analysis.",
+    ("field_mismatch_bene_death_dt", ""):
+        "Death date discrepancies affect mortality reporting, claims-after-death validation, and benefit termination.",
+    # --- Field-level: chronic conditions (systematic) ---
+    ("field_mismatch_sp_alzhdmta", ""):
+        "Chronic condition flag differences — systematic recoding of Alzheimer's indicators between systems.",
+    ("field_mismatch_sp_chf", ""):
+        "Chronic condition flag differences — systematic recoding of heart failure indicators between systems.",
+    ("field_mismatch_sp_chrnkidn", ""):
+        "Chronic condition flag differences — systematic recoding of chronic kidney disease indicators.",
+    ("field_mismatch_sp_cncr", ""):
+        "Chronic condition flag differences — systematic recoding of cancer indicators between systems.",
+    ("field_mismatch_sp_copd", ""):
+        "Chronic condition flag differences — systematic recoding of COPD indicators between systems.",
+    ("field_mismatch_sp_depressn", ""):
+        "Chronic condition flag differences — systematic recoding of depression indicators between systems.",
+    ("field_mismatch_sp_diabetes", ""):
+        "Chronic condition flag differences — systematic recoding of diabetes indicators between systems.",
+    ("field_mismatch_sp_ischmcht", ""):
+        "Chronic condition flag differences — systematic recoding of ischemic heart disease indicators.",
+    ("field_mismatch_sp_osteoprs", ""):
+        "Chronic condition flag differences — systematic recoding of osteoporosis indicators between systems.",
+    ("field_mismatch_sp_ra_oa", ""):
+        "Chronic condition flag differences — systematic recoding of rheumatoid arthritis/osteoarthritis indicators.",
+    ("field_mismatch_sp_strketia", ""):
+        "Chronic condition flag differences — systematic recoding of stroke/TIA indicators between systems.",
+    # --- Field-level: carrier claims ---
+    ("field_mismatch_clm_from_dt", ""):
+        "Claim start date mismatches could affect date-based reporting and temporal validation.",
+    ("field_mismatch_icd9_dgns_cd_1", ""):
+        "Primary diagnosis code changes affect clinical categorization and potentially reimbursement.",
+    ("field_mismatch_icd9_dgns_cd_2", ""):
+        "Secondary diagnosis code changes may affect comorbidity analysis and risk adjustment.",
+    ("field_mismatch_hcpcs_cd_1", ""):
+        "Procedure code changes could affect service categorization and payment accuracy.",
+    # --- Aggregate: beneficiary summary financials ---
+    ("aggregate_divergence_medreimb_ip", ""):
+        "Mean difference in inpatient Medicare reimbursement. Indicates systematic payment recalculation.",
+    ("aggregate_divergence_benres_ip", ""):
+        "Mean difference in inpatient beneficiary responsibility. Affects cost-sharing calculations.",
+    ("aggregate_divergence_pppymt_ip", ""):
+        "Mean difference in inpatient primary payer payments. Indicates coordination-of-benefits changes.",
+    ("aggregate_divergence_medreimb_op", ""):
+        "Mean difference in outpatient Medicare reimbursement. Indicates systematic payment recalculation.",
+    ("aggregate_divergence_benres_op", ""):
+        "Mean difference in outpatient beneficiary responsibility. Affects cost-sharing calculations.",
+    ("aggregate_divergence_pppymt_op", ""):
+        "Mean difference in outpatient primary payer payments. Indicates coordination-of-benefits changes.",
+    ("aggregate_divergence_medreimb_car", ""):
+        "Mean difference in carrier Medicare reimbursement. Affects provider payment reconciliation.",
+    ("aggregate_divergence_benres_car", ""):
+        "Mean difference in carrier beneficiary responsibility. Affects cost-sharing calculations.",
+    ("aggregate_divergence_pppymt_car", ""):
+        "Mean difference in carrier primary payer payments. Indicates coordination-of-benefits changes.",
+    # --- Aggregate: carrier claims financials ---
+    ("aggregate_divergence_line_nch_pmt_amt_1", ""):
+        "Large mean difference in line-level NCH payment amounts. High financial impact on claims processing.",
+    ("aggregate_divergence_line_bene_ptb_ddctbl_amt_1", ""):
+        "Large mean difference in Part B deductible amounts. Affects beneficiary out-of-pocket calculations.",
+    ("aggregate_divergence_line_coinsrnc_amt_1", ""):
+        "Large mean difference in coinsurance amounts. Affects beneficiary cost-sharing calculations.",
+    ("aggregate_divergence_line_alowd_chrg_amt_1", ""):
+        "Large mean difference in allowed charge amounts. Affects fee schedule and payment calculations.",
+}
+
+
+def _impact_text(check_name: str, table_pair: str, metric_value: int | float) -> str:
+    """Return a hardcoded impact description for a comparison check, or empty string if metric is zero."""
+    if metric_value == 0:
+        return ""
+    # Determine table prefix for table-specific lookups
+    table_prefix = "beneficiary" if "beneficiary" in table_pair else "carrier" if "carrier" in table_pair else ""
+    # Try table-specific key first, then fallback to generic
+    impact = _IMPACT_LOOKUP.get((check_name, table_prefix))
+    if impact is None:
+        impact = _IMPACT_LOOKUP.get((check_name, ""), "")
+    return impact
+
+
 def build_report_data(
     profiles: dict[str, TableProfile],
     validations: list[ValidationResult],
@@ -716,6 +813,7 @@ def build_report_data(
             "table_pair": c.table_pair,
             "description": c.description,
             "metric_value": f"{c.metric_value:,}" if isinstance(c.metric_value, int) else f"{c.metric_value:,.2f}",
+            "impact": _impact_text(c.check_name, c.table_pair, c.metric_value),
         }
         for c in comparisons
     ]

@@ -288,6 +288,8 @@ const CANDIDATE_BASES = ['exports/', '../reports/exports/', '/reports/exports/']
 let EXPORTS_BASE = null;
 
 async function detectExportsBase() {
+  // fetch() is blocked over file:// due to CORS — skip auto-probe
+  if (location.protocol === 'file:') return null;
   const testFile = KNOWN_EXPORTS[0].file;
   for (const base of CANDIDATE_BASES) {
     try {
@@ -302,7 +304,10 @@ async function probeAndLoadExports() {
   const exportList = document.getElementById('exportList');
   EXPORTS_BASE = await detectExportsBase();
   if (!EXPORTS_BASE) {
-    exportList.innerHTML = '<div style="color:var(--border);font-size:0.68rem;padding:4px">No exports found. Run pipeline or drop files below.</div>';
+    const msg = location.protocol === 'file:'
+      ? 'Auto-loading is not available via file://. Drop .parquet files below, or use the Docker web server (port 8888).'
+      : 'No exports found. Run pipeline or drop files below.';
+    exportList.innerHTML = '<div style="color:var(--border);font-size:0.68rem;padding:4px">' + msg + '</div>';
     queryEditor.value = '';
     return;
   }

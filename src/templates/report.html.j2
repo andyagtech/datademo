@@ -419,7 +419,7 @@
       <div class="details-content">
         <table>
           <thead>
-            <tr><th>Check</th><th>Category</th><th>Table Pair</th><th>Description</th><th>Metric</th></tr>
+            <tr><th>Check</th><th>Category</th><th>Table Pair</th><th>Description</th><th>Metric</th><th>Impact</th></tr>
           </thead>
           <tbody>
             {% for c in comparisons %}
@@ -429,6 +429,7 @@
               <td>{{ c.table_pair }}</td>
               <td>{{ c.description }}</td>
               <td>{{ c.metric_value }}</td>
+              <td style="font-size:0.78rem;color:var(--muted);max-width:260px">{{ c.impact }}</td>
             </tr>
             {% endfor %}
           </tbody>
