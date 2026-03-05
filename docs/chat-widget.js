@@ -222,6 +222,11 @@
     '.chat-suggest-item .suggest-match{color:#38bdf8}',
     '.chat-suggest-hint{padding:3px 16px;font-size:.58rem;color:#475569;display:flex;align-items:center;gap:4px}',
     '.chat-suggest-hint kbd{background:#1e293b;border:1px solid #334155;border-radius:3px;padding:0 4px;font-size:.56rem;font-family:inherit;color:#64748b}',
+    '.chat-deepdive{display:flex;align-items:center;gap:6px;margin-top:8px;padding:6px 12px;background:rgba(129,140,248,0.1);border:1px solid rgba(129,140,248,0.25);border-radius:8px;color:#818cf8;font-size:.73rem;cursor:pointer;transition:all .15s;font-family:inherit;width:100%}',
+    '.chat-deepdive:hover{background:rgba(129,140,248,0.2);border-color:#818cf8;color:#a5b4fc}',
+    '.chat-deepdive svg{width:14px;height:14px;flex-shrink:0}',
+    '.chat-cached-badge{display:inline-block;font-size:.58rem;color:#64748b;margin-bottom:4px;letter-spacing:.03em}',
+    '.chat-cached-badge svg{width:10px;height:10px;vertical-align:middle;margin-right:2px}',
     '.chat-history-overlay{display:none;position:absolute;inset:0;z-index:10;background:#0f172af0;flex-direction:column}',
     '.chat-history-overlay.open{display:flex}',
     '.chat-history-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #334155;flex-shrink:0}',
@@ -551,13 +556,28 @@
   }
 
   function highlightMatch(text, query) {
-    if (!query) return text;
-    var words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    var result = text;
-    words.forEach(function (w) {
-      var regex = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-      result = result.replace(regex, '<span class="suggest-match">$1</span>');
-    });
+    if (!query) return text.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    var words = query.toLowerCase().split(/\s+/).filter(Boolean).sort(function(a,b){ return b.length - a.length; });
+    var result = '';
+    var i = 0;
+    while (i < text.length) {
+      var matched = false;
+      for (var w = 0; w < words.length; w++) {
+        var wl = words[w].length;
+        if (text.substring(i, i + wl).toLowerCase() === words[w]) {
+          var seg = text.substring(i, i + wl).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+          result += '<span class="suggest-match">' + seg + '</span>';
+          i += wl;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        var ch = text[i];
+        result += ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch;
+        i++;
+      }
+    }
     return result;
   }
 
@@ -709,6 +729,43 @@
   }
 
   // ── Send message ──
+  // ── Cached answers lookup ──
+  var cachedAnswers = (typeof CACHED_ANSWERS !== 'undefined') ? CACHED_ANSWERS : {};
+  var cachedKeys = Object.keys(cachedAnswers);
+
+  function findCachedAnswer(query) {
+    if (!cachedKeys.length) return null;
+    var q = query.toLowerCase().replace(/[?!.,;:]+/g, '').trim();
+    // Exact match first
+    for (var i = 0; i < cachedKeys.length; i++) {
+      var k = cachedKeys[i].toLowerCase().replace(/[?!.,;:]+/g, '').trim();
+      if (q === k) return cachedAnswers[cachedKeys[i]];
+    }
+    // Fuzzy: all words in query appear in a key (and vice versa, 70%+ overlap)
+    var qWords = q.split(/\s+/).filter(function(w) { return w.length > 2; });
+    if (qWords.length < 2) return null;
+    var bestScore = 0;
+    var bestAnswer = null;
+    for (var i = 0; i < cachedKeys.length; i++) {
+      var kWords = cachedKeys[i].toLowerCase().replace(/[?!.,;:]+/g, '').split(/\s+/).filter(function(w) { return w.length > 2; });
+      var matchCount = 0;
+      for (var j = 0; j < qWords.length; j++) {
+        for (var m = 0; m < kWords.length; m++) {
+          if (kWords[m].indexOf(qWords[j]) !== -1 || qWords[j].indexOf(kWords[m]) !== -1) {
+            matchCount++;
+            break;
+          }
+        }
+      }
+      var score = matchCount / Math.max(qWords.length, kWords.length);
+      if (score > bestScore && score >= 0.6) {
+        bestScore = score;
+        bestAnswer = cachedAnswers[cachedKeys[i]];
+      }
+    }
+    return bestAnswer;
+  }
+
   function sendMessage(text) {
     text = (text || '').trim();
     if (!text || isLoading) return;
@@ -720,6 +777,46 @@
     addMessage('user', text);
     conversationHistory.push({ role: 'user', content: text });
 
+    // Check cached answers first for instant response
+    var cached = findCachedAnswer(text);
+    if (cached) {
+      var badge = document.createElement('div');
+      badge.className = 'chat-cached-badge';
+      badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Instant answer';
+      messagesEl.appendChild(badge);
+
+      var msgDiv = addMessage('assistant', cached);
+      conversationHistory.push({ role: 'assistant', content: cached });
+
+      // Auto-navigate to relevant report section
+      var combinedText = text + ' ' + cached;
+      var section = detectSection(combinedText);
+      if (section && document.getElementById(section.id)) {
+        addSectionPill(msgDiv, section);
+        navigateToSection(section.id);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      // "Want more details?" button
+      var deepBtn = document.createElement('button');
+      deepBtn.className = 'chat-deepdive';
+      deepBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg> Want more details? Ask AI for a deeper analysis';
+      deepBtn.addEventListener('click', function () {
+        deepBtn.remove();
+        sendToApi(text);
+      });
+      msgDiv.appendChild(deepBtn);
+
+      saveHistoryEntry(text, cached, []);
+      saveSession();
+      return;
+    }
+
+    // No cached answer — call the API
+    sendToApi(text);
+  }
+
+  function sendToApi(text) {
     isLoading = true;
     sendBtn.disabled = true;
     showLoading();

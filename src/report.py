@@ -16,6 +16,7 @@ import plotly.io as pio
 from src.profile import TableProfile
 from src.validate import ValidationResult
 from src.compare import ComparisonResult
+from src.chat_answers import generate_cached_answers
 
 logger = logging.getLogger(__name__)
 
@@ -1076,12 +1077,22 @@ def run(
     chart_json_obj["_validations"] = report_data.get("validations", [])
     chart_data_json = json.dumps(chart_json_obj, default=str)
 
+    # ── 3b. Generate cached chat answers from report data ──
+    try:
+        cached_answers = generate_cached_answers(report_data)
+        cached_answers_json = json.dumps(cached_answers, default=str)
+        logger.info(f"Generated {len(cached_answers)} cached chat answers")
+    except Exception as e:
+        logger.warning(f"Failed to generate cached chat answers: {e}")
+        cached_answers_json = "{}"
+
     # ── 4. Render HTML from data + embedded chart JSON ──
     dc = report_data["data_context"]
     template = Template(HTML_TEMPLATE)
     html = template.render(
         **report_data,
         chart_data_json=chart_data_json,
+        cached_answers_json=cached_answers_json,
         # Flatten data context for template compatibility
         old_system_files=dc["old_system"]["files"],
         old_system_file_count=dc["old_system"]["file_count"],
