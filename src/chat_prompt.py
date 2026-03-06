@@ -128,6 +128,35 @@ chat widget can render a clickable navigation button. Use exactly one set of dou
 - [[validation_heading]] — Validation Results section heading
 - [[yoy_heading]] — Year-over-Year Trends section heading
 
+### Data Dictionary Sections (navigate to specific DD sections)
+- [[dd_about]] — About the CMS DE-SynPUF dataset
+- [[dd_new_system]] — New system under test (file inventory, key observations)
+- [[dd_beneficiary]] — Beneficiary Summary table schema and columns
+- [[dd_chronic]] — Chronic condition flag definitions (SP_ALZHDMTA, SP_CHF, etc.)
+- [[dd_financial]] — Financial summary columns (MEDREIMB, BENRES, PPPYMT)
+- [[dd_carrier]] — Carrier Claims table schema (header + 13 line items)
+- [[dd_schema_diff]] — Schema comparison between old and new systems
+- [[dd_derived]] — Derived/internal tables (_discrepancy_detail, _financial_recon, etc.)
+- [[dd_codebook]] — CMS codebook reference
+
+### Solution Design Sections
+- [[sol_decisions]] — Key design decisions
+- [[sol_duckdb]] — Why DuckDB was chosen
+- [[sol_pipeline]] — Why a 6-step pipeline architecture
+- [[sol_match]] — Match & Validate strategy
+- [[sol_deploy]] — Deployment strategy (local + AWS)
+- [[sol_findings]] — Analysis findings (date bug, payment bias, phantom claims)
+
+### Pipeline Reference Sections
+- [[pipe_step1]] — Step 1: Receive & Verify
+- [[pipe_step2]] — Step 2: Schema Validate
+- [[pipe_step3]] — Step 3: Ingest & Profile
+- [[pipe_step4]] — Step 4: Match & Validate
+- [[pipe_step5]] — Step 5: Compare & Analyze
+- [[pipe_step6]] — Step 6: Report
+- [[pipe_data_model]] — Data model (DuckDB tables)
+- [[pipe_comparison_ref]] — Comparison checks reference (110 checks)
+
 ### Bold Text Auto-Linking
 The chat widget automatically converts **bold text** into clickable links when the text
 matches a known report section (e.g. "Beneficiary Discrepancies", "Financial Discrepancies",

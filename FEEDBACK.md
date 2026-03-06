@@ -2,9 +2,9 @@
 
 ## Duration
 
-Approximately 6 hours coding and another two hours for writing and taking screenshots.
+Approximately 6 hours coding and another two hours for writing, taking screenshots, and other organization.
 
-I have a chat component from another personal project that I considered adding in here.
+I spent another 3 hours adding in a chat component from another personal project, and then another half-hour or so loading a version on AWS and automating the screenshot generation. 
 
 I also added a bit more to the data exploration part than was originally asked for - showing the use of an in-browser Parquet viewer and query engine that was made by someone I know.
 

@@ -84,7 +84,36 @@
     // Headings
     financial_heading:      { label: 'Financial Analysis',          section: 'financial-analysis-heading' },
     validation_heading:     { label: 'Validation Results',          section: 'validation-results-heading' },
-    yoy_heading:            { label: 'YoY Trends',                  section: 'yoy-trends-heading' }
+    yoy_heading:            { label: 'YoY Trends',                  section: 'yoy-trends-heading' },
+
+    // Data Dictionary sections
+    dd_about:               { label: 'About the Dataset',           url: 'data_dictionary.html#about-the-dataset' },
+    dd_new_system:          { label: 'New System (Under Test)',     url: 'data_dictionary.html#new-system-under-test' },
+    dd_beneficiary:         { label: 'Beneficiary Summary Table',  url: 'data_dictionary.html#beneficiary-summary-table' },
+    dd_chronic:             { label: 'Chronic Condition Flags',     url: 'data_dictionary.html#chronic-condition-flags' },
+    dd_financial:           { label: 'Financial Summary Columns',  url: 'data_dictionary.html#financial-summary-columns' },
+    dd_carrier:             { label: 'Carrier Claims Table',       url: 'data_dictionary.html#carrier-claims-table' },
+    dd_schema_diff:         { label: 'Schema Comparison',          url: 'data_dictionary.html#schema-comparison-old-vs-new' },
+    dd_derived:             { label: 'Derived / Internal Tables',  url: 'data_dictionary.html#derived-internal-tables' },
+    dd_codebook:            { label: 'Codebook Reference',         url: 'data_dictionary.html#codebook-reference' },
+
+    // Solution Design sections
+    sol_decisions:          { label: 'Design Decisions',            url: 'solution.html#design-decisions' },
+    sol_duckdb:             { label: 'Why DuckDB',                  url: 'solution.html#why-duckdb' },
+    sol_pipeline:           { label: 'Why 6-Step Pipeline',        url: 'solution.html#why-a-6-step-pipeline' },
+    sol_match:              { label: 'Match & Validate Strategy',  url: 'solution.html#match-validate-strategy' },
+    sol_deploy:             { label: 'Deployment Strategy',        url: 'solution.html#deployment-strategy' },
+    sol_findings:           { label: 'Analysis Findings',          url: 'solution.html#analysis-findings' },
+
+    // Pipeline Reference sections
+    pipe_step1:             { label: 'Step 1: Receive & Verify',   url: 'pipeline.html#step-1-receive-verify' },
+    pipe_step2:             { label: 'Step 2: Schema Validate',    url: 'pipeline.html#step-2-schema-validate' },
+    pipe_step3:             { label: 'Step 3: Ingest & Profile',   url: 'pipeline.html#step-3-ingest-profile' },
+    pipe_step4:             { label: 'Step 4: Match & Validate',   url: 'pipeline.html#step-4-match-validate' },
+    pipe_step5:             { label: 'Step 5: Compare & Analyze',  url: 'pipeline.html#step-5-compare-analyze' },
+    pipe_step6:             { label: 'Step 6: Report',             url: 'pipeline.html#step-6-report' },
+    pipe_data_model:        { label: 'Data Model',                  url: 'pipeline.html#data-model' },
+    pipe_comparison_ref:    { label: 'Comparison Checks Ref',      url: 'pipeline.html#comparison-checks-reference' }
   };
 
   // ── Bold-text auto-linking: map common phrases to [[page_id]] ──
