@@ -8,9 +8,9 @@ This ZIP archive contains the complete CMS Claims Comparison Pipeline — source
 
 | If you want to... | Go here |
 |---|---|
-| **See the report immediately (no setup)** | [Hosted Comparison Report](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/reports/comparison_report.html) |
-| **Read the guided walkthrough** | [Hosted Reviewer Walkthrough](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/reviewer_readme.html) |
-| **Browse all documentation online** | [Hosted Documentation Hub](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/index.html) |
+| **See the report immediately (no setup)** | [Hosted Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html) |
+| **Read the guided walkthrough** | [Hosted Reviewer Walkthrough](https://ddmmvtx76d1f8.cloudfront.net/docs/reviewer_readme.html) |
+| **Browse all documentation online** | [Hosted Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html) |
 | **Run it locally** | See `README.md` → Quick Start |
 | **Understand the approach** | `REVIEWER_README.md` or `FEEDBACK.md` |
 

@@ -8,9 +8,9 @@ A guided tour of the CMS Claims Comparison Pipeline — what to look at, in what
 
 A live, read-only version of the reports and documentation is available — no setup required:
 
-- **[Comparison Report](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, and findings
-- **[Documentation Hub](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/index.html)** — interactive tools, design docs, and architecture diagrams
-- **[Reviewer Walkthrough](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/reviewer_readme.html)** — this page, hosted online with all screenshots
+- **[Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, and findings
+- **[Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html)** — interactive tools, design docs, and architecture diagrams
+- **[Reviewer Walkthrough](https://ddmmvtx76d1f8.cloudfront.net/docs/reviewer_readme.html)** — this page, hosted online with all screenshots
 
 ---
 
@@ -178,6 +178,39 @@ Drag and drop any `.parquet` file to instantly view its schema (column names, ty
 
 ---
 
+## Report Pal (AI Chat Assistant)
+
+Every page in the hosted report includes **Report Pal** — an AI assistant that helps reviewers explore findings through natural conversation.
+
+### How to Try It
+
+1. Open the [hosted report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)
+2. Click the chat bubble in the bottom-right corner
+3. Choose **Text** (type questions) or **Voice** (speak naturally via WebRTC)
+
+### Text Mode
+
+- Powered by GPT-4o with live DuckDB access — it writes and runs SQL to answer data questions
+- Pre-cached answers for common questions (instant, no API call)
+- SQL queries shown inline with copy-to-clipboard and "Open in SQL Explorer" links
+- Suggested questions bar + autocomplete for quick exploration
+
+### Voice Mode
+
+- Powered by OpenAI Realtime API via WebRTC — full-duplex voice conversation
+- AI speaks with OpenAI's **coral** voice; user speech transcribed via Whisper
+- Stop button (🔇) in header bar immediately cancels AI voice mid-sentence
+- No push-to-talk — server VAD detects when you start/stop speaking
+
+### Security
+
+- No API keys in the browser — all calls go through Lambda backends
+- Ephemeral tokens for voice mode expire after 60 seconds
+- OpenAI API key stored in AWS SSM Parameter Store
+- No credentials committed to the repository
+
+---
+
 ## Code Reading Order
 
 For reviewers who want to understand the code:
@@ -191,9 +224,12 @@ For reviewers who want to understand the code:
 | 5 | `src/validate.py` | — | Deepest analytical work: financial reconciliation SQL, temporal checks |
 | 6 | `src/compare.py` | — | Old-vs-new comparison engine |
 | 7 | `src/report.py` | — | HTML report generation with Plotly charts |
-| 8 | `tests/conftest.py` | ~160 | How test data is designed with intentional edge cases |
-| 9 | `docs/SOLUTION.md` | — | Design decisions explained in prose |
-| 10 | `docs/REQUIREMENTS_TRACEABILITY.md` | — | Maps every spec requirement to its implementation |
+| 8 | `src/chat_prompt.py` | ~130 | Shared Report Pal system prompt and OpenAI tool definitions |
+| 9 | `docs/chat-widget.js` | ~1600 | Self-contained AI chat widget (text + WebRTC voice) |
+| 10 | `backend/index.js` | ~120 | Ephemeral Realtime API token Lambda |
+| 11 | `tests/conftest.py` | ~160 | How test data is designed with intentional edge cases |
+| 12 | `docs/SOLUTION.md` | — | Design decisions explained in prose |
+| 13 | `docs/REQUIREMENTS_TRACEABILITY.md` | — | Maps every spec requirement to its implementation |
 
 ---
 
