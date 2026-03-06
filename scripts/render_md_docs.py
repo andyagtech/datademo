@@ -34,11 +34,27 @@ NAV_BAR = """\
   <span class="nav-sep">|</span>
   <a href="../reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
+  <a href="solution.html">Design Docs</a>
   <a href="schema_explorer.html">Schema</a>
   <a href="parquet_viewer.html">Parquet</a>
   <a href="sql_explorer.html">SQL</a>
   <a href="reviewer_readme.html">Reviewer Guide</a>
 </nav>"""
+
+# Cross-links shown in the sidebar of design doc pages
+DESIGN_DOC_CROSS_LINKS = {
+    "SOLUTION.md": "solution.html",
+    "PIPELINE.md": "pipeline.html",
+    "DATA_DICTIONARY.md": "data_dictionary.html",
+}
+
+DESIGN_DOC_SIDEBAR = """\
+<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border)">
+  <div class="toc-title" style="margin-bottom:8px">Design Docs</div>
+  <a href="solution.html"{sol_active}>Solution Design</a>
+  <a href="pipeline.html"{pipe_active}>Pipeline Reference</a>
+  <a href="data_dictionary.html"{dd_active}>Data Dictionary</a>
+</div>"""
 
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
@@ -230,13 +246,24 @@ def extract_toc(md_text: str) -> list[tuple[int, str, str]]:
     return toc
 
 
-def build_toc_html(toc: list[tuple[int, str, str]]) -> str:
+def build_toc_html(toc: list[tuple[int, str, str]], filename: str = "") -> str:
     """Convert a TOC list into sidebar HTML links (h1–h3 only)."""
     links = []
     for level, slug, text in toc:
         depth_class = f"depth-{level}" if level >= 2 else ""
         if level <= 3:  # Only show h1-h3 in sidebar
             links.append(f'<a href="#{slug}" class="{depth_class}">{text}</a>')
+
+    # Add cross-links to other design docs if this is a design doc
+    if filename in DESIGN_DOC_CROSS_LINKS:
+        current_html = DESIGN_DOC_CROSS_LINKS[filename]
+        cross = DESIGN_DOC_SIDEBAR.format(
+            sol_active=' style="color:var(--accent);font-weight:600"' if current_html == "solution.html" else "",
+            pipe_active=' style="color:var(--accent);font-weight:600"' if current_html == "pipeline.html" else "",
+            dd_active=' style="color:var(--accent);font-weight:600"' if current_html == "data_dictionary.html" else "",
+        )
+        links.append(cross)
+
     return "\n  ".join(links)
 
 
@@ -266,7 +293,7 @@ def render_md(md_path: Path, title: str) -> str:
 
     # Extract TOC before rendering
     toc = extract_toc(md_text)
-    toc_html = build_toc_html(toc)
+    toc_html = build_toc_html(toc, md_path.name)
 
     # Render markdown to HTML
     extensions = ["tables", "fenced_code", "toc", "nl2br", "sane_lists"]

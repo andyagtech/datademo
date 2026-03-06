@@ -619,6 +619,51 @@ Records with DESYNPUF_ID starting with "ZZ" are excluded from comparisons as the
     answers["Please summarize the executive summary"] = answers["Summarize the executive summary"]
     answers["What does LINE_NCH_PMT_AMT_1 mean?"] = answers["What is the LINE_NCH_PMT_AMT_1 issue?"]
 
+    # ── Documentation navigation answers ──
+
+    answers["Do we have any documentation for this pipeline?"] = """Yes! There's comprehensive design documentation available:
+
+- **Pipeline Reference** [[pipeline]] — Complete reference for all 6 pipeline steps, the data model, 129 validation and comparison checks, and output artifacts
+- **Data Dictionary** [[data_dictionary]] — Dataset overview, column definitions for all tables, old/new system schemas, and codebook reference
+- **Solution Design** [[solution]] — Architecture decisions (why DuckDB, why 6-step pipeline), match strategy, deployment strategy, and analysis findings
+- **Architecture Diagrams** [[architecture]] — Interactive Mermaid.js diagrams showing the full pipeline flow, data flow, and cloud deployment
+- **Requirements Traceability** [[requirements]] — Maps every assessment requirement to its implementation with evidence
+
+You can also explore the data interactively:
+- **SQL Explorer** [[sql]] — Run queries against the pipeline's Parquet exports
+- **Schema Explorer** [[schema]] — Visual ERD of all 8 DuckDB tables
+- **Parquet Viewer** [[parquet]] — Browse raw Parquet files in-browser"""
+
+    answers["Can you show me the documentation?"] = answers["Do we have any documentation for this pipeline?"]
+    answers["Where is the documentation?"] = answers["Do we have any documentation for this pipeline?"]
+    answers["Show me the documentation"] = answers["Do we have any documentation for this pipeline?"]
+    answers["Is there documentation?"] = answers["Do we have any documentation for this pipeline?"]
+    answers["What documentation is available?"] = answers["Do we have any documentation for this pipeline?"]
+    answers["Where can I find the pipeline documentation?"] = answers["Do we have any documentation for this pipeline?"]
+    answers["Tell me about the data dictionary"] = f"""The **Data Dictionary** [[data_dictionary]] provides complete schema documentation for all tables in the pipeline:
+
+- **Beneficiary Summary** [[dd_beneficiary]] — {total_bene} beneficiaries across 3 years, 33 columns covering demographics, chronic conditions, coverage, and financials
+- **Carrier Claims** [[dd_carrier]] — {total_claims} claims with 142 columns (header + 13 line-level repeating groups)
+- **Schema Comparison** [[dd_schema_diff]] — Side-by-side diff of old vs new system schemas
+- **Derived Tables** [[dd_derived]] — Internal tables created by the pipeline (_discrepancy_detail, _financial_recon, _match_beneficiary, _match_claims)
+- **Codebook Reference** [[dd_codebook]] — Links to the official CMS DE-SynPUF codebook
+
+You can also explore the schemas visually in the **Schema Explorer** [[schema]]."""
+
+    answers["How does the pipeline work?"] = f"""The pipeline runs in **6 sequential steps** with gate logic — early steps halt on bad input before expensive processing begins:
+
+1. **Receive & Verify** [[pipe_step1]] — Discovers CSV files, verifies integrity via checksums
+2. **Schema Validate** [[pipe_step2]] — Validates column names and types against expected schemas
+3. **Ingest & Profile** [[pipe_step3]] — Loads data into DuckDB, generates statistical profiles
+4. **Match & Validate** [[pipe_step4]] — Matches records between systems, runs {total_checks} validation checks
+5. **Compare & Analyze** [[pipe_step5]] — Field-by-field comparison on matched records (110 comparison checks)
+6. **Report** [[pipe_step6]] — Generates the interactive HTML report with all findings
+
+For the complete reference, see the **Pipeline Reference** [[pipeline]]. For architecture diagrams, see **Architecture** [[architecture]]."""
+
+    answers["Explain the pipeline steps"] = answers["How does the pipeline work?"]
+    answers["What are the pipeline steps?"] = answers["How does the pipeline work?"]
+
     # ── New validation-focused answers ──
 
     answers["Can you explain the coverage period validation?"] = f"""The **coverage period validation** checks that four coverage-month fields are within the valid **0–12** range, as defined by the CMS codebook.
