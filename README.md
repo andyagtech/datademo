@@ -802,7 +802,7 @@ Three of the documentation tools load JavaScript libraries from CDN at runtime:
 ├── web/                      # FastAPI web UI (drag-and-drop uploads)
 │   └── server.py             # Self-contained server + frontend
 │
-├── tests/                    # 87 tests (pytest)
+├── tests/                    # 95 tests (pytest)
 │   ├── conftest.py           # Shared fixtures (in-memory DuckDB + sample data)
 │   ├── test_compare.py
 │   ├── test_pipeline.py      # Pipeline step tests

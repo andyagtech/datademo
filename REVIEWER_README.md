@@ -58,9 +58,9 @@ All 6 pipeline steps execute in sequence with gate logic — Steps 1-2 halt earl
 
 ## 2. Test Suite
 
-The project has **87 tests** across two categories:
+The project has **95 tests** across two categories:
 
-- **54 unit/integration tests** — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.
+- **62 unit/integration tests** — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.
 - **33 real-data tests** — validate the actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.
 
 ```bash
@@ -318,6 +318,6 @@ For reviewers who want to understand the code:
 
 4. **Docker for portability** — `docker build && docker run` runs everything on any machine.
 
-5. **87 tests** — 54 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.
+5. **95 tests** — 62 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.
 
 6. **Flexible file discovery** — the pipeline discovers CSVs by column headers, not filenames. Works with any of the 20 CMS DE-SynPUF samples without code changes.

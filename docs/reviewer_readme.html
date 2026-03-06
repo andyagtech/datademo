@@ -238,9 +238,9 @@ docker run --rm -p 8888:8888 \
 <p><img alt="Pipeline Run Output" src="../screenshots/screenshot_1.png" /></p>
 <hr />
 <h2 id="2-test-suite">2. Test Suite</h2>
-<p>The project has <strong>87 tests</strong> across two categories:</p>
+<p>The project has <strong>95 tests</strong> across two categories:</p>
 <ul>
-<li><strong>54 unit/integration tests</strong> — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.</li>
+<li><strong>62 unit/integration tests</strong> — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.</li>
 <li><strong>33 real-data tests</strong> — validate the actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.</li>
 </ul>
 <pre><code class="language-bash">pytest tests/ -v
@@ -639,7 +639,7 @@ docker run --rm -p 8888:8888 \
 <p><strong>Docker for portability</strong> — <code>docker build &amp;&amp; docker run</code> runs everything on any machine.</p>
 </li>
 <li>
-<p><strong>87 tests</strong> — 54 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.</p>
+<p><strong>95 tests</strong> — 62 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.</p>
 </li>
 <li>
 <p><strong>Flexible file discovery</strong> — the pipeline discovers CSVs by column headers, not filenames. Works with any of the 20 CMS DE-SynPUF samples without code changes.</p>

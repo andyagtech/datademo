@@ -32,7 +32,7 @@ cmsdata-assessment/
 │
 ├── screenshots/                 # 12 screenshots referenced by REVIEWER_README.md
 │   ├── screenshot_1.png         # Pipeline run output
-│   ├── screenshot_2.png         # Test suite (87 passed)
+│   ├── screenshot_2.png         # Test suite (95 passed)
 │   ├── screenshot_3.png         # Report: Executive Summary
 │   ├── screenshot_4.png         # Report: Key Findings
 │   ├── screenshot_5.png         # Report: Validation Results
@@ -67,7 +67,7 @@ cmsdata-assessment/
 │   ├── profile.py               # Table profiling
 │   └── templates/report.html.j2 # Report template
 │
-├── tests/                       # 87 tests (54 synthetic + 33 real-data)
+├── tests/                       # 95 tests (62 synthetic + 33 real-data)
 │
 ├── data/
 │   ├── old_system/              # CMS DE-SynPUF Sample 1 CSVs (5 files)
@@ -109,5 +109,5 @@ python -m src.main --new-data data/new_system/
 ## Running Tests
 
 ```bash
-pytest tests/ -v    # 87 tests, ~3 seconds
+pytest tests/ -v    # 95 tests, ~3 seconds
 ```
