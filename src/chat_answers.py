@@ -105,6 +105,49 @@ def generate_cached_answers(report_data: dict) -> dict[str, dict]:
     for v in fv:
         fv_lines.append(f"- **{v['check_name']}** ({v['category']}): {v['issues_found']} issues ({v['issue_pct']}%) — {v['description']}")
 
+    # Claim line utilization data
+    clu = report_data.get("claim_line_utilization", {})
+
+    # Validation detail extraction helpers — group by category
+    val_by_cat: dict[str, list] = {}
+    for v in vals:
+        cat = v.get("category", "other")
+        val_by_cat.setdefault(cat, []).append(v)
+
+    coverage_vals = val_by_cat.get("coverage", [])
+    clinical_vals = val_by_cat.get("clinical", [])
+    identity_vals = val_by_cat.get("identity", [])
+    temporal_vals = val_by_cat.get("temporal", [])
+    demographic_vals = val_by_cat.get("demographic", [])
+    financial_vals = val_by_cat.get("financial", [])
+
+    # Coverage check lines
+    coverage_lines = []
+    for v in coverage_vals:
+        status = "✓ passed" if v.get("passed") else f"✗ {v['issues_found']} issues"
+        coverage_lines.append(f"- **{v['check_name']}**: {status} ({v['total_checked']} checked)")
+
+    # Clinical check lines (ESRD, ICD-9, NPI)
+    clinical_lines = []
+    for v in clinical_vals:
+        status = "✓ passed" if v.get("passed") else f"✗ {v['issues_found']} issues"
+        clinical_lines.append(f"- **{v['check_name']}**: {status}")
+
+    # Financial recon detail lines (with distribution)
+    fin_recon_lines = []
+    for v in financial_vals:
+        details = v.get("details", [{}])
+        d = details[0] if details else {}
+        dist = d.get("distribution", {})
+        if dist:
+            fin_recon_lines.append(
+                f"- **{v['check_name']}**: avg diff ${d.get('avg_diff', 0)}, max diff ${d.get('max_diff', 0)} — "
+                f"exact: {dist.get('exact_match_lte_0.01', 'N/A')}, "
+                f"$0.01–$1: {dist.get('diff_0.01_to_1.00', 'N/A')}, "
+                f"$1–$100: {dist.get('diff_1.00_to_100.00', 'N/A')}, "
+                f">$100: {dist.get('diff_over_100.00', 'N/A')}"
+            )
+
     # ── Build answers ──
     answers = {}
 
@@ -556,6 +599,206 @@ Key findings:
 
 Records with DESYNPUF_ID starting with "ZZ" are excluded from comparisons as they are known test/fabricated data."""
 
+    # ── Aliases: "Can you explain" / "Please summarize" variants of existing answers ──
+    answers["Can you explain the most critical findings?"] = answers["What are the most critical findings?"]
+    answers["Can you explain the payment discrepancy between systems?"] = answers["Explain the payment discrepancy between systems"]
+    answers["Can you explain the 0.90 payment ratio pattern?"] = answers["Explain the 0.90 payment ratio pattern"]
+    answers["Can you explain how discrepancies are distributed across years?"] = answers["How does accuracy vary by year?"]
+    answers["Can you explain whether the discrepancies are random or systematic?"] = answers["Are discrepancies random or systematic?"]
+    answers["Can you explain the risk assessment for the new system?"] = answers["What is the risk assessment for the new system?"]
+    answers["Can you explain the new system readiness status?"] = answers["What is the new system readiness status?"]
+    answers["Can you explain what bugs should be fixed before production cutover?"] = answers["What bugs should be fixed before production cutover?"]
+    answers["Can you explain the phantom records in the new system?"] = answers["What are the phantom records in the new system?"]
+    answers["Can you explain the ZZ fabricated beneficiaries?"] = answers["What are the ZZ fabricated beneficiaries?"]
+    answers["Can you explain the BENE_BIRTH_DT mismatch pattern?"] = answers["What is the BENE_BIRTH_DT mismatch pattern?"]
+    answers["Can you explain the carrier claims discrepancy?"] = answers["What is the carrier claims discrepancy?"]
+    answers["Can you explain how claims are matched between systems?"] = answers["How are claims matched between systems?"]
+    answers["Can you explain the dollar impact per beneficiary?"] = answers["What is the dollar impact per beneficiary?"]
+    answers["Can you explain the chronic condition trends?"] = answers["Are there any chronic condition trends?"]
+    answers["Can you explain the payment distribution?"] = answers["What does the payment distribution look like?"]
+    answers["Please summarize the executive summary"] = answers["Summarize the executive summary"]
+    answers["What does LINE_NCH_PMT_AMT_1 mean?"] = answers["What is the LINE_NCH_PMT_AMT_1 issue?"]
+
+    # ── New validation-focused answers ──
+
+    answers["Can you explain the coverage period validation?"] = f"""The **coverage period validation** checks that four coverage-month fields are within the valid **0–12** range, as defined by the CMS codebook.
+
+**Fields checked:**
+{chr(10).join(coverage_lines) if coverage_lines else '- No coverage validation results available'}
+
+Per the CMS codebook, these fields represent total months of coverage in a calendar year:
+- **BENE_HI_CVRAGE_TOT_MONS** — Hospital Insurance (Part A) months
+- **BENE_SMI_CVRAGE_TOT_MONS** — Supplementary Medical Insurance (Part B) months
+- **BENE_HMO_CVRAGE_TOT_MONS** — HMO coverage months
+- **PLAN_CVRG_MOS_NUM** — Part D plan coverage months
+
+Values outside 0–12 indicate data corruption or ETL errors — a beneficiary cannot have more than 12 months of coverage in a single year."""
+
+    answers["Can you explain the ESRD consistency check?"] = f"""The **ESRD (End-Stage Renal Disease) consistency check** validates that the `BENE_ESRD_IND` field never regresses from **'Y' to non-'Y'** across consecutive summary years for the same beneficiary.
+
+**Clinical rationale:** ESRD is an irreversible medical condition — once a beneficiary is classified as ESRD-positive, they should remain so in all subsequent years. A regression from 'Y' to '0' or NULL would indicate a **data error**, not a clinical recovery.
+
+**Results:**
+{chr(10).join(clinical_lines) if clinical_lines else '- No ESRD consistency results available'}
+
+This check uses a self-join on `beneficiary_summary` comparing each beneficiary's ESRD status in year *N* against year *N+1*."""
+
+    answers["Can you explain the state code validation?"] = f"""The **state code validation** performs two checks on the `SP_STATE_CODE` field:
+
+1. **Range check** — Validates that all state codes fall within the SSA standard range of **1–56** (50 states + DC + territories). Codes outside this range indicate invalid or corrupted data.
+
+2. **Year-over-year stability** — Flags beneficiaries whose state code changes between summary years. While legitimate relocations occur, a high rate of changes may indicate data quality issues.
+
+State codes are important for geographic analysis, regional reimbursement rate calculations, and regulatory compliance reporting."""
+
+    answers["Can you explain the death temporal chain check?"] = f"""The **death temporal chain** check ensures no beneficiary has summary records in years **after** their recorded death year.
+
+For example, if `BENE_DEATH_DT` indicates a beneficiary died in 2008, they should **not** have a `beneficiary_summary` record for 2009 or 2010. Such records would indicate:
+- A data entry error in the death date
+- Failure to properly terminate the beneficiary's record
+- Ghost records that could inflate population counts and distort utilization metrics
+
+This check joins death dates to summary years and counts violations where `summary_year > death_year`."""
+
+    answers["Can you explain the ICD-9 diagnosis code validation?"] = """The **ICD-9 diagnosis code format validation** checks columns `ICD9_DGNS_CD_1` through `ICD9_DGNS_CD_8` on carrier claims against the expected ICD-9-CM format.
+
+**Valid ICD-9 format:** 3–5 alphanumeric characters matching the pattern `^[A-Za-z0-9]{3,5}$`
+
+**Common valid examples:**
+- `4019` — Hypertension (unspecified)
+- `25000` — Diabetes mellitus type 2
+- `V5789` — V-code for aftercare
+- `E8859` — E-code for accidental fall
+
+Codes that don't match this pattern may be:
+- Truncated or padded codes from an ETL error
+- ICD-10 codes incorrectly placed in an ICD-9 field
+- Free-text or placeholder values"""
+
+    answers["Can you explain the NPI format validation?"] = """The **NPI (National Provider Identifier) format validation** checks columns `PRF_PHYSN_NPI_1` through `PRF_PHYSN_NPI_5` on carrier claims.
+
+**Valid NPI format:** Exactly **10 digits** (numeric characters only), matching `^[0-9]{10}$`
+
+NPIs are assigned by CMS to healthcare providers and follow a standardized 10-digit format with a Luhn check digit. Invalid NPIs may indicate:
+- Truncated or padded provider identifiers
+- Legacy provider numbers that weren't properly converted
+- Placeholder values used during testing
+
+Provider identification is critical for fraud detection, referral tracking, and payment reconciliation."""
+
+    answers["Please summarize the claim line utilization analysis"] = f"""The **claim line utilization analysis** examines how many of the 13 possible service lines are populated per carrier claim.
+
+{f'''**Key metrics:**
+- **Total claims analyzed:** {clu.get("total_claims", "N/A"):,}
+- **Average lines per claim:** {clu.get("avg_lines", "N/A")}
+- **Median lines per claim:** {clu.get("median_lines", "N/A")}
+- **Maximum lines on any claim:** {clu.get("max_lines", "N/A")}
+- **Single-line claims:** {clu.get("pct_single_line", "N/A")}%
+- **Claims with ≤3 lines:** {clu.get("pct_lte_3_lines", "N/A")}%
+- **Claims with ≤5 lines:** {clu.get("pct_lte_5_lines", "N/A")}%''' if clu else '- No claim line utilization data available'}
+
+This analysis reveals claim complexity patterns and helps validate that multi-line payment aggregation logic in the financial reconciliation handles the actual data shape correctly."""
+
+    answers["Can you explain the financial reconciliation distribution?"] = f"""The **financial reconciliation** compares aggregate payment amounts from carrier claim lines against the corresponding totals in the beneficiary summary, using a **$0.01 tolerance** to account for floating-point rounding.
+
+**Why $0.01 tolerance?** Summing many small payment amounts introduces sub-cent rounding differences that are not true discrepancies. This is standard practice in financial data reconciliation.
+
+**Difference distribution buckets:**
+{chr(10).join(fin_recon_lines) if fin_recon_lines else '- No distribution data available'}
+
+The buckets show how discrepancies are concentrated:
+- **Exact match (≤$0.01)** — Rounding-only differences
+- **$0.01–$1.00** — Minor discrepancies, likely rounding
+- **$1.00–$100.00** — Moderate discrepancies, worth investigating
+- **>$100.00** — Significant discrepancies, likely data errors"""
+
+    answers["What does BENE_HMO_CVRAGE_TOT_MONS mean?"] = """**BENE_HMO_CVRAGE_TOT_MONS** is a CMS codebook field representing the **total months of HMO coverage** for a Medicare beneficiary in a given calendar year.
+
+**Details:**
+- **Range:** 0–12 (integer)
+- **0** = No HMO coverage during the year
+- **12** = Enrolled in an HMO for the full year
+- Intermediate values indicate partial-year HMO enrollment
+
+This field is part of the Medicare Advantage (Part C) enrollment tracking. When a beneficiary is enrolled in an HMO plan, their claims may be processed differently than fee-for-service Medicare.
+
+**In our pipeline:** We validate this field is within 0–12 in the `check_coverage_period` function and compare it between old and new systems for migration accuracy."""
+
+    answers["What does BENE_HI_CVRAGE_TOT_MONS mean?"] = """**BENE_HI_CVRAGE_TOT_MONS** is a CMS codebook field representing the **total months of Hospital Insurance (Part A) coverage** for a Medicare beneficiary in a given calendar year.
+
+**Details:**
+- **Range:** 0–12 (integer)
+- **Part A** covers inpatient hospital stays, skilled nursing facility care, hospice, and some home health services
+- Most Medicare beneficiaries age 65+ have 12 months of Part A coverage per year
+- Lower values may indicate late enrollment, loss of eligibility, or death mid-year
+
+**In our pipeline:** Validated in `check_coverage_period` to ensure values are in the 0–12 range."""
+
+    answers["What does BENE_SMI_CVRAGE_TOT_MONS mean?"] = """**BENE_SMI_CVRAGE_TOT_MONS** is a CMS codebook field representing the **total months of Supplementary Medical Insurance (Part B) coverage** for a Medicare beneficiary in a given calendar year.
+
+**Details:**
+- **Range:** 0–12 (integer)
+- **Part B** covers physician services, outpatient care, durable medical equipment, and preventive services
+- Part B is optional and requires a monthly premium, so values of 0 are more common than Part A
+- Carrier claims (the primary claims type in this dataset) are billed under Part B
+
+**In our pipeline:** Validated in `check_coverage_period` to ensure values are in the 0–12 range."""
+
+    answers["What does PLAN_CVRG_MOS_NUM mean?"] = """**PLAN_CVRG_MOS_NUM** is a CMS codebook field representing the **total months of Part D (prescription drug) plan coverage** for a Medicare beneficiary in a given calendar year.
+
+**Details:**
+- **Range:** 0–12 (integer)
+- **Part D** covers outpatient prescription drug benefits
+- Part D is provided through private plans (PDPs or MA-PDs), not directly by Medicare
+- A value of 0 means the beneficiary was not enrolled in any Part D plan that year
+
+**In our pipeline:** Validated in `check_coverage_period` to ensure values are in the 0–12 range."""
+
+    answers["What does BENE_ESRD_IND mean?"] = """**BENE_ESRD_IND** is a CMS codebook field indicating whether a Medicare beneficiary has been diagnosed with **End-Stage Renal Disease (ESRD)**.
+
+**Values:**
+- **'Y'** — Beneficiary has ESRD (qualifies for Medicare regardless of age)
+- **'0'** or **NULL** — No ESRD diagnosis on record
+
+**Clinical significance:**
+- ESRD is an **irreversible** condition (permanent kidney failure requiring dialysis or transplant)
+- ESRD beneficiaries qualify for Medicare at **any age**, not just 65+
+- They typically have much higher healthcare utilization and costs
+
+**In our pipeline:** The `check_esrd_consistency` function verifies that ESRD status never regresses from 'Y' to non-'Y' across years, since that would be clinically impossible."""
+
+    answers["What does SP_STATE_CODE mean?"] = """**SP_STATE_CODE** is a CMS codebook field representing the **SSA (Social Security Administration) state code** for the beneficiary's residence.
+
+**Details:**
+- **Range:** 1–56 (integer)
+- Codes 1–50 map to U.S. states (alphabetical: 1=Alabama, 2=Alaska, ... 50=Wyoming)
+- Codes 51–56 cover U.S. territories and other jurisdictions (DC, Puerto Rico, Virgin Islands, etc.)
+- Codes outside 1–56 are invalid
+
+**In our pipeline:** The `check_state_codes` function validates the range and flags beneficiaries whose state code changes between summary years (potential data quality issue or legitimate relocation)."""
+
+    answers["Please summarize all validation checks"] = f"""**{total_checks} validation checks** were performed across **6 categories**:
+
+### Identity ({len(identity_vals)} checks)
+Referential integrity between beneficiary and claims tables — orphan claims, missing beneficiaries, duplicate IDs.
+
+### Temporal ({len(temporal_vals)} checks)
+Date consistency — claims after death, date inversions, summary records after death year.
+
+### Demographic ({len(demographic_vals)} checks)
+Immutable field stability — sex, race, and birth date should not change across years.
+
+### Coverage ({len(coverage_vals)} checks)
+CMS codebook range validation — all coverage month fields must be 0–12.
+
+### Clinical ({len(clinical_vals)} checks)
+Domain-specific rules — ESRD irreversibility, ICD-9 format, NPI format.
+
+### Financial ({len(financial_vals)} checks)
+Payment reconciliation — beneficiary summary totals vs aggregated claim line amounts, with $0.01 tolerance and distribution analysis.
+
+**Results: {passed} passed, {failed} failed.**"""
+
     # ── SQL queries per answer (for "Review SQL" button) ──
     queries = {}
 
@@ -711,6 +954,74 @@ Records with DESYNPUF_ID starting with "ZZ" are excluded from comparisons as the
     queries["What does the financial reconciliation show?"] = queries["What is the total financial divergence amount?"]
 
     queries["How are claims matched between systems?"] = queries["What is the record matching rate?"]
+
+    # ── Queries for new validation-focused answers ──
+
+    queries["Can you explain the coverage period validation?"] = [
+        "-- Coverage month values outside 0-12\nSELECT 'BENE_HI_CVRAGE_TOT_MONS' AS field,\n  COUNT(*) FILTER (WHERE BENE_HI_CVRAGE_TOT_MONS < 0 OR BENE_HI_CVRAGE_TOT_MONS > 12) AS invalid\nFROM beneficiary_summary\nUNION ALL\nSELECT 'BENE_SMI_CVRAGE_TOT_MONS',\n  COUNT(*) FILTER (WHERE BENE_SMI_CVRAGE_TOT_MONS < 0 OR BENE_SMI_CVRAGE_TOT_MONS > 12)\nFROM beneficiary_summary\nUNION ALL\nSELECT 'BENE_HMO_CVRAGE_TOT_MONS',\n  COUNT(*) FILTER (WHERE BENE_HMO_CVRAGE_TOT_MONS < 0 OR BENE_HMO_CVRAGE_TOT_MONS > 12)\nFROM beneficiary_summary\nUNION ALL\nSELECT 'PLAN_CVRG_MOS_NUM',\n  COUNT(*) FILTER (WHERE PLAN_CVRG_MOS_NUM < 0 OR PLAN_CVRG_MOS_NUM > 12)\nFROM beneficiary_summary;",
+        "-- Coverage month distribution\nSELECT BENE_HI_CVRAGE_TOT_MONS AS months, COUNT(*) AS cnt\nFROM beneficiary_summary\nGROUP BY months ORDER BY months;"
+    ]
+
+    queries["Can you explain the ESRD consistency check?"] = [
+        "-- ESRD indicator values\nSELECT BENE_ESRD_IND::VARCHAR AS esrd, COUNT(*) AS cnt\nFROM beneficiary_summary\nGROUP BY esrd ORDER BY esrd;",
+        "-- ESRD regressions (Y in year N, non-Y in year N+1)\nSELECT a.DESYNPUF_ID, a.summary_year AS yr_y, b.summary_year AS yr_not_y,\n  a.BENE_ESRD_IND::VARCHAR AS esrd_before, b.BENE_ESRD_IND::VARCHAR AS esrd_after\nFROM beneficiary_summary a\nJOIN beneficiary_summary b ON a.DESYNPUF_ID = b.DESYNPUF_ID AND a.summary_year < b.summary_year\nWHERE a.BENE_ESRD_IND::VARCHAR = 'Y' AND (b.BENE_ESRD_IND IS NULL OR b.BENE_ESRD_IND::VARCHAR != 'Y');"
+    ]
+
+    queries["Can you explain the state code validation?"] = [
+        "-- Invalid state codes (outside 1-56)\nSELECT SP_STATE_CODE, COUNT(*) AS cnt\nFROM beneficiary_summary\nWHERE SP_STATE_CODE < 1 OR SP_STATE_CODE > 56\nGROUP BY SP_STATE_CODE;",
+        "-- Year-over-year state changes\nSELECT a.DESYNPUF_ID, a.summary_year, a.SP_STATE_CODE AS state_before,\n  b.summary_year AS next_year, b.SP_STATE_CODE AS state_after\nFROM beneficiary_summary a\nJOIN beneficiary_summary b ON a.DESYNPUF_ID = b.DESYNPUF_ID AND a.summary_year < b.summary_year\nWHERE a.SP_STATE_CODE != b.SP_STATE_CODE\nLIMIT 50;"
+    ]
+
+    queries["Can you explain the death temporal chain check?"] = [
+        "-- Summary records after death year\nSELECT b.DESYNPUF_ID, b.BENE_DEATH_DT,\n  (b.BENE_DEATH_DT / 10000)::INT AS death_year,\n  s.summary_year\nFROM beneficiary_summary b\nJOIN beneficiary_summary s ON b.DESYNPUF_ID = s.DESYNPUF_ID\nWHERE b.BENE_DEATH_DT > 0\n  AND s.summary_year > (b.BENE_DEATH_DT / 10000)::INT\nLIMIT 50;"
+    ]
+
+    queries["Can you explain the ICD-9 diagnosis code validation?"] = [
+        "-- ICD-9 codes that don't match 3-5 alphanumeric pattern\nSELECT ICD9_DGNS_CD_1, COUNT(*) AS cnt\nFROM carrier_claims\nWHERE ICD9_DGNS_CD_1 IS NOT NULL\n  AND NOT regexp_matches(ICD9_DGNS_CD_1, '^[A-Za-z0-9]{3,5}$')\nGROUP BY ICD9_DGNS_CD_1\nORDER BY cnt DESC LIMIT 20;",
+        "-- Top 20 most common diagnosis codes\nSELECT ICD9_DGNS_CD_1, COUNT(*) AS cnt\nFROM carrier_claims\nWHERE ICD9_DGNS_CD_1 IS NOT NULL\nGROUP BY ICD9_DGNS_CD_1\nORDER BY cnt DESC LIMIT 20;"
+    ]
+
+    queries["Can you explain the NPI format validation?"] = [
+        "-- NPI values that aren't 10 digits\nSELECT PRF_PHYSN_NPI_1, COUNT(*) AS cnt\nFROM carrier_claims\nWHERE PRF_PHYSN_NPI_1 IS NOT NULL\n  AND NOT regexp_matches(PRF_PHYSN_NPI_1::VARCHAR, '^[0-9]{10}$')\nGROUP BY PRF_PHYSN_NPI_1\nORDER BY cnt DESC LIMIT 20;",
+        "-- Top providers by claim count\nSELECT PRF_PHYSN_NPI_1, COUNT(*) AS claim_count\nFROM carrier_claims\nWHERE PRF_PHYSN_NPI_1 IS NOT NULL\nGROUP BY PRF_PHYSN_NPI_1\nORDER BY claim_count DESC LIMIT 20;"
+    ]
+
+    queries["Please summarize the claim line utilization analysis"] = [
+        "-- Claim line utilization distribution\nSELECT populated_lines, COUNT(*) AS claims\nFROM (\n  SELECT CLM_ID,\n    (CASE WHEN LINE_NCH_PMT_AMT_1 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_2 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_3 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_4 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_5 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_6 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_7 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_8 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_9 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_10 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_11 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_12 IS NOT NULL THEN 1 ELSE 0 END\n    + CASE WHEN LINE_NCH_PMT_AMT_13 IS NOT NULL THEN 1 ELSE 0 END) AS populated_lines\n  FROM carrier_claims\n) sub\nGROUP BY populated_lines ORDER BY populated_lines;"
+    ]
+
+    queries["Can you explain the financial reconciliation distribution?"] = [
+        "-- Financial reconciliation detail with diff buckets\nSELECT\n  COUNT(*) AS total,\n  SUM(CASE WHEN medreimb_diff <= 0.01 THEN 1 ELSE 0 END) AS exact,\n  SUM(CASE WHEN medreimb_diff > 0.01 AND medreimb_diff <= 1.0 THEN 1 ELSE 0 END) AS under_1,\n  SUM(CASE WHEN medreimb_diff > 1.0 AND medreimb_diff <= 100.0 THEN 1 ELSE 0 END) AS under_100,\n  SUM(CASE WHEN medreimb_diff > 100.0 THEN 1 ELSE 0 END) AS over_100\nFROM _financial_recon;"
+    ]
+
+    # ── Query aliases for "Can you explain" / "Please summarize" variants ──
+    queries["Can you explain the most critical findings?"] = queries["What are the most critical findings?"]
+    queries["Can you explain the payment discrepancy between systems?"] = queries["Explain the payment discrepancy between systems"]
+    queries["Can you explain the 0.90 payment ratio pattern?"] = queries["Explain the 0.90 payment ratio pattern"]
+    queries["Can you explain how discrepancies are distributed across years?"] = queries["How does accuracy vary by year?"]
+    queries["Can you explain whether the discrepancies are random or systematic?"] = queries["Are discrepancies random or systematic?"]
+    queries["Can you explain the risk assessment for the new system?"] = queries["What are the most critical findings?"]
+    queries["Can you explain the new system readiness status?"] = queries["What are the most critical findings?"]
+    queries["Can you explain what bugs should be fixed before production cutover?"] = queries["What bugs should be fixed before production cutover?"]
+    queries["Can you explain the phantom records in the new system?"] = queries["What are the phantom records in the new system?"]
+    queries["Can you explain the ZZ fabricated beneficiaries?"] = queries["What are the ZZ fabricated beneficiaries?"]
+    queries["Can you explain the BENE_BIRTH_DT mismatch pattern?"] = queries["What is the BENE_BIRTH_DT mismatch pattern?"]
+    queries["Can you explain the carrier claims discrepancy?"] = queries["What is the carrier claims discrepancy?"]
+    queries["Can you explain how claims are matched between systems?"] = queries["What is the record matching rate?"]
+    queries["Can you explain the dollar impact per beneficiary?"] = queries["What is the dollar impact per beneficiary?"]
+    queries["Can you explain the chronic condition trends?"] = queries["Are there any chronic condition trends?"]
+    queries["Can you explain the payment distribution?"] = queries["What does the payment distribution look like?"]
+    queries["Please summarize the executive summary"] = queries["Summarize the executive summary"]
+    queries["What does LINE_NCH_PMT_AMT_1 mean?"] = queries["What is the LINE_NCH_PMT_AMT_1 issue?"]
+
+    # Codebook lookups share the coverage period query
+    queries["What does BENE_HMO_CVRAGE_TOT_MONS mean?"] = queries["Can you explain the coverage period validation?"]
+    queries["What does BENE_HI_CVRAGE_TOT_MONS mean?"] = queries["Can you explain the coverage period validation?"]
+    queries["What does BENE_SMI_CVRAGE_TOT_MONS mean?"] = queries["Can you explain the coverage period validation?"]
+    queries["What does PLAN_CVRG_MOS_NUM mean?"] = queries["Can you explain the coverage period validation?"]
+    queries["What does BENE_ESRD_IND mean?"] = queries["Can you explain the ESRD consistency check?"]
+    queries["What does SP_STATE_CODE mean?"] = queries["Can you explain the state code validation?"]
+    queries["Please summarize all validation checks"] = queries["Which validation checks failed?"]
 
     # ── Combine answers + queries into structured output ──
     result = {}

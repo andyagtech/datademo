@@ -1024,6 +1024,12 @@ def build_report_data(
     # Extract raw chart data series
     chart_data = _extract_chart_data(con)
 
+    # ── Claim line utilization from step 3 ──
+    claim_line_util = pipeline_results.get("claim_line_utilization", {})
+
+    # ── Anomalies from step 3 ──
+    anomalies = pipeline_results.get("anomalies", [])
+
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "summary": summary,
@@ -1031,6 +1037,8 @@ def build_report_data(
         "validations": serialized_validations,
         "comparisons": serialized_comparisons,
         "profiles": serialized_profiles,
+        "claim_line_utilization": claim_line_util,
+        "anomalies": anomalies,
         "data_context": {
             "old_system": {
                 "files": old_system_files,
