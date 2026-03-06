@@ -286,7 +286,14 @@
     '.chat-nav-tag{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;margin:0 1px;background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.25);border-radius:6px;font-size:.72rem;cursor:pointer;font-family:inherit;text-decoration:none;transition:all .15s;vertical-align:baseline;line-height:1.6}',
     '.chat-nav-tag:hover{background:rgba(56,189,248,0.25);border-color:#38bdf8;text-decoration:none}',
     '.chat-nav-tag svg{width:10px;height:10px;flex-shrink:0}',
-    '@media(max-width:500px){.chat-panel{width:calc(100vw - 16px);right:8px;bottom:8px;height:calc(100vh - 16px);max-height:none;border-radius:12px}}'
+    '@media(max-width:500px){.chat-panel{width:calc(100vw - 16px);right:8px;bottom:8px;height:calc(100vh - 16px);max-height:none;border-radius:12px}}',
+    '.chat-coach{position:fixed;bottom:32px;right:92px;z-index:9998;background:linear-gradient(135deg,#1e3a5f,#1e293b);color:#e2e8f0;padding:10px 16px;border-radius:12px;font-size:.82rem;font-family:"Inter",system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.4);border:1px solid #334155;white-space:nowrap;animation:coachFadeIn .5s ease-out,coachPulse 3s ease-in-out .5s infinite;cursor:pointer;transition:opacity .3s}',
+    '.chat-coach::after{content:"";position:absolute;right:-8px;top:50%;transform:translateY(-50%);border:8px solid transparent;border-left-color:#1e3a5f}',
+    '.chat-coach:hover{opacity:0.85}',
+    '.chat-coach .coach-dismiss{display:inline;margin-left:10px;color:#64748b;font-size:.7rem;cursor:pointer}',
+    '.chat-coach .coach-dismiss:hover{color:#94a3b8}',
+    '@keyframes coachFadeIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}',
+    '@keyframes coachPulse{0%,100%{box-shadow:0 4px 20px rgba(0,0,0,0.4)}50%{box-shadow:0 4px 20px rgba(56,189,248,0.3)}}'
   ].join('\n');
   document.head.appendChild(style);
 
@@ -296,6 +303,21 @@
   fab.id = 'chatFab';
   fab.title = 'Chat with Report Pal';
   fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/><path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>';
+
+  // ── Coach mark (shown once per user) ──
+  var coachMark = null;
+  var COACH_KEY = 'cms_coach_dismissed';
+  function dismissCoach() {
+    if (coachMark) { coachMark.style.opacity = '0'; setTimeout(function() { coachMark.remove(); coachMark = null; }, 300); }
+    try { localStorage.setItem(COACH_KEY, '1'); } catch(e) {}
+  }
+  if (!localStorage.getItem(COACH_KEY)) {
+    coachMark = document.createElement('div');
+    coachMark.className = 'chat-coach';
+    coachMark.innerHTML = '\uD83E\uDD16 Chat with the AI Assistant about this data &amp; report <span class="coach-dismiss">&times;</span>';
+    coachMark.querySelector('.coach-dismiss').addEventListener('click', function(e) { e.stopPropagation(); dismissCoach(); });
+    coachMark.addEventListener('click', function() { dismissCoach(); fab.click(); });
+  }
 
   var panel = document.createElement('div');
   panel.className = 'chat-panel';
@@ -365,6 +387,7 @@
 
   document.body.appendChild(fab);
   document.body.appendChild(panel);
+  if (coachMark) document.body.appendChild(coachMark);
 
   // ── Get elements ──
   var closeBtn = document.getElementById('chatClose');
@@ -575,9 +598,9 @@
 
   // ── Open / close / reset ──
   fab.addEventListener('click', function () {
-    panel.classList.add('open');
-    fab.style.display = 'none';
-    inputEl.focus();
+    panel.classList.toggle('open');
+    fab.style.display = panel.classList.contains('open') ? 'none' : 'flex';
+    if (panel.classList.contains('open')) dismissCoach();
     checkConnection();
   });
   closeBtn.addEventListener('click', function () {
