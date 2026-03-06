@@ -234,24 +234,19 @@ For anything not cached (or fuzzy match < 60%), the widget falls through to the 
 
 Report Pal relies on two Lambda backends. The source code is proprietary — only the hardcoded Function URLs are present in `chat-widget.js`.
 
-**1. Chat Lambda — AI Text Proxy** (`LAMBDA_URL`)
+**1. Chat Lambda — Multi-Provider AI Proxy** (`LAMBDA_URL`)
 
-Proxies user questions to OpenAI GPT-4o with full DuckDB database access:
+Proxies user questions to AI models with full DuckDB database access. **Supports three providers** — switch models from the chat widget's config drawer (hover over the bottom bar):
 
-1. Retrieves OpenAI API key from SSM Parameter Store (cached across warm invocations)
-2. Downloads Parquet exports from S3 → creates in-memory DuckDB with views (~488 MB, cached in `/tmp`)
-3. Builds `{findings_context}` by querying DuckDB for live summary statistics
-4. Constructs system prompt from `src/chat_prompt.py` (~130 lines) with:
-   - Identity, domain knowledge (Medicare data, claims, validation checks)
-   - `{findings_context}` — live data injected at runtime
-   - Database schema — all 8 tables with column listings
-   - SQL notes — reserved keywords, join patterns, ZZ prefix convention
-   - Navigation tags — `[[sql]]`, `[[report]]`, etc. (rendered as clickable links)
-   - One tool: `query_database(sql, explanation)`
-5. Sends `[system, ...history, user]` to **GPT-4o** (`temperature=0.4, max_tokens=2000`)
-6. If GPT-4o calls `query_database`, executes SQL against DuckDB (read-only, max 50 rows)
-7. Loops up to **5 tool-call rounds** per question
-8. Returns final Markdown response + any SQL queries executed
+| Provider | Models | Auth |
+|----------|--------|------|
+| **OpenAI** | GPT-4o (default), GPT-4o Mini | SSM API key |
+| **OpenRouter** | Claude Sonnet 4, Gemini 2.0 Flash, Llama 3.3 70B | SSM API key |
+| **AWS Bedrock** | Nova Pro, Nova Lite, Nova Micro | IAM role (no key) |
+
+All providers share the same system prompt (`src/chat_prompt.py`), DuckDB database, and `query_database` tool (up to 5 rounds of SQL execution per question). OpenAI and OpenRouter use the OpenAI Python SDK (OpenRouter with a different `base_url`). Bedrock uses the `boto3` Converse API with the tool spec converted from OpenAI format.
+
+The model selector persists your choice in `localStorage` — switch at any time, no setup required.
 
 **2. Session Lambda — Voice Token Generator** (`SESSION_LAMBDA_URL`)
 

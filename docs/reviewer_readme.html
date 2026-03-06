@@ -428,24 +428,36 @@ docker run --rm -p 8888:8888 \
 <p>For anything not cached (or fuzzy match &lt; 60%), the widget falls through to the Lambda API.</p>
 <h3 id="lambda-backend-functions">Lambda &amp; Backend Functions</h3>
 <p>Report Pal relies on two Lambda backends. The source code is proprietary — only the hardcoded Function URLs are present in <code>chat-widget.js</code>.</p>
-<p><strong>1. Chat Lambda — AI Text Proxy</strong> (<code>LAMBDA_URL</code>)</p>
-<p>Proxies user questions to OpenAI GPT-4o with full DuckDB database access:</p>
-<ol>
-<li>Retrieves OpenAI API key from SSM Parameter Store (cached across warm invocations)</li>
-<li>Downloads Parquet exports from S3 → creates in-memory DuckDB with views (~488 MB, cached in <code>/tmp</code>)</li>
-<li>Builds <code>{findings_context}</code> by querying DuckDB for live summary statistics</li>
-<li>Constructs system prompt from <code>src/chat_prompt.py</code> (~130 lines) with:<br />
-   - Identity, domain knowledge (Medicare data, claims, validation checks)<br />
-   - <code>{findings_context}</code> — live data injected at runtime<br />
-   - Database schema — all 8 tables with column listings<br />
-   - SQL notes — reserved keywords, join patterns, ZZ prefix convention<br />
-   - Navigation tags — <code>[[sql]]</code>, <code>[[report]]</code>, etc. (rendered as clickable links)<br />
-   - One tool: <code>query_database(sql, explanation)</code></li>
-<li>Sends <code>[system, ...history, user]</code> to <strong>GPT-4o</strong> (<code>temperature=0.4, max_tokens=2000</code>)</li>
-<li>If GPT-4o calls <code>query_database</code>, executes SQL against DuckDB (read-only, max 50 rows)</li>
-<li>Loops up to <strong>5 tool-call rounds</strong> per question</li>
-<li>Returns final Markdown response + any SQL queries executed</li>
-</ol>
+<p><strong>1. Chat Lambda — Multi-Provider AI Proxy</strong> (<code>LAMBDA_URL</code>)</p>
+<p>Proxies user questions to AI models with full DuckDB database access. <strong>Supports three providers</strong> — switch models from the chat widget's config drawer (hover over the bottom bar):</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Models</th>
+<th>Auth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OpenAI</strong></td>
+<td>GPT-4o (default), GPT-4o Mini</td>
+<td>SSM API key</td>
+</tr>
+<tr>
+<td><strong>OpenRouter</strong></td>
+<td>Claude Sonnet 4, Gemini 2.0 Flash, Llama 3.3 70B</td>
+<td>SSM API key</td>
+</tr>
+<tr>
+<td><strong>AWS Bedrock</strong></td>
+<td>Nova Pro, Nova Lite, Nova Micro</td>
+<td>IAM role (no key)</td>
+</tr>
+</tbody>
+</table>
+<p>All providers share the same system prompt (<code>src/chat_prompt.py</code>), DuckDB database, and <code>query_database</code> tool (up to 5 rounds of SQL execution per question). OpenAI and OpenRouter use the OpenAI Python SDK (OpenRouter with a different <code>base_url</code>). Bedrock uses the <code>boto3</code> Converse API with the tool spec converted from OpenAI format.</p>
+<p>The model selector persists your choice in <code>localStorage</code> — switch at any time, no setup required.</p>
 <p><strong>2. Session Lambda — Voice Token Generator</strong> (<code>SESSION_LAMBDA_URL</code>)</p>
 <p>Thin proxy for WebRTC voice sessions — no data processing, no DuckDB:</p>
 <ol>

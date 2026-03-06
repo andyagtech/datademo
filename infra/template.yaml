@@ -286,10 +286,18 @@ Resources:
             BucketName: !Ref ExistingDataBucket
         - SSMParameterReadPolicy:
             ParameterName: "cms-pipeline/openai-api-key"
+        - SSMParameterReadPolicy:
+            ParameterName: "cms-pipeline/openrouter-api-key"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "arn:aws:bedrock:*::foundation-model/amazon.nova-*"
       Environment:
         Variables:
           BUCKET_NAME: !Ref ExistingDataBucket
           OPENAI_API_KEY_SSM: "/cms-pipeline/openai-api-key"
+          OPENROUTER_API_KEY_SSM: "/cms-pipeline/openrouter-api-key"
           PARQUET_S3_PREFIX: "runs/latest/parquet"
       Events:
         ChatPost:

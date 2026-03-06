@@ -215,9 +215,15 @@
     '.chat-config-handle::after{content:"";width:28px;height:2px;background:#334155;border-radius:1px;transition:background .2s}',
     '.chat-config-drawer:hover .chat-config-handle::after{background:#64748b}',
     '.chat-config{display:flex;align-items:center;gap:6px;padding:0 16px;background:#0f172a;flex-shrink:0;font-size:.7rem;color:#64748b;max-height:0;overflow:hidden;transition:max-height .25s ease,padding .25s ease}',
-    '.chat-config-drawer:hover .chat-config{max-height:30px;padding:5px 16px}',
+    '.chat-config-drawer:hover .chat-config{max-height:60px;padding:5px 16px}',
     '.chat-config input{flex:1;background:#1e293b;border:1px solid #334155;border-radius:4px;color:#94a3b8;padding:3px 6px;font-size:.7rem;font-family:monospace;outline:none}',
     '.chat-config input:focus{border-color:#38bdf8}',
+    '.chat-config select{background:#1e293b;border:1px solid #334155;border-radius:4px;color:#94a3b8;padding:3px 4px;font-size:.7rem;outline:none;max-width:180px;cursor:pointer}',
+    '.chat-config select:focus{border-color:#38bdf8}',
+    '.chat-config select optgroup{color:#64748b;font-style:normal}',
+    '.chat-config select option{color:#94a3b8;background:#1e293b}',
+    '.chat-config-row{display:flex;align-items:center;gap:6px;width:100%}',
+    '.chat-config-rows{display:flex;flex-direction:column;gap:4px;width:100%}',
     '.chat-config .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}',
     '.chat-config .dot.connected{background:#4ade80}.chat-config .dot.disconnected{background:#f87171}',
     '.chat-suggest{display:none;max-height:0;overflow:hidden;transition:max-height .2s ease;background:#0f172a;border-top:1px solid #334155}',
@@ -320,9 +326,32 @@
     '</div>',
     '<div class="chat-config-drawer">',
     '  <div class="chat-config" id="chatConfig">',
-    '    <span class="dot disconnected" id="chatDot"></span>',
-    '    <span>API:</span>',
-    '    <input type="text" id="chatApiUrl" value="' + LAMBDA_URL + '" placeholder="' + LAMBDA_URL + '">',
+    '    <div class="chat-config-rows">',
+    '      <div class="chat-config-row">',
+    '        <span class="dot disconnected" id="chatDot"></span>',
+    '        <span>API:</span>',
+    '        <input type="text" id="chatApiUrl" value="' + LAMBDA_URL + '" placeholder="' + LAMBDA_URL + '">',
+    '      </div>',
+    '      <div class="chat-config-row">',
+    '        <span>Model:</span>',
+    '        <select id="chatModelSelect">',
+    '          <optgroup label="OpenAI">',
+    '            <option value="openai/gpt-4o" selected>GPT-4o</option>',
+    '            <option value="openai/gpt-4o-mini">GPT-4o Mini</option>',
+    '          </optgroup>',
+    '          <optgroup label="OpenRouter">',
+    '            <option value="openrouter/anthropic/claude-sonnet-4">Claude Sonnet 4</option>',
+    '            <option value="openrouter/google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>',
+    '            <option value="openrouter/meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</option>',
+    '          </optgroup>',
+    '          <optgroup label="AWS Bedrock">',
+    '            <option value="bedrock/amazon.nova-pro-v1:0">Nova Pro</option>',
+    '            <option value="bedrock/amazon.nova-lite-v1:0">Nova Lite</option>',
+    '            <option value="bedrock/amazon.nova-micro-v1:0">Nova Micro</option>',
+    '          </optgroup>',
+    '        </select>',
+    '      </div>',
+    '    </div>',
     '  </div>',
     '  <div class="chat-config-handle" title="API settings"></div>',
     '</div>',
@@ -350,6 +379,7 @@
   var historyListEl = document.getElementById('chatHistoryList');
   var suggestEl = document.getElementById('chatSuggest');
   var micBtn = document.getElementById('chatMic');
+  var modelSelectEl = document.getElementById('chatModelSelect');
 
   var conversationHistory = [];
   var isLoading = false;
@@ -456,6 +486,16 @@
   apiUrlInput.addEventListener('change', function () {
     localStorage.setItem(API_URL_KEY, apiUrlInput.value);
     checkConnection();
+  });
+
+  // ── Model selection persistence ──
+  var MODEL_KEY = 'cms_chat_model';
+  var savedModel = localStorage.getItem(MODEL_KEY);
+  if (savedModel && modelSelectEl.querySelector('option[value="' + savedModel + '"]')) {
+    modelSelectEl.value = savedModel;
+  }
+  modelSelectEl.addEventListener('change', function () {
+    localStorage.setItem(MODEL_KEY, modelSelectEl.value);
   });
 
   // ── Pre-warm Lambda ──
@@ -938,13 +978,20 @@
     var baseUrl = apiUrlInput.value.replace(/\/+$/, '');
     var apiUrl = baseUrl.indexOf('lambda-url') !== -1 ? baseUrl : baseUrl + '/api/chat';
 
+    // Parse provider/model from selector (format: "provider/model")
+    var modelVal = modelSelectEl.value;
+    var slashIdx = modelVal.indexOf('/');
+    var provider = modelVal.substring(0, slashIdx);
+    var model = modelVal.substring(slashIdx + 1);
+
     fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: text,
         conversationHistory: conversationHistory.slice(0, -1),
-        model: 'gpt-4o'
+        provider: provider,
+        model: model
       })
     })
       .then(function (res) {

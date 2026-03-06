@@ -601,33 +601,49 @@ The higher-level answers (Levels 4–6) cross-reference findings across domains 
 
 Report Pal relies on two Lambda backends. The Lambda source code is proprietary and not included in the reviewer bundle — only the hardcoded Function URLs are present in `chat-widget.js`.
 
-#### 1. Chat Lambda — AI Text Proxy (`LAMBDA_URL`)
+#### 1. Chat Lambda — Multi-Provider AI Proxy (`LAMBDA_URL`)
 
-**Purpose:** Proxies user questions to OpenAI GPT-4o with full DuckDB database access.
+**Purpose:** Proxies user questions to AI models with full DuckDB database access. Supports three providers — the reviewer can switch models from the chat widget's config drawer without any local setup.
 
 **Endpoint:** `POST /` (Lambda Function URL, bypasses API Gateway's 29s timeout)
 
 **Request:**
 ```json
-{ "message": "user question", "conversationHistory": [...], "model": "gpt-4o" }
+{ "message": "user question", "conversationHistory": [...], "provider": "openai", "model": "gpt-4o" }
 ```
 
-**Sequence:**
-1. Retrieves OpenAI API key from AWS SSM Parameter Store (cached across warm invocations)
-2. Downloads Parquet exports from S3 and creates an in-memory DuckDB with views over them (~488 MB, cached in `/tmp` across warm invocations)
-3. Builds `{findings_context}` by querying DuckDB for live summary statistics (beneficiary/claim counts, discrepancy totals, match breakdowns)
-4. Constructs the system prompt from `src/chat_prompt.py` with the live findings injected
-5. Sends `[system, ...history, user]` messages to **OpenAI GPT-4o** (`temperature=0.4, max_tokens=2000`)
-6. If GPT-4o calls the `query_database` tool, executes the SQL against DuckDB (read-only, max 50 rows) and returns results to the model
-7. Loops up to **5 tool-call rounds** per question (allowing multi-step SQL investigation)
-8. Returns the final response with any SQL queries that were executed
+**Supported providers and models:**
+
+| Provider | Model ID | Label | Tool Calling | API Key |
+|----------|----------|-------|--------------|---------|
+| `openai` | `gpt-4o` | GPT-4o (default) | Yes | SSM: `/cms-pipeline/openai-api-key` |
+| `openai` | `gpt-4o-mini` | GPT-4o Mini | Yes | Same |
+| `openrouter` | `anthropic/claude-sonnet-4` | Claude Sonnet 4 | Yes | SSM: `/cms-pipeline/openrouter-api-key` |
+| `openrouter` | `google/gemini-2.0-flash-001` | Gemini 2.0 Flash | Yes | Same |
+| `openrouter` | `meta-llama/llama-3.3-70b-instruct` | Llama 3.3 70B | Yes | Same |
+| `bedrock` | `amazon.nova-pro-v1:0` | Nova Pro | Yes | IAM role (no key) |
+| `bedrock` | `amazon.nova-lite-v1:0` | Nova Lite | Yes | IAM role (no key) |
+| `bedrock` | `amazon.nova-micro-v1:0` | Nova Micro | Yes | IAM role (no key) |
+
+**Provider routing:**
+- **OpenAI / OpenRouter** — both use the OpenAI Python SDK (`openai.OpenAI`). OpenRouter uses `base_url="https://openrouter.ai/api/v1"` with the same chat completions API. API keys retrieved from SSM and cached per provider.
+- **AWS Bedrock** — uses `boto3` Bedrock Runtime `converse` API. No API key needed — authenticates via the Lambda's IAM role. Tool spec converted from OpenAI format to Bedrock `toolSpec` format.
+
+**Sequence (shared across all providers):**
+1. Downloads Parquet exports from S3 → in-memory DuckDB with views (~488 MB, cached in `/tmp` across warm invocations)
+2. Builds `{findings_context}` by querying DuckDB for live summary statistics
+3. Constructs system prompt from `src/chat_prompt.py` with live findings
+4. Routes to the selected provider's API
+5. If the model calls `query_database`, executes SQL against DuckDB (read-only, max 50 rows)
+6. Loops up to **5 tool-call rounds** per question
+7. Returns final Markdown response + any SQL queries executed
 
 **Response:**
 ```json
 { "content": "markdown answer", "model": "gpt-4o-2025-...", "queries": [{"sql": "...", "explanation": "..."}] }
 ```
 
-**System prompt structure** (`src/chat_prompt.py`, ~130 lines):
+**System prompt structure** (`src/chat_prompt.py`, ~130 lines — shared by all providers):
 - **Identity** — "You are Report Pal, a friendly and knowledgeable data analyst assistant..."
 - **Domain knowledge** — Medicare beneficiary data, carrier claims, validation checks
 - **`{findings_context}`** — live data injected at runtime from DuckDB queries
@@ -635,6 +651,8 @@ Report Pal relies on two Lambda backends. The Lambda source code is proprietary 
 - **SQL notes** — reserved keyword warnings (`new`/`old` are DuckDB reserved), join patterns, ZZ prefix convention, YYYYMMDD date format
 - **Navigation tags** — `[[sql]]`, `[[report]]`, `[[validation]]`, etc. — chat widget renders these as clickable links
 - **One tool definition** — `query_database(sql, explanation)` for live SQL execution
+
+**Model selector in the chat widget:** The config drawer (hover over the bottom bar) shows a **Model** dropdown with all available models grouped by provider. Selection is persisted in `localStorage`. The reviewer can switch models at any time — no setup required.
 
 #### 2. Session Lambda — Voice Token Generator (`SESSION_LAMBDA_URL`)
 
