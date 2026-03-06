@@ -879,6 +879,20 @@
           });
           msgDiv.appendChild(details);
           addSqlInteractivity(details);
+
+          // Offer to navigate to SQL Explorer
+          var navPrompt = document.createElement('div');
+          navPrompt.style.cssText = 'margin-top:8px;padding:8px 12px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);border-radius:8px;font-size:.78rem;color:#e2e8f0;';
+          navPrompt.innerHTML = 'Want to run these yourself? ' +
+            '<button style="margin-left:6px;padding:4px 12px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;border-radius:6px;color:#38bdf8;font-size:.75rem;cursor:pointer;font-family:inherit;transition:all .15s;" ' +
+            'onmouseover="this.style.background=\'rgba(56,189,248,0.3)\'" onmouseout="this.style.background=\'rgba(56,189,248,0.15)\'">' +
+            '\u279C Open SQL Explorer</button>';
+          navPrompt.querySelector('button').addEventListener('click', function () {
+            sessionStorage.setItem('cms_prefill_sql', answerQueries[0]);
+            window.location.href = getSqlExplorerUrl();
+          });
+          msgDiv.appendChild(navPrompt);
+
           messagesEl.scrollTop = messagesEl.scrollHeight;
         });
         bar.appendChild(sqlBtn);
@@ -1411,10 +1425,21 @@
 
     switch (event.type) {
       // User's spoken words transcribed
+      // NOTE: This event often arrives AFTER assistant response starts streaming,
+      // so we insert it before the streaming assistant div to maintain correct order.
       case 'conversation.item.input_audio_transcription.completed':
         var userText = event.transcript && event.transcript.trim() ? event.transcript.trim() : '[inaudible]';
         if (userText !== '[inaudible]') {
-          addMessage('user', userText);
+          var userDiv = document.createElement('div');
+          userDiv.className = 'chat-msg user';
+          userDiv.textContent = userText;
+          if (rtcAssistantDiv && rtcAssistantDiv.parentNode === messagesEl) {
+            // Insert before the currently-streaming assistant message
+            messagesEl.insertBefore(userDiv, rtcAssistantDiv);
+          } else {
+            messagesEl.appendChild(userDiv);
+          }
+          messagesEl.scrollTop = messagesEl.scrollHeight;
           conversationHistory.push({ role: 'user', content: userText });
         }
         break;
