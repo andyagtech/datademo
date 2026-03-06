@@ -569,17 +569,19 @@ Browser (chat-widget.js)
 
 ### Cached Answers — How They Are Generated
 
-Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that provide instant responses without hitting the Lambda API. These are **not AI-generated** — they are deterministic, template-based answers assembled programmatically from the pipeline's actual results.
+Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that provide instant responses without hitting the Lambda API.
 
-**Generation pipeline:**
+**Authorship:** The answer text — the analytical narratives, conclusions, risk assessments, Codebook references, and Bloom's Taxonomy reasoning — was **authored by Cascade (AI pair programmer)** during development. Each answer is an f-string template in `src/chat_answers.py` where the analytical prose is fixed and **~30 dynamic data points** from the pipeline results (counts, rates, field names, financial totals, validation outcomes, etc.) are interpolated at build time. So the answers are AI-authored analysis with real pipeline data — not raw AI generation at runtime, and not purely hand-written either.
+
+**Generation flow:**
 
 1. The 6-step pipeline runs all validation, comparison, and analysis checks
 2. Step 6 (`src/report.py`) calls `generate_cached_answers()` from `src/chat_answers.py`, passing the complete `report_data` dictionary
-3. `chat_answers.py` extracts ~30 data points from the pipeline results (counts, rates, field names, financial totals, validation outcomes, match statistics, year-over-year trends, chronic condition prevalence, claim line utilization)
-4. These data points are interpolated into **f-string templates** — each template is a hand-written analytical narrative with Markdown formatting, tables, and specific CMS Codebook references
-5. The function returns a `dict[str, {answer, queries}]` where each key is a question, each value contains the rendered answer text and associated SQL queries for the "Review SQL" button
-6. `report.py` serializes this dict to JSON and writes `docs/cached-answers.js` (`var CACHED_ANSWERS = {...};`)
-7. Every page loads this file before `chat-widget.js`, which checks `CACHED_ANSWERS` before falling through to the Lambda API
+3. `chat_answers.py` extracts data points from the pipeline results (match statistics, validation outcomes, year-over-year trends, chronic condition prevalence, claim line utilization, financial reconciliation, etc.)
+4. These are interpolated into the AI-authored f-string templates — each produces a complete Markdown-formatted answer with tables, bullet points, and CMS documentation references
+5. Each answer is paired with relevant SQL queries (for the "Review SQL" button in the chat UI)
+6. `report.py` serializes the `dict[str, {answer, queries}]` to `docs/cached-answers.js`
+7. Every page loads this file before `chat-widget.js`, which checks `CACHED_ANSWERS` first — if a match is found (exact or fuzzy word-overlap ≥ 60%), the cached answer is returned instantly without any API call
 
 **Question categories (organized by Bloom's Taxonomy level):**
 
@@ -595,57 +597,110 @@ Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that pr
 
 The higher-level answers (Levels 4–6) cross-reference findings across domains and cite the **CMS DE-SynPUF Codebook**, **Data Users Document**, and **FAQ** as sources. For example, the go/no-go recommendation synthesizes financial, clinical, demographic, and temporal findings into a structured memo with a blocking-defects table.
 
-### AI Models and Prompting
+### Lambda & Backend Functions
 
-Report Pal uses two AI backends, each with its own model and prompting strategy:
+Report Pal relies on two Lambda backends. The Lambda source code is proprietary and not included in the reviewer bundle — only the hardcoded Function URLs are present in `chat-widget.js`.
 
-**Text mode — OpenAI GPT-4o** (`gpt-4o`, temperature 0.4)
+#### 1. Chat Lambda — AI Text Proxy (`LAMBDA_URL`)
 
-The Chat Lambda receives the user's message and conversation history, then constructs a prompt:
+**Purpose:** Proxies user questions to OpenAI GPT-4o with full DuckDB database access.
 
-```
-System prompt (src/chat_prompt.py)
-├── Identity: "You are Report Pal, a friendly and knowledgeable data analyst assistant..."
-├── Domain knowledge: Medicare beneficiary data, carrier claims, validation checks
-├── Key Findings: {findings_context}  ← live data injected at runtime
-│   └── Built by querying DuckDB: beneficiary/claim counts, discrepancy totals,
-│       match status breakdowns (cloud/handlers.py → _build_chat_findings)
-├── Database Schema: full column listings for all 8 tables
-│   └── beneficiary_summary, new_beneficiary_summary, carrier_claims,
-│       new_carrier_claims, _discrepancy_detail, _financial_recon,
-│       _match_beneficiary, _match_claims
-├── SQL Notes: reserved keyword warnings, join patterns, ZZ prefix convention
-├── Navigation Tags: [[sql]], [[report]], [[validation]], etc.
-│   └── Chat widget auto-renders these as clickable page/section links
-└── Guidelines: be concise, explain SQL, summarize in tables, explain impact
+**Endpoint:** `POST /` (Lambda Function URL, bypasses API Gateway's 29s timeout)
+
+**Request:**
+```json
+{ "message": "user question", "conversationHistory": [...], "model": "gpt-4o" }
 ```
 
-The model has access to one tool — `query_database` — which executes read-only SQL against the DuckDB database (max 50 rows, up to 5 rounds of tool calls per question). This gives the AI live access to the actual data, not just the cached summaries.
+**Sequence:**
+1. Retrieves OpenAI API key from AWS SSM Parameter Store (cached across warm invocations)
+2. Downloads Parquet exports from S3 and creates an in-memory DuckDB with views over them (~488 MB, cached in `/tmp` across warm invocations)
+3. Builds `{findings_context}` by querying DuckDB for live summary statistics (beneficiary/claim counts, discrepancy totals, match breakdowns)
+4. Constructs the system prompt from `src/chat_prompt.py` with the live findings injected
+5. Sends `[system, ...history, user]` messages to **OpenAI GPT-4o** (`temperature=0.4, max_tokens=2000`)
+6. If GPT-4o calls the `query_database` tool, executes the SQL against DuckDB (read-only, max 50 rows) and returns results to the model
+7. Loops up to **5 tool-call rounds** per question (allowing multi-step SQL investigation)
+8. Returns the final response with any SQL queries that were executed
 
-**Voice mode — OpenAI Realtime API** (`gpt-4o-realtime-preview-2025-06-03`)
+**Response:**
+```json
+{ "content": "markdown answer", "model": "gpt-4o-2025-...", "queries": [{"sql": "...", "explanation": "..."}] }
+```
 
-Voice uses a condensed version of the system prompt (sent via `session.update` over the WebRTC data channel):
+**System prompt structure** (`src/chat_prompt.py`, ~130 lines):
+- **Identity** — "You are Report Pal, a friendly and knowledgeable data analyst assistant..."
+- **Domain knowledge** — Medicare beneficiary data, carrier claims, validation checks
+- **`{findings_context}`** — live data injected at runtime from DuckDB queries
+- **Database schema** — full column listings for all 8 tables (beneficiary_summary, carrier_claims, _discrepancy_detail, _financial_recon, _match_beneficiary, _match_claims, and their new-system counterparts)
+- **SQL notes** — reserved keyword warnings (`new`/`old` are DuckDB reserved), join patterns, ZZ prefix convention, YYYYMMDD date format
+- **Navigation tags** — `[[sql]]`, `[[report]]`, `[[validation]]`, etc. — chat widget renders these as clickable links
+- **One tool definition** — `query_database(sql, explanation)` for live SQL execution
+
+#### 2. Session Lambda — Voice Token Generator (`SESSION_LAMBDA_URL`)
+
+**Purpose:** Generates ephemeral OpenAI Realtime API tokens for WebRTC voice sessions. This Lambda is a thin proxy — no data processing, no DuckDB, no conversation history.
+
+**Endpoint:** `POST /session`
+
+**Request:**
+```json
+{ "voice": "coral" }
+```
+
+**Sequence:**
+1. Retrieves OpenAI API key from SSM Parameter Store
+2. Calls OpenAI's `/v1/realtime/sessions` endpoint to create an ephemeral token
+3. Returns the token to the browser (expires in 60 seconds)
+
+The browser then uses this token to establish a direct WebRTC peer connection with OpenAI's Realtime API (`gpt-4o-realtime-preview-2025-06-03`). The voice session is configured in the browser via `session.update`:
+- **Instructions** — condensed Report Pal prompt (`REALTIME_INSTRUCTIONS` in `chat-widget.js`)
+- **Voice** — OpenAI's `coral` voice
+- **Turn detection** — server-side VAD (threshold 0.5, 300ms prefix padding, 500ms silence duration)
+- **Transcription** — `whisper-1` for user speech → text in chat panel
+- **Stop control** — header button sends `response.cancel` to interrupt AI mid-sentence
+
+The Session Lambda source code is a standalone deployment (not in this repository).
+
+#### 3. Pipeline Step Lambdas (6 functions)
+
+These are orchestrated by AWS Step Functions and are **not called by the chat widget** — they run the data pipeline in the cloud:
+
+| Function | Handler | Memory | Timeout | Purpose |
+|----------|---------|--------|---------|---------|
+| Receive | `handle_receive` | 1 GB | 5 min | Verify uploaded data files in S3 |
+| Schema Validate | `handle_schema_validate` | 1 GB | 5 min | Check CSV schemas match expected columns |
+| Ingest | `handle_ingest` | 10 GB | 15 min | Load CSVs into DuckDB, snapshot to S3 |
+| Match | `handle_match` | 10 GB | 15 min | Match old/new records, run validation checks |
+| Compare | `handle_compare` | 10 GB | 15 min | Old-vs-new comparison, financial reconciliation |
+| Report | `handle_report` | 4 GB | 10 min | Generate HTML report, upload to S3 |
+
+DuckDB state is passed between steps via S3 snapshots (download → process → upload). Each step restores the database, runs its logic, then snapshots for the next step.
+
+#### 4. Start Pipeline (`handle_start_pipeline`)
+
+**Purpose:** API Gateway trigger that starts the Step Functions state machine.
+
+**Endpoint:** `POST /pipeline/start`
+
+Accepts `old_data_prefix` and `new_data_prefix`, generates a `run_id`, and starts the state machine execution. Returns the execution ARN for status polling.
+
+### Prompt Context Flow
 
 ```
-REALTIME_INSTRUCTIONS (chat-widget.js)
-├── Identity: same as text mode
-├── Key findings summary: condensed from the report
-├── Voice-specific: "Always respond in English", "Be conversational"
-└── Transcription: Whisper-1 for input audio → text in chat panel
-```
-
-Voice mode connects directly to OpenAI's Realtime API via WebRTC — the Session Lambda only generates an ephemeral token (expires in 60 seconds), no API keys reach the browser. The AI responds with OpenAI's **coral** voice using server-side VAD for automatic turn detection.
-
-**Prompt context flow:**
-
-```
-Pipeline run
+Pipeline run (src/main.py or Step Functions)
   └── report_data dict (validation results, comparisons, financial totals, ...)
-        ├── chat_answers.py → cached-answers.js (92 deterministic answers)
-        │     └── Loaded on every page, checked FIRST before any API call
-        └── report_data.json → S3 → DuckDB (Parquet exports)
-              └── Chat Lambda: _build_chat_findings(DuckDB) → {findings_context}
-                    └── Injected into system prompt → sent to GPT-4o with user message
+        │
+        ├── src/chat_answers.py → docs/cached-answers.js
+        │     AI-authored f-string templates + pipeline data → 92 Q&A pairs
+        │     Loaded on every page, checked FIRST (exact match or fuzzy ≥ 60%)
+        │     No API call needed for cached questions
+        │
+        └── Parquet exports → S3 → Chat Lambda downloads to /tmp
+              └── _build_chat_findings(DuckDB) → {findings_context}
+                    └── Injected into system prompt (src/chat_prompt.py)
+                          └── Sent to GPT-4o with [system, ...history, user] messages
+                                └── GPT-4o may call query_database tool (up to 5 rounds)
+                                      └── Lambda executes SQL against DuckDB → returns results
 ```
 
 ---

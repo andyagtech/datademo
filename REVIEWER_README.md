@@ -204,15 +204,17 @@ Every page in the hosted report includes **Report Pal** — an AI assistant that
 
 ### Cached Answers — How They Are Generated
 
-Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that provide instant responses without hitting the Lambda API. These are **not AI-generated** — they are deterministic, template-based answers assembled programmatically from the pipeline's actual results.
+Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that provide instant responses without hitting the Lambda API.
 
-**How it works:**
+**Authorship:** The answer text — the analytical narratives, conclusions, risk assessments, and Codebook references — was **authored by Cascade (AI pair programmer)** during development. Each answer is an f-string template in `src/chat_answers.py` where the prose is fixed and **~30 dynamic data points** from the pipeline results are interpolated at build time. So the answers are AI-authored analysis with real pipeline data — not raw AI generation at runtime, and not purely hand-written either.
+
+**Generation flow:**
 
 1. The pipeline runs all validation, comparison, and analysis checks
-2. Step 6 (`src/report.py`) calls `generate_cached_answers()` from `src/chat_answers.py`, passing the complete `report_data` dictionary
-3. `chat_answers.py` extracts ~30 data points from the pipeline results (counts, rates, field names, financial totals, validation outcomes, match statistics, year-over-year trends, chronic condition prevalence, claim line utilization)
-4. These data points are interpolated into **f-string templates** — each template is a hand-written analytical narrative with Markdown formatting, tables, and CMS Codebook references
-5. Each answer is paired with associated SQL queries (for the "Review SQL" button)
+2. Step 6 (`src/report.py`) calls `generate_cached_answers()` from `src/chat_answers.py`
+3. `chat_answers.py` extracts data points from pipeline results (match statistics, validation outcomes, trends, financial reconciliation, etc.)
+4. These are interpolated into the AI-authored f-string templates — producing Markdown answers with tables, bullet points, and CMS references
+5. Each answer is paired with relevant SQL queries (for the "Review SQL" button)
 6. The output is serialized to `docs/cached-answers.js` and loaded on every page before `chat-widget.js`
 
 **Question categories (organized by Bloom's Taxonomy level):**
@@ -226,31 +228,41 @@ Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that pr
 | 2 — Remember | "What does BENE_HMO_CVRAGE_TOT_MONS mean?" | ~7 |
 | 1 — Retrieve | "Which validation checks failed?" | ~15 |
 
-The higher-level answers (Levels 4–6) cross-reference findings across domains and cite the **CMS DE-SynPUF Codebook**, **Data Users Document**, and **FAQ** as sources.
+For anything not cached (or fuzzy match < 60%), the widget falls through to the Lambda API.
 
-For anything not cached, the widget falls through to the Lambda API.
+### Lambda & Backend Functions
 
-### AI Models and Prompting
+Report Pal relies on two Lambda backends. The source code is proprietary — only the hardcoded Function URLs are present in `chat-widget.js`.
 
-Report Pal uses two AI backends:
+**1. Chat Lambda — AI Text Proxy** (`LAMBDA_URL`)
 
-**Text mode — OpenAI GPT-4o** (`gpt-4o`, temperature 0.4)
+Proxies user questions to OpenAI GPT-4o with full DuckDB database access:
 
-The Chat Lambda constructs a system prompt from `src/chat_prompt.py` with live context:
+1. Retrieves OpenAI API key from SSM Parameter Store (cached across warm invocations)
+2. Downloads Parquet exports from S3 → creates in-memory DuckDB with views (~488 MB, cached in `/tmp`)
+3. Builds `{findings_context}` by querying DuckDB for live summary statistics
+4. Constructs system prompt from `src/chat_prompt.py` (~130 lines) with:
+   - Identity, domain knowledge (Medicare data, claims, validation checks)
+   - `{findings_context}` — live data injected at runtime
+   - Database schema — all 8 tables with column listings
+   - SQL notes — reserved keywords, join patterns, ZZ prefix convention
+   - Navigation tags — `[[sql]]`, `[[report]]`, etc. (rendered as clickable links)
+   - One tool: `query_database(sql, explanation)`
+5. Sends `[system, ...history, user]` to **GPT-4o** (`temperature=0.4, max_tokens=2000`)
+6. If GPT-4o calls `query_database`, executes SQL against DuckDB (read-only, max 50 rows)
+7. Loops up to **5 tool-call rounds** per question
+8. Returns final Markdown response + any SQL queries executed
 
-- **Identity & domain knowledge** — Medicare beneficiary data, carrier claims, validation checks
-- **`{findings_context}`** — live data injected at runtime by querying DuckDB (beneficiary/claim counts, discrepancy totals, match status breakdowns)
-- **Database schema** — full column listings for all 8 tables (`beneficiary_summary`, `carrier_claims`, `_discrepancy_detail`, `_financial_recon`, etc.)
-- **SQL notes** — reserved keyword warnings, join patterns, ZZ prefix convention, date format
-- **Navigation tags** — `[[sql]]`, `[[report]]`, `[[validation]]`, etc. — rendered as clickable links by the chat widget
-- **One tool: `query_database`** — executes read-only SQL against DuckDB (max 50 rows, up to 5 rounds of tool calls per question)
+**2. Session Lambda — Voice Token Generator** (`SESSION_LAMBDA_URL`)
 
-**Voice mode — OpenAI Realtime API** (`gpt-4o-realtime-preview-2025-06-03`)
+Thin proxy for WebRTC voice sessions — no data processing, no DuckDB:
 
-- Condensed system prompt sent via `session.update` over the WebRTC data channel
-- **Whisper-1** transcription for input audio → text appears in chat panel
-- **coral** voice for AI responses, server-side VAD for automatic turn detection
-- Ephemeral token from Session Lambda (expires 60 seconds) — no API keys in browser
+1. Retrieves OpenAI API key from SSM
+2. Calls OpenAI `/v1/realtime/sessions` → ephemeral token (expires 60 seconds)
+3. Browser uses token to connect directly to **OpenAI Realtime API** (`gpt-4o-realtime-preview-2025-06-03`)
+4. Voice session configured via `session.update`: condensed Report Pal prompt, `coral` voice, server-side VAD, `whisper-1` transcription
+
+The Session Lambda source code is a standalone deployment (not in this repository).
 
 ### Security
 

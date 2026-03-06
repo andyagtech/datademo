@@ -190,7 +190,7 @@
   <a href="#text-mode" class="depth-3">Text Mode</a>
   <a href="#voice-mode" class="depth-3">Voice Mode</a>
   <a href="#cached-answers-how-they-are-generated" class="depth-3">Cached Answers — How They Are Generated</a>
-  <a href="#ai-models-and-prompting" class="depth-3">AI Models and Prompting</a>
+  <a href="#lambda-backend-functions" class="depth-3">Lambda & Backend Functions</a>
   <a href="#security" class="depth-3">Security</a>
   <a href="#code-reading-order" class="depth-2">Code Reading Order</a>
   <a href="#assessment-requirements-mapping" class="depth-2">Assessment Requirements Mapping</a>
@@ -372,14 +372,15 @@ docker run --rm -p 8888:8888 \
 <li>No push-to-talk — server VAD detects when you start/stop speaking</li>
 </ul>
 <h3 id="cached-answers-how-they-are-generated">Cached Answers — How They Are Generated</h3>
-<p>Every page loads <code>docs/cached-answers.js</code> — <strong>92 pre-built Q&amp;A pairs</strong> that provide instant responses without hitting the Lambda API. These are <strong>not AI-generated</strong> — they are deterministic, template-based answers assembled programmatically from the pipeline's actual results.</p>
-<p><strong>How it works:</strong></p>
+<p>Every page loads <code>docs/cached-answers.js</code> — <strong>92 pre-built Q&amp;A pairs</strong> that provide instant responses without hitting the Lambda API.</p>
+<p><strong>Authorship:</strong> The answer text — the analytical narratives, conclusions, risk assessments, and Codebook references — was <strong>authored by Cascade (AI pair programmer)</strong> during development. Each answer is an f-string template in <code>src/chat_answers.py</code> where the prose is fixed and <strong>~30 dynamic data points</strong> from the pipeline results are interpolated at build time. So the answers are AI-authored analysis with real pipeline data — not raw AI generation at runtime, and not purely hand-written either.</p>
+<p><strong>Generation flow:</strong></p>
 <ol>
 <li>The pipeline runs all validation, comparison, and analysis checks</li>
-<li>Step 6 (<code>src/report.py</code>) calls <code>generate_cached_answers()</code> from <code>src/chat_answers.py</code>, passing the complete <code>report_data</code> dictionary</li>
-<li><code>chat_answers.py</code> extracts ~30 data points from the pipeline results (counts, rates, field names, financial totals, validation outcomes, match statistics, year-over-year trends, chronic condition prevalence, claim line utilization)</li>
-<li>These data points are interpolated into <strong>f-string templates</strong> — each template is a hand-written analytical narrative with Markdown formatting, tables, and CMS Codebook references</li>
-<li>Each answer is paired with associated SQL queries (for the "Review SQL" button)</li>
+<li>Step 6 (<code>src/report.py</code>) calls <code>generate_cached_answers()</code> from <code>src/chat_answers.py</code></li>
+<li><code>chat_answers.py</code> extracts data points from pipeline results (match statistics, validation outcomes, trends, financial reconciliation, etc.)</li>
+<li>These are interpolated into the AI-authored f-string templates — producing Markdown answers with tables, bullet points, and CMS references</li>
+<li>Each answer is paired with relevant SQL queries (for the "Review SQL" button)</li>
 <li>The output is serialized to <code>docs/cached-answers.js</code> and loaded on every page before <code>chat-widget.js</code></li>
 </ol>
 <p><strong>Question categories (organized by Bloom's Taxonomy level):</strong></p>
@@ -424,27 +425,36 @@ docker run --rm -p 8888:8888 \
 </tr>
 </tbody>
 </table>
-<p>The higher-level answers (Levels 4–6) cross-reference findings across domains and cite the <strong>CMS DE-SynPUF Codebook</strong>, <strong>Data Users Document</strong>, and <strong>FAQ</strong> as sources.</p>
-<p>For anything not cached, the widget falls through to the Lambda API.</p>
-<h3 id="ai-models-and-prompting">AI Models and Prompting</h3>
-<p>Report Pal uses two AI backends:</p>
-<p><strong>Text mode — OpenAI GPT-4o</strong> (<code>gpt-4o</code>, temperature 0.4)</p>
-<p>The Chat Lambda constructs a system prompt from <code>src/chat_prompt.py</code> with live context:</p>
-<ul>
-<li><strong>Identity &amp; domain knowledge</strong> — Medicare beneficiary data, carrier claims, validation checks</li>
-<li><strong><code>{findings_context}</code></strong> — live data injected at runtime by querying DuckDB (beneficiary/claim counts, discrepancy totals, match status breakdowns)</li>
-<li><strong>Database schema</strong> — full column listings for all 8 tables (<code>beneficiary_summary</code>, <code>carrier_claims</code>, <code>_discrepancy_detail</code>, <code>_financial_recon</code>, etc.)</li>
-<li><strong>SQL notes</strong> — reserved keyword warnings, join patterns, ZZ prefix convention, date format</li>
-<li><strong>Navigation tags</strong> — <code>[[sql]]</code>, <code>[[report]]</code>, <code>[[validation]]</code>, etc. — rendered as clickable links by the chat widget</li>
-<li><strong>One tool: <code>query_database</code></strong> — executes read-only SQL against DuckDB (max 50 rows, up to 5 rounds of tool calls per question)</li>
-</ul>
-<p><strong>Voice mode — OpenAI Realtime API</strong> (<code>gpt-4o-realtime-preview-2025-06-03</code>)</p>
-<ul>
-<li>Condensed system prompt sent via <code>session.update</code> over the WebRTC data channel</li>
-<li><strong>Whisper-1</strong> transcription for input audio → text appears in chat panel</li>
-<li><strong>coral</strong> voice for AI responses, server-side VAD for automatic turn detection</li>
-<li>Ephemeral token from Session Lambda (expires 60 seconds) — no API keys in browser</li>
-</ul>
+<p>For anything not cached (or fuzzy match &lt; 60%), the widget falls through to the Lambda API.</p>
+<h3 id="lambda-backend-functions">Lambda &amp; Backend Functions</h3>
+<p>Report Pal relies on two Lambda backends. The source code is proprietary — only the hardcoded Function URLs are present in <code>chat-widget.js</code>.</p>
+<p><strong>1. Chat Lambda — AI Text Proxy</strong> (<code>LAMBDA_URL</code>)</p>
+<p>Proxies user questions to OpenAI GPT-4o with full DuckDB database access:</p>
+<ol>
+<li>Retrieves OpenAI API key from SSM Parameter Store (cached across warm invocations)</li>
+<li>Downloads Parquet exports from S3 → creates in-memory DuckDB with views (~488 MB, cached in <code>/tmp</code>)</li>
+<li>Builds <code>{findings_context}</code> by querying DuckDB for live summary statistics</li>
+<li>Constructs system prompt from <code>src/chat_prompt.py</code> (~130 lines) with:<br />
+   - Identity, domain knowledge (Medicare data, claims, validation checks)<br />
+   - <code>{findings_context}</code> — live data injected at runtime<br />
+   - Database schema — all 8 tables with column listings<br />
+   - SQL notes — reserved keywords, join patterns, ZZ prefix convention<br />
+   - Navigation tags — <code>[[sql]]</code>, <code>[[report]]</code>, etc. (rendered as clickable links)<br />
+   - One tool: <code>query_database(sql, explanation)</code></li>
+<li>Sends <code>[system, ...history, user]</code> to <strong>GPT-4o</strong> (<code>temperature=0.4, max_tokens=2000</code>)</li>
+<li>If GPT-4o calls <code>query_database</code>, executes SQL against DuckDB (read-only, max 50 rows)</li>
+<li>Loops up to <strong>5 tool-call rounds</strong> per question</li>
+<li>Returns final Markdown response + any SQL queries executed</li>
+</ol>
+<p><strong>2. Session Lambda — Voice Token Generator</strong> (<code>SESSION_LAMBDA_URL</code>)</p>
+<p>Thin proxy for WebRTC voice sessions — no data processing, no DuckDB:</p>
+<ol>
+<li>Retrieves OpenAI API key from SSM</li>
+<li>Calls OpenAI <code>/v1/realtime/sessions</code> → ephemeral token (expires 60 seconds)</li>
+<li>Browser uses token to connect directly to <strong>OpenAI Realtime API</strong> (<code>gpt-4o-realtime-preview-2025-06-03</code>)</li>
+<li>Voice session configured via <code>session.update</code>: condensed Report Pal prompt, <code>coral</code> voice, server-side VAD, <code>whisper-1</code> transcription</li>
+</ol>
+<p>The Session Lambda source code is a standalone deployment (not in this repository).</p>
 <h3 id="security">Security</h3>
 <ul>
 <li>No API keys in the browser — all OpenAI calls go through Lambda backends</li>
