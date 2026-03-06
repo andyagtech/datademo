@@ -226,10 +226,9 @@ For reviewers who want to understand the code:
 | 7 | `src/report.py` | — | HTML report generation with Plotly charts |
 | 8 | `src/chat_prompt.py` | ~130 | Shared Report Pal system prompt and OpenAI tool definitions |
 | 9 | `docs/chat-widget.js` | ~1600 | Self-contained AI chat widget (text + WebRTC voice) |
-| 10 | `backend/index.js` | ~120 | Ephemeral Realtime API token Lambda |
-| 11 | `tests/conftest.py` | ~160 | How test data is designed with intentional edge cases |
-| 12 | `docs/SOLUTION.md` | — | Design decisions explained in prose |
-| 13 | `docs/REQUIREMENTS_TRACEABILITY.md` | — | Maps every spec requirement to its implementation |
+| 10 | `tests/conftest.py` | ~160 | How test data is designed with intentional edge cases |
+| 11 | `docs/SOLUTION.md` | — | Design decisions explained in prose |
+| 12 | `docs/REQUIREMENTS_TRACEABILITY.md` | — | Maps every spec requirement to its implementation |
 
 ---
 

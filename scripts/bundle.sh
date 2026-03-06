@@ -34,7 +34,10 @@ case "$MODE" in
       -x "data/database/*.wal" \
       -x "data/new_claims_system_outputs/*" \
       -x "reports/exports/*" \
-      -x "node_modules/*"
+      -x "node_modules/*" \
+      -x "backend/*" \
+      -x ".playwright/*" \
+      -x ".deploy/*"
     ;;
 
   --data-only)
@@ -71,7 +74,10 @@ case "$MODE" in
       -x "reports/exports/*" \
       -x "node_modules/*" \
       -x "data/database/*.duckdb" \
-      -x "data/database/*.wal"
+      -x "data/database/*.wal" \
+      -x "backend/*" \
+      -x ".playwright/*" \
+      -x ".deploy/*"
     ;;
 esac
 
