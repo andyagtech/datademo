@@ -317,6 +317,29 @@ Resources:
       DockerContext: ../
       Dockerfile: cloud/Dockerfile
 
+  # Lambda Function URL — bypasses API Gateway 29s timeout for AI chat
+  ChatFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref ChatFunction
+      AuthType: NONE
+      Cors:
+        AllowCredentials: false
+        AllowHeaders:
+          - content-type
+        AllowMethods:
+          - POST
+        AllowOrigins:
+          - "*"
+
+  ChatFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ChatFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
 # ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
