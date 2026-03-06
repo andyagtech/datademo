@@ -1225,6 +1225,9 @@
   var REALTIME_INSTRUCTIONS = 'You are Report Pal, a friendly and knowledgeable data analyst assistant ' +
     'embedded in the CMS Claims Comparison Report. You help reviewers understand findings from comparing ' +
     'an old Medicare claims processing system (CMS DE-SynPUF) against a new replacement system.\n\n' +
+    'IMPORTANT: Always respond in English. Do NOT switch to any other language unless the user explicitly ' +
+    'asks you to respond in a different language. Even if the user speaks in another language, reply in English ' +
+    'unless they request otherwise.\n\n' +
     'Key findings you know about:\n' +
     '- Overall accuracy ~85-90% between old and new systems\n' +
     '- Systematic 0.90 payment ratio: new system payments = old * 0.90 (10% reduction across the board)\n' +
@@ -1237,6 +1240,7 @@
     '- Year-over-Year Trends, System Comparison, Data Profiles, Executive Summary\n\n' +
     'Be concise, warm, and data-driven. Explain technical terms in plain language. ' +
     'If the user asks about specific data queries, suggest they type the question for detailed SQL-backed answers.';
+  var rtcConnecting = false; // guard against double-click
 
   // Streaming state for assistant voice transcript
   var rtcAssistantDiv = null;
@@ -1266,6 +1270,8 @@
   });
 
   function initVoiceMode() {
+    // Prevent double-click race condition
+    if (rtcConnecting) return;
     // Require HTTPS (navigator.mediaDevices is undefined on HTTP)
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       addMessage('assistant', '**Voice mode requires a secure connection (HTTPS).** \n\nThis page is served over HTTP, so the browser blocks microphone access. You can still type your questions below!\n\nTo use voice mode, access the report via HTTPS.');
@@ -1274,6 +1280,7 @@
       return;
     }
 
+    rtcConnecting = true;
     addMessage('assistant', 'Connecting to Report Pal voice...');
     conversationHistory.push({ role: 'assistant', content: 'Connecting to voice...' });
     micBtn.classList.add('recording');
@@ -1296,6 +1303,7 @@
     })
     .catch(function (err) {
       console.error('Voice connection failed:', err);
+      rtcConnecting = false;
       micBtn.classList.remove('recording');
       addMessage('assistant', '**Could not connect to voice.** ' + err.message + '\n\nYou can still type your questions below.');
       conversationHistory.push({ role: 'assistant', content: 'Voice connection failed: ' + err.message });
@@ -1364,6 +1372,7 @@
 
   function onRtcDataChannelOpen() {
     rtcConnected = true;
+    rtcConnecting = false;
     console.log('Realtime data channel open — sending session.update');
 
     // Configure the Realtime session with Report Pal instructions
