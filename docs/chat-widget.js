@@ -176,6 +176,10 @@
     '.chat-close,.chat-reset{background:none;border:none;color:#94a3b8;cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;display:flex;align-items:center;justify-content:center}',
     '.chat-close:hover,.chat-reset:hover{color:#e2e8f0;background:rgba(255,255,255,0.08)}',
     '.chat-close svg,.chat-reset svg{width:18px;height:18px}',
+    '.chat-stop-voice{background:none;border:none;color:#f87171;cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;display:none;align-items:center;justify-content:center}',
+    '.chat-stop-voice:hover{color:#fca5a5;background:rgba(248,113,113,0.12)}',
+    '.chat-stop-voice svg{width:18px;height:18px}',
+    '.chat-stop-voice.visible{display:flex}',
     '.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:#334155 transparent}',
     '.chat-messages::-webkit-scrollbar{width:6px}',
     '.chat-messages::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}',
@@ -294,6 +298,7 @@
     '  <div class="chat-header-title"><h4>Report Pal</h4></div>',
     '  <button class="chat-reset" id="chatHistory" title="Query history" style="margin-right:-4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>',
     '  <button class="chat-reset" id="chatReset" title="Reset conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>',
+    '  <button class="chat-stop-voice" id="chatStopVoice" title="Stop AI voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg></button>',
     '  <button class="chat-close" id="chatClose" title="Close chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>',
     '</div>',
     '<div class="chat-messages" id="chatMessages">',
@@ -898,6 +903,17 @@
         bar.appendChild(sqlBtn);
       }
 
+      // Button 3: Open SQL Explorer (when question is about SQL)
+      if (/sql|quer/i.test(text)) {
+        var sqlNavBtn = document.createElement('button');
+        sqlNavBtn.className = 'chat-followup-btn sql-btn';
+        sqlNavBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Open SQL Explorer';
+        sqlNavBtn.addEventListener('click', function () {
+          window.location.href = getSqlExplorerUrl();
+        });
+        bar.appendChild(sqlNavBtn);
+      }
+
       msgDiv.appendChild(bar);
 
       saveHistoryEntry(text, answerText, []);
@@ -1253,7 +1269,11 @@
     '- Discrepancy Dashboard, Financial Analysis, Data Quality Validation\n' +
     '- Year-over-Year Trends, System Comparison, Data Profiles, Executive Summary\n\n' +
     'Be concise, warm, and data-driven. Explain technical terms in plain language. ' +
-    'If the user asks about specific data queries, suggest they type the question for detailed SQL-backed answers.';
+    'If the user asks about specific data queries, suggest they type the question for detailed SQL-backed answers.\n\n' +
+    'IMPORTANT: When discussing SQL queries, NEVER read the raw SQL code aloud verbatim. ' +
+    'Instead, describe what the query does naturally. For example, say "This query joins the beneficiary table ' +
+    'with the claims table to compare payment amounts" or "The SELECT statement pulls together data from ' +
+    'three different tables." Keep SQL discussion conversational and high-level.';
   var rtcConnecting = false; // guard against double-click
 
   // Streaming state for assistant voice transcript
@@ -1267,19 +1287,30 @@
 
   micBtn.addEventListener('click', function () {
     if (rtcConnected) {
-      // Toggle microphone mute
+      // Toggle microphone mute (no chat messages — just visual state)
       rtcMuted = !rtcMuted;
       if (rtcLocalStream) {
         rtcLocalStream.getAudioTracks().forEach(function (t) { t.enabled = !rtcMuted; });
       }
       micBtn.classList.toggle('recording', !rtcMuted);
-      if (rtcMuted) {
-        addMessage('assistant', '*Microphone muted.* Click the mic button to unmute.');
-      } else {
-        addMessage('assistant', '*Microphone unmuted.* I\'m listening...');
-      }
+      micBtn.title = rtcMuted ? 'Unmute microphone' : 'Mute microphone';
     } else {
       initVoiceMode();
+    }
+  });
+
+  // Stop AI voice button — immediately cancels the current response
+  document.getElementById('chatStopVoice').addEventListener('click', function () {
+    if (rtcConnected && rtcDataChannel && rtcDataChannel.readyState === 'open') {
+      rtcDataChannel.send(JSON.stringify({ type: 'response.cancel' }));
+      // Also truncate the last assistant item to stop any residual audio
+      if (rtcAssistantDiv) {
+        rtcAssistantDiv.innerHTML = renderMarkdown(rtcAssistantText + ' *[stopped]*');
+        addSqlInteractivity(rtcAssistantDiv);
+        conversationHistory.push({ role: 'assistant', content: rtcAssistantText });
+        rtcAssistantDiv = null;
+        rtcAssistantText = '';
+      }
     }
   });
 
@@ -1407,14 +1438,25 @@
       }
     }));
 
-    // Update UI
+    // Prompt the AI to greet the user with a voice message
+    var greetingText = 'Hello. What would you like to discuss about the report? ' +
+      'You can ask me questions about the data and how we came to our conclusions, ' +
+      'and I will do my best to explain. You can talk to me naturally, ' +
+      'and interrupt me at any time if I am getting off track.';
+    rtcDataChannel.send(JSON.stringify({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: 'Greet me briefly. Say exactly: ' + greetingText }]
+      }
+    }));
+    rtcDataChannel.send(JSON.stringify({ type: 'response.create' }));
+
+    // Update UI — show stop button
     micBtn.classList.add('recording');
-    addMessage('assistant', '**Voice connected!** \n\n' +
-      '- Make sure your **volume is up** so you can hear me\n' +
-      '- Just **speak naturally** — I\'m listening\n' +
-      '- Click the **mic button** to mute/unmute\n' +
-      '- You can always **type a question** too\n\n' +
-      'What would you like to know about the report?');
+    var stopBtn = document.getElementById('chatStopVoice');
+    if (stopBtn) stopBtn.classList.add('visible');
     conversationHistory.push({ role: 'assistant', content: 'Voice connected via OpenAI Realtime API.' });
     saveSession();
   }
@@ -1505,6 +1547,8 @@
     rtcAssistantDiv = null;
     rtcAssistantText = '';
     micBtn.classList.remove('recording');
+    var stopBtn = document.getElementById('chatStopVoice');
+    if (stopBtn) stopBtn.classList.remove('visible');
     console.log('Realtime session disconnected');
   }
 
