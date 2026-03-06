@@ -29,6 +29,8 @@ import boto3
 import duckdb
 
 from src.adapters.aws import S3Storage
+from src.chat_prompt import SYSTEM_PROMPT as _REPORT_PAL_PROMPT
+from src.chat_prompt import QUERY_DATABASE_TOOL, MAX_ROWS as _MAX_ROWS, MAX_TOOL_ROUNDS as _MAX_TOOL_ROUNDS
 from src.pipeline import PipelineContext, StepResult
 from src.pipeline.step1_receive import run as step1_run
 from src.pipeline.step2_schema_validate import run as step2_run
@@ -329,9 +331,6 @@ def _snapshot_db(ctx: PipelineContext, event: dict[str, Any]) -> None:
 _cached_api_key: str | None = None
 _cached_db_con: Any | None = None  # live duckdb.Connection with views over Parquet
 
-_MAX_ROWS = 50
-_MAX_TOOL_ROUNDS = 5
-
 
 def _get_openai_api_key() -> str:
     """Retrieve OpenAI API key from SSM Parameter Store (cached)."""
@@ -485,128 +484,9 @@ def _build_chat_findings(con) -> str:
     return "\n".join(lines) if lines else "Database available but no summary could be built."
 
 
-# System prompt (same as web/server.py but loaded here for Lambda)
-_LAMBDA_SYSTEM_PROMPT = """You are a data analysis assistant embedded in the CMS Claims Comparison Report.
-You help reviewers understand the findings from comparing an old Medicare claims processing
-system (CMS DE-SynPUF) against a new replacement system.
-
-You have deep knowledge of:
-- Medicare beneficiary summary data (demographics, chronic conditions, coverage months, financials)
-- Carrier claims data (diagnosis codes, procedure codes, provider NPIs, payment line items)
-- Data quality validation checks (key integrity, temporal consistency, demographic consistency, financial reconciliation)
-
-## Key Findings
-{findings_context}
-
-## Database Access
-You have direct access to the DuckDB database via the `query_database` tool.
-Use SELECT queries only — the database is read-only. Always add LIMIT (max 50).
-
-### Database Schema
-**beneficiary_summary** / **new_beneficiary_summary** (33 cols each):
-  Key: DESYNPUF_ID + summary_year.
-  Demographics: BENE_BIRTH_DT, BENE_DEATH_DT, BENE_SEX_IDENT_CD, BENE_RACE_CD, SP_STATE_CODE, BENE_COUNTY_CD.
-  Coverage: BENE_HI_CVRAGE_TOT_MONS, BENE_SMI_CVRAGE_TOT_MONS, BENE_HMO_CVRAGE_TOT_MONS, PLAN_CVRG_MOS_NUM.
-  Chronic conditions (1=yes): SP_ALZHDMTA, SP_CHF, SP_CHRNKIDN, SP_CNCR, SP_COPD, SP_DEPRESSN, SP_DIABETES, SP_ISCHMCHT, SP_OSTEOPRSS, SP_RA_OA, SP_STRKETIA.
-  Financials: MEDREIMB_IP, BENRES_IP, PPPYMT_IP, MEDREIMB_OP, BENRES_OP, PPPYMT_OP, MEDREIMB_CAR, BENRES_CAR, PPPYMT_CAR.
-
-**carrier_claims** / **new_carrier_claims** (142 cols each):
-  Key: CLM_ID (BIGINT old / VARCHAR new), DESYNPUF_ID.
-  Dates: CLM_FROM_DT, CLM_THRU_DT.
-  Diagnoses: ICD9_DGNS_CD_1..8. Provider NPIs: PRF_PHYSN_NPI_1..13.
-  HCPCS: HCPCS_CD_1..13, LINE_CMS_TYPE_SRVC_CD_1..13, LINE_PLACE_OF_SRVC_CD_1..13.
-  **Payment columns are line-level ONLY (no claim-level totals):**
-    LINE_NCH_PMT_AMT_1..13, LINE_BENE_PTB_DDCTBL_AMT_1..13,
-    LINE_BENE_PRMRY_PYR_PD_AMT_1..13, LINE_COINSRNC_AMT_1..13, LINE_ALOWD_CHRG_AMT_1..13.
-  Both old and new tables share identical column names.
-
-**_discrepancy_detail** (37 cols): Per-beneficiary diffs. diff_* (1=mismatch), delta_* (dollars), total_diffs.
-**_financial_recon** (11 cols): reported_* vs calc_* with *_diff columns.
-**_match_beneficiary** / **_match_claims**: match_status (matched/old_only/new_only).
-
-### Important SQL Notes
-- NEVER use `new` or `old` as table aliases — they are reserved keywords in DuckDB. Use `oc`/`nc` or `old_claims`/`new_claims`.
-- "ZZ" prefix on DESYNPUF_ID = fabricated test records from new system.
-- Join old/new claims: `carrier_claims oc JOIN new_carrier_claims nc ON oc.CLM_ID::VARCHAR = nc.CLM_ID`
-- 0.90 payment ratio pattern: new payments = old * 0.90.
-- Use DESCRIBE tablename or SELECT * FROM information_schema.columns WHERE table_name='...' to discover columns if unsure.
-
-## Navigation Tags
-When you reference a page, tool, or report section, include the relevant [[page_id]] tag so the
-chat widget can render a clickable navigation button. Use exactly one set of double brackets.
-
-### Available Pages
-- [[sql]] — SQL Explorer (interactive query runner)
-- [[schema]] — Schema Explorer (visual table relationships)
-- [[parquet]] — Parquet Viewer (raw file inspector)
-- [[report]] — Comparison Report (main findings)
-- [[architecture]] — Architecture documentation
-- [[data_dictionary]] — Data Dictionary
-- [[solution]] — Solution Design document
-- [[pipeline]] — Pipeline Reference
-- [[reviewer]] — Reviewer Guide
-- [[requirements]] — Requirements Traceability
-
-### Report Sections (scroll-to on report page)
-- [[discrepancies]] — Discrepancy dashboard (KPIs, key findings, charts)
-- [[financial]] — Financial analysis (divergence charts, chronic conditions)
-- [[validation]] — Data quality validation checks table
-- [[trends]] — Year-over-year trends (beneficiaries + claims)
-- [[comparison]] — System comparison (old vs new checks table)
-- [[profiles]] — Data profiles (column-level quality)
-- [[summary]] — Executive summary (top-line KPIs)
-- [[data_context]] — Data context / files under comparison
-
-### Report Subsections
-- [[key_findings]] — Key findings narrative
-- [[accuracy_assessment]] — What the accuracy means
-- [[record_matching]] — Record matching results
-- [[issues_attention]] — Issues requiring attention
-- [[beneficiaries_affected]] — Beneficiaries with changes
-- [[claims_payment]] — Claims payment discrepancy KPI
-- [[payment_changes]] — Claims with payment changes
-- [[phantom_records]] — Phantom / missing records
-- [[test_records]] — Injected "ZZ" test records
-- [[bene_mismatch]] — Beneficiary data mismatches KPI
-- [[claims_pmt_mismatch]] — Payment mismatches KPI
-- [[financial_divergence]] — Total financial divergence KPI
-
-### Bold Text Auto-Linking
-The chat widget automatically converts **bold text** into clickable links when the text
-matches a known report section (e.g. "Beneficiary Discrepancies", "Financial Discrepancies",
-"Claim Count Differences", "Phantom Records"). So use bold for section references in bullet
-lists — users can click them to jump directly to that part of the report.
-
-### Example Usage
-"You can investigate this further using the SQL Explorer [[sql]] or view the financial details in the report [[financial]]."
-"The 0.90 payment ratio is documented in the Financial Analysis section [[financial]]."
-"Run this query in the SQL Explorer [[sql]] to see the affected claims."
-"Key areas to focus on:\n- **Beneficiary Discrepancies**: Identify mismatches...\n- **Financial Discrepancies**: Analyze the 0.90 ratio..."
-
-## Guidelines
-1. Be concise and data-driven. Query the database to verify claims.
-2. **Always explain your SQL queries** — what they do and what the results mean.
-3. Summarize results in markdown tables when appropriate.
-4. Explain technical terms (ICD-9, HCPCS, NPI, etc.) in plain language.
-5. When mentioning SQL queries the user could run, include [[sql]] so they can navigate to the SQL Explorer.
-6. When referencing report sections, include the relevant [[section_id]] tag.
-"""
-
-_LAMBDA_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "query_database",
-        "description": "Execute a read-only SQL SELECT query against the CMS claims DuckDB database. Always include LIMIT (max 50).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "sql": {"type": "string", "description": "SQL SELECT query to execute."},
-                "explanation": {"type": "string", "description": "Plain-English explanation of what this query does, why you are running it, and what the results will tell us."}
-            },
-            "required": ["sql", "explanation"]
-        }
-    }
-}
+# System prompt + tool imported from shared module (src/chat_prompt.py)
+_LAMBDA_SYSTEM_PROMPT = _REPORT_PAL_PROMPT
+_LAMBDA_TOOL = QUERY_DATABASE_TOOL
 
 
 def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
