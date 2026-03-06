@@ -305,11 +305,11 @@
     '',
     '</div>',
     '<div class="chat-quick" id="chatQuick">',
-    '  <button data-q="Please summarize the executive summary">Summarize findings</button>',
-    '  <button data-q="Can you explain the payment discrepancy between systems?">Explain payments</button>',
+    '  <button data-q="Draft a go/no-go recommendation for the system migration">Go/No-Go memo</button>',
+    '  <button data-q="Synthesize the financial, clinical, and demographic findings into a risk scorecard">Risk scorecard</button>',
+    '  <button data-q="Based on the Codebook, which discrepancies represent true data corruption?">Evaluate corruption</button>',
+    '  <button data-q="How would you prioritize the identified issues for remediation?">Prioritize fixes</button>',
     '  <button data-q="Please summarize all validation checks">Validation summary</button>',
-    '  <button data-q="Can you explain the financial reconciliation distribution?">Reconciliation</button>',
-    '  <button data-q="Please summarize the claim line utilization analysis">Claim lines</button>',
     '  <button data-q="What does BENE_HMO_CVRAGE_TOT_MONS mean?">Codebook lookup</button>',
     '</div>',
     '<div class="chat-suggest" id="chatSuggest"></div>',
@@ -365,7 +365,24 @@
 
   // ── Suggested questions for autocomplete ──
   var SUGGESTIONS = [
-    // Explain / summarize style — high-level analysis
+    // ── Bloom Level 6: Create / Synthesize ──
+    'Draft a go/no-go recommendation for the system migration',
+    'Propose a remediation plan that addresses the most critical issues first',
+    'What acceptance criteria would you define for a production-ready migration?',
+    'What additional validation checks should be added before the next comparison run?',
+    'Synthesize the financial, clinical, and demographic findings into a risk scorecard',
+    // ── Bloom Level 5: Evaluate / Judge ──
+    'Based on the Codebook, which discrepancies represent true data corruption?',
+    'Is the new system\'s data quality acceptable for CMS reporting requirements?',
+    'How would you prioritize the identified issues for remediation?',
+    'Does the synthetic nature of DE-SynPUF data affect our confidence in these findings?',
+    'Evaluate whether the 0.90 ratio could be an intentional policy change rather than a bug',
+    // ── Bloom Level 4: Analyze ──
+    'What patterns connect the different types of data scrubbing in the new system?',
+    'How do the financial discrepancies correlate with the clinical data changes?',
+    'Why does the 0.90 payment ratio affect all claim lines uniformly?',
+    'What does the cross-year stability of discrepancies tell us about root cause?',
+    // ── Bloom Level 3: Explain / Summarize (Understand) ──
     'Please summarize the executive summary',
     'Please summarize all validation checks',
     'Please summarize the claim line utilization analysis',
@@ -373,28 +390,20 @@
     'Can you explain the payment discrepancy between systems?',
     'Can you explain the 0.90 payment ratio pattern?',
     'Can you explain the financial reconciliation distribution?',
-    'Can you explain how discrepancies are distributed across years?',
     'Can you explain whether the discrepancies are random or systematic?',
-    'Can you explain the risk assessment for the new system?',
-    'Can you explain the new system readiness status?',
     'Can you explain what bugs should be fixed before production cutover?',
-    // Explain / summarize — validation checks
+    // Validation-specific explain
     'Can you explain the coverage period validation?',
     'Can you explain the ESRD consistency check?',
     'Can you explain the state code validation?',
     'Can you explain the death temporal chain check?',
     'Can you explain the ICD-9 diagnosis code validation?',
     'Can you explain the NPI format validation?',
-    // Explain / summarize — data topics
-    'Can you explain the phantom records in the new system?',
+    // Data topics
     'Can you explain the ZZ fabricated beneficiaries?',
-    'Can you explain the BENE_BIRTH_DT mismatch pattern?',
-    'Can you explain the carrier claims discrepancy?',
     'Can you explain how claims are matched between systems?',
-    'Can you explain the dollar impact per beneficiary?',
     'Can you explain the chronic condition trends?',
-    'Can you explain the payment distribution?',
-    // Codebook lookups
+    // ── Bloom Level 1–2: Codebook lookups and data retrieval ──
     'What does BENE_HMO_CVRAGE_TOT_MONS mean?',
     'What does BENE_HI_CVRAGE_TOT_MONS mean?',
     'What does BENE_SMI_CVRAGE_TOT_MONS mean?',
@@ -402,17 +411,10 @@
     'What does BENE_ESRD_IND mean?',
     'What does SP_STATE_CODE mean?',
     'What does LINE_NCH_PMT_AMT_1 mean?',
-    // Data lookups (still supported)
-    'What is the overall accuracy rate?',
     'Which fields have the most mismatches?',
     'Which validation checks failed?',
-    'What is the total financial divergence amount?',
-    'How many beneficiaries have data mismatches?',
-    'How many claims have payment changes?',
     'How many records are in each system?',
-    'What does the financial reconciliation show?',
-    'Suggest SQL queries to investigate further',
-    'Show me a SQL query for beneficiary mismatches'
+    'Suggest SQL queries to investigate further'
   ];
   var suggestActiveIdx = -1;
 
