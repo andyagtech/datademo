@@ -1,5 +1,5 @@
 /**
- * CMS Claims Report Assistant — Standalone Chat Widget
+ * CMS Claims Report Pal — Standalone Chat Widget
  *
  * Self-contained chat widget that can be included on any page.
  * Persists conversation across page navigations via sessionStorage.
@@ -256,6 +256,17 @@
     '.chat-sql-copy:hover{opacity:1;color:#38bdf8;background:rgba(56,189,248,0.2);border-color:rgba(56,189,248,0.4)}',
     '.chat-sql-copy svg{width:14px;height:14px}',
     '.chat-sql-copy.copied{background:rgba(74,222,128,0.15);border-color:rgba(74,222,128,0.3);color:#4ade80;opacity:1}',
+    '.chat-choice-bar{display:flex;gap:8px;margin-top:8px}',
+    '.chat-choice-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;border:1px solid rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);color:#38bdf8;font-size:.8rem;cursor:pointer;transition:all .15s;font-family:inherit}',
+    '.chat-choice-btn:hover{background:rgba(56,189,248,0.2);border-color:#38bdf8}',
+    '.chat-choice-btn svg{width:16px;height:16px;flex-shrink:0}',
+    '.chat-mic-btn{width:38px;height:38px;border-radius:50%;border:none;background:transparent;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}',
+    '.chat-mic-btn:hover{color:#38bdf8;background:rgba(56,189,248,0.1)}',
+    '.chat-mic-btn.recording{color:#f87171;background:rgba(248,113,113,0.15);animation:chatPulse 1.5s infinite}',
+    '.chat-mic-btn svg{width:18px;height:18px}',
+    '@keyframes chatPulse{0%,100%{opacity:1}50%{opacity:.5}}',
+    '.chat-voice-badge{display:inline-flex;align-items:center;gap:4px;font-size:.58rem;color:#4ade80;margin-bottom:4px;letter-spacing:.03em}',
+    '.chat-voice-badge svg{width:10px;height:10px}',
     '.chat-nav-pill{display:inline-block;margin-top:6px}',
     '.chat-nav-pill button{background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:12px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-family:inherit}',
     '.chat-nav-pill button:hover{background:rgba(56,189,248,0.25)}',
@@ -270,7 +281,7 @@
   var fab = document.createElement('button');
   fab.className = 'chat-fab';
   fab.id = 'chatFab';
-  fab.title = 'Ask AI about this report';
+  fab.title = 'Chat with Report Pal';
   fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/><path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>';
 
   var panel = document.createElement('div');
@@ -279,13 +290,13 @@
   panel.innerHTML = [
     '<div class="chat-header">',
     '  <div class="chat-header-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg></div>',
-    '  <div class="chat-header-title"><h4>Report Assistant</h4></div>',
+    '  <div class="chat-header-title"><h4>Report Pal</h4></div>',
     '  <button class="chat-reset" id="chatHistory" title="Query history" style="margin-right:-4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>',
     '  <button class="chat-reset" id="chatReset" title="Reset conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>',
     '  <button class="chat-close" id="chatClose" title="Close chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>',
     '</div>',
     '<div class="chat-messages" id="chatMessages">',
-    '  <div class="chat-msg system">Ask me anything about the comparison report findings, data quality checks, or discrepancy impact.</div>',
+    '',
     '</div>',
     '<div class="chat-quick" id="chatQuick">',
     '  <button data-q="What are the most critical findings?">Critical findings</button>',
@@ -298,6 +309,7 @@
     '<div class="chat-suggest" id="chatSuggest"></div>',
     '<div class="chat-input-area">',
     '  <textarea id="chatInput" rows="1" placeholder="Ask about the report findings..." maxlength="2000"></textarea>',
+    '  <button class="chat-mic-btn" id="chatMic" title="Voice input"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>',
     '  <button class="chat-send" id="chatSend" title="Send"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/></svg></button>',
     '</div>',
     '<div class="chat-config-drawer">',
@@ -331,9 +343,14 @@
   var historyCloseBtn = document.getElementById('chatHistoryClose');
   var historyListEl = document.getElementById('chatHistoryList');
   var suggestEl = document.getElementById('chatSuggest');
+  var micBtn = document.getElementById('chatMic');
 
   var conversationHistory = [];
   var isLoading = false;
+  var voiceMode = false;
+  var recognition = null;
+  var synthesis = window.speechSynthesis || null;
+  var introShown = false;
 
   // ── Suggested questions for autocomplete ──
   var SUGGESTIONS = [
@@ -512,8 +529,10 @@
   });
   resetBtn.addEventListener('click', function () {
     conversationHistory = [];
-    messagesEl.innerHTML = '<div class="chat-msg system">Conversation reset. Ask me anything about the report.</div>';
+    messagesEl.innerHTML = '';
+    introShown = false;
     quickEl.style.display = 'flex';
+    showIntro();
     saveSession();
   });
 
@@ -601,6 +620,8 @@
     suggestEl.querySelectorAll('.chat-suggest-item').forEach(function (item) {
       item.addEventListener('click', function () {
         inputEl.value = matches[parseInt(item.dataset.idx)];
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
         hideSuggestions();
         inputEl.focus();
       });
@@ -622,6 +643,8 @@
         e.preventDefault();
         var idx = suggestActiveIdx >= 0 ? suggestActiveIdx : 0;
         inputEl.value = items[idx].textContent;
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
         hideSuggestions();
         return;
       }
@@ -798,6 +821,7 @@
 
       var msgDiv = addMessage('assistant', answerText);
       conversationHistory.push({ role: 'assistant', content: answerText });
+      speakText(answerText);
 
       // Auto-navigate to relevant report section
       var combinedText = text + ' ' + answerText;
@@ -922,6 +946,7 @@
 
         var msgDiv = addMessage('assistant', data.content);
         conversationHistory.push({ role: 'assistant', content: data.content });
+        speakText(data.content);
         saveHistoryEntry(text, data.content, data.queries || []);
         dotEl.className = 'dot connected';
 
@@ -1186,8 +1211,144 @@
     return result;
   }
 
-  // ── Restore previous session ──
-  restoreSession();
+  // ── Voice mode ──
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function speakText(text) {
+    if (!synthesis || !voiceMode) return;
+    synthesis.cancel();
+    var plain = text.replace(/[*_#`|\[\]]/g, '').replace(/\n+/g, '. ').substring(0, 800);
+    var utter = new SpeechSynthesisUtterance(plain);
+    utter.rate = 1.05;
+    utter.pitch = 1;
+    synthesis.speak(utter);
+  }
+
+  function startListening() {
+    if (!recognition) return;
+    try {
+      micBtn.classList.add('recording');
+      recognition.start();
+    } catch (e) { /* already started */ }
+  }
+
+  function stopListening() {
+    if (!recognition) return;
+    micBtn.classList.remove('recording');
+    try { recognition.stop(); } catch (e) {}
+  }
+
+  micBtn.addEventListener('click', function () {
+    if (!SpeechRecognition) {
+      addMessage('assistant', 'Sorry, your browser doesn\'t support speech recognition. Please use Chrome or Edge.');
+      return;
+    }
+    if (!voiceMode) {
+      initVoiceMode();
+      return;
+    }
+    if (micBtn.classList.contains('recording')) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  });
+
+  function initVoiceMode() {
+    if (!SpeechRecognition) return;
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = function (event) {
+      var transcript = event.results[0][0].transcript;
+      micBtn.classList.remove('recording');
+      inputEl.value = transcript;
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+      sendMessage(transcript);
+    };
+    recognition.onerror = function (event) {
+      micBtn.classList.remove('recording');
+      if (event.error !== 'aborted' && event.error !== 'no-speech') {
+        addMessage('assistant', 'Microphone error: ' + event.error + '. Please try again.');
+      }
+    };
+    recognition.onend = function () {
+      micBtn.classList.remove('recording');
+    };
+
+    // Request mic permission
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      voiceMode = true;
+      var confirmMsg = addMessage('assistant', '**Microphone access granted!** \n\nA few things to note:\n\n' +
+        '- Make sure your **volume is up** so you can hear my responses\n' +
+        '- Click the **microphone button** to speak a question\n' +
+        '- You can always **type a question** too — whatever feels natural\n\n' +
+        'I\'m ready when you are! What would you like to know about the report?');
+      speakText('Microphone access granted! Make sure your volume is up. Click the microphone button or just type whenever you are ready. What would you like to know about the report?');
+      conversationHistory.push({ role: 'assistant', content: 'Voice mode enabled. Microphone access granted.' });
+      saveSession();
+    }).catch(function (err) {
+      addMessage('assistant', '**Microphone access was denied.** \n\nNo worries! You can still type your questions. If you\'d like to try voice mode later, click the microphone button and allow access when prompted.');
+      conversationHistory.push({ role: 'assistant', content: 'Microphone access denied. Using text mode.' });
+      saveSession();
+    });
+  }
+
+  // ── Intro flow ──
+  function showIntro() {
+    if (introShown) return;
+    introShown = true;
+
+    var introMsg = addMessage('assistant', 'Hi there! I\'m **Report Pal**, your friendly data analyst assistant. \n\n' +
+      'I\'ve already analyzed this report and I\'m ready to help you understand the findings, explore discrepancies, review SQL queries, and more.\n\n' +
+      'We can have this conversation via **text** or **voice**. What do you prefer?');
+    conversationHistory.push({ role: 'assistant', content: 'Hi there! I\'m Report Pal, your friendly data analyst assistant. I\'ve already analyzed this report and I\'m ready to help. We can have this conversation via text or voice. What do you prefer?' });
+
+    var bar = document.createElement('div');
+    bar.className = 'chat-choice-bar';
+
+    var textBtn = document.createElement('button');
+    textBtn.className = 'chat-choice-btn';
+    textBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Text';
+    textBtn.addEventListener('click', function () {
+      bar.remove();
+      addMessage('user', 'Text');
+      conversationHistory.push({ role: 'user', content: 'Text' });
+      var reply = addMessage('assistant', 'Great choice! Just type your question below and I\'ll give you an instant answer. You can also click the suggested questions above, or start typing to see autocomplete suggestions.\n\nWhat would you like to know about the report?');
+      conversationHistory.push({ role: 'assistant', content: 'Text mode selected. Type your question below.' });
+      saveSession();
+    });
+
+    var voiceBtn = document.createElement('button');
+    voiceBtn.className = 'chat-choice-btn';
+    voiceBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> Voice';
+    voiceBtn.addEventListener('click', function () {
+      bar.remove();
+      addMessage('user', 'Voice');
+      conversationHistory.push({ role: 'user', content: 'Voice' });
+      if (!SpeechRecognition) {
+        addMessage('assistant', 'Sorry, your browser doesn\'t support speech recognition. Please use **Chrome** or **Edge** for voice mode. You can still type your questions below!');
+        return;
+      }
+      addMessage('assistant', 'Setting up voice mode — I\'ll need access to your microphone...');
+      conversationHistory.push({ role: 'assistant', content: 'Setting up voice mode...' });
+      initVoiceMode();
+    });
+
+    bar.appendChild(textBtn);
+    bar.appendChild(voiceBtn);
+    introMsg.appendChild(bar);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    saveSession();
+  }
+
+  // ── Restore previous session or show intro ──
+  var restored = restoreSession();
+  if (!restored) showIntro();
 
   // ── Check if SQL Explorer should pre-fill a query ──
   if (window.location.pathname.indexOf('sql_explorer') !== -1) {
