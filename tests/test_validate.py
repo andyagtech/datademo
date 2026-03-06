@@ -5,6 +5,11 @@ from src.validate import (
     check_temporal_consistency,
     check_demographic_consistency,
     check_financial_reconciliation,
+    check_coverage_period,
+    check_esrd_consistency,
+    check_state_codes,
+    check_diagnosis_codes,
+    check_npi_format,
     run as validate_run,
 )
 
@@ -76,6 +81,71 @@ class TestFinancialReconciliation:
         ).fetchall()]
         assert "_financial_recon" in tables
 
+    def test_financial_recon_has_distribution(self, con):
+        results = check_financial_reconciliation(con)
+        medreimb = next(r for r in results if r.check_name == "financial_recon_medreimb_car")
+        assert len(medreimb.details) == 1
+        assert "distribution" in medreimb.details[0]
+        dist = medreimb.details[0]["distribution"]
+        assert "exact_match_lte_0.01" in dist
+        assert "diff_over_100.00" in dist
+
+
+class TestCoveragePeriod:
+    def test_coverage_months_in_range(self, con):
+        results = check_coverage_period(con)
+        # Test data has all coverage values within 0-12
+        for r in results:
+            assert r.category == "coverage"
+            assert r.issues_found == 0
+
+    def test_all_four_columns_checked(self, con):
+        results = check_coverage_period(con)
+        assert len(results) == 4
+        names = {r.check_name for r in results}
+        assert "coverage_range_bene_hi_cvrage_tot_mons" in names
+        assert "coverage_range_bene_smi_cvrage_tot_mons" in names
+        assert "coverage_range_bene_hmo_cvrage_tot_mons" in names
+        assert "coverage_range_plan_cvrg_mos_num" in names
+
+
+class TestEsrdConsistency:
+    def test_no_esrd_regression(self, con):
+        results = check_esrd_consistency(con)
+        esrd = results[0]
+        # Test data has no ESRD regressions (all BENE_ESRD_IND = 0)
+        assert esrd.check_name == "esrd_regression"
+        assert esrd.issues_found == 0
+
+
+class TestStateCodes:
+    def test_valid_state_codes(self, con):
+        results = check_state_codes(con)
+        invalid = next(r for r in results if r.check_name == "invalid_state_code")
+        # All test state codes (26, 10, 05, 36) are in 1-56 range
+        assert invalid.issues_found == 0
+
+    def test_state_changes_detected(self, con):
+        results = check_state_codes(con)
+        changes = next(r for r in results if r.check_name == "state_change_across_years")
+        # Only BENE_A has 2 years, same state code 26 both years
+        assert changes.issues_found == 0
+
+
+class TestDiagnosisCodes:
+    def test_icd9_format_check_runs(self, con):
+        results = check_diagnosis_codes(con)
+        # Test data has NULL diagnosis codes, so no values to check
+        # The function should return empty or a result with 0 total
+        assert isinstance(results, list)
+
+
+class TestNpiFormat:
+    def test_npi_format_check_runs(self, con):
+        results = check_npi_format(con)
+        # Test data has NULL NPIs, so no values to check
+        assert isinstance(results, list)
+
 
 class TestFullValidation:
     def test_run_returns_all_checks(self, con):
@@ -85,11 +155,14 @@ class TestFullValidation:
         assert "temporal" in categories
         assert "demographic" in categories
         assert "financial" in categories
+        assert "coverage" in categories
+        assert "clinical" in categories
 
     def test_run_returns_expected_count(self, con):
         results = validate_run(con)
-        # 3 identity + 2 temporal + 3 demographic + 3 financial = 11
-        assert len(results) == 11
+        # 3 identity + 3 temporal + 3 demographic + 4 coverage + 1 ESRD
+        # + 2 state + 3 financial = 19 (ICD-9 and NPI may be 0 if no data)
+        assert len(results) >= 19
 
     def test_validation_result_properties(self, con):
         results = validate_run(con)

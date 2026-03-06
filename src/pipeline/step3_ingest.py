@@ -115,6 +115,64 @@ def _detect_anomalies(con: duckdb.DuckDBPyConnection) -> list[dict]:
     return anomalies
 
 
+def _claim_line_utilization(con: duckdb.DuckDBPyConnection) -> dict:
+    """Analyze how many claim lines are populated per carrier claim.
+
+    Each carrier claim can have up to 13 service lines. Understanding the
+    distribution (e.g., "85% of claims use ≤3 lines") reveals the typical
+    claim complexity and helps validate that multi-line payment aggregation
+    logic handles the actual data shape.
+    """
+    try:
+        # Count non-null payment lines per claim (LINE_NCH_PMT_AMT_1 .. _13)
+        line_count_expr = " + ".join(
+            f"CASE WHEN LINE_NCH_PMT_AMT_{i} IS NOT NULL THEN 1 ELSE 0 END"
+            for i in range(1, 14)
+        )
+        con.execute(f"""
+            CREATE OR REPLACE TEMP TABLE _line_counts AS
+            SELECT CLM_ID, ({line_count_expr}) AS populated_lines
+            FROM carrier_claims
+        """)
+
+        total_claims = con.execute("SELECT COUNT(*) FROM _line_counts").fetchone()[0]
+
+        # Distribution buckets
+        dist = con.execute("""
+            SELECT populated_lines, COUNT(*) AS cnt
+            FROM _line_counts
+            GROUP BY populated_lines
+            ORDER BY populated_lines
+        """).fetchall()
+        distribution = {row[0]: row[1] for row in dist}
+
+        # Summary statistics
+        stats = con.execute("""
+            SELECT
+                AVG(populated_lines),
+                MEDIAN(populated_lines),
+                MAX(populated_lines),
+                SUM(CASE WHEN populated_lines <= 1 THEN 1 ELSE 0 END),
+                SUM(CASE WHEN populated_lines <= 3 THEN 1 ELSE 0 END),
+                SUM(CASE WHEN populated_lines <= 5 THEN 1 ELSE 0 END)
+            FROM _line_counts
+        """).fetchone()
+
+        return {
+            "total_claims": total_claims,
+            "avg_lines": round(stats[0], 2) if stats[0] else 0,
+            "median_lines": int(stats[1]) if stats[1] else 0,
+            "max_lines": int(stats[2]) if stats[2] else 0,
+            "pct_single_line": round(100.0 * stats[3] / max(total_claims, 1), 1),
+            "pct_lte_3_lines": round(100.0 * stats[4] / max(total_claims, 1), 1),
+            "pct_lte_5_lines": round(100.0 * stats[5] / max(total_claims, 1), 1),
+            "distribution": distribution,
+        }
+    except duckdb.Error as e:
+        logger.warning(f"Claim line utilization analysis failed: {e}")
+        return {}
+
+
 def run(ctx: PipelineContext) -> StepResult:
     """Execute Step 3: Ingest into DuckDB and profile."""
     errors: list[str] = []
@@ -172,6 +230,16 @@ def run(ctx: PipelineContext) -> StepResult:
         if high:
             warnings.append(f"{len(high)} high-severity anomalies detected")
 
+    # Claim line utilization analysis
+    line_util = _claim_line_utilization(con)
+    ctx.results["claim_line_utilization"] = line_util
+    if line_util:
+        logger.info(
+            f"  Claim line utilization: avg={line_util['avg_lines']} lines/claim, "
+            f"median={line_util['median_lines']}, "
+            f"{line_util['pct_lte_3_lines']}% use ≤3 lines"
+        )
+
     # Counts
     try:
         bene_count = con.execute("SELECT COUNT(*) FROM beneficiary_summary").fetchone()[0]
@@ -186,6 +254,7 @@ def run(ctx: PipelineContext) -> StepResult:
         "claims_count": claim_count,
         "anomalies": anomalies,
         "tables_profiled": len(profiles),
+        "claim_line_utilization": line_util,
     }
 
     return StepResult(

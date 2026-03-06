@@ -79,13 +79,17 @@ def con():
     # BENE_D: 1 claim with date inversion
     # ORPHAN: 1 claim for non-existent beneficiary
 
-    def _insert_claim(bene_id, clm_id, from_dt, thru_dt, pmt1=0, ddctbl1=0, coinsrnc1=0, prmry1=0, alowd1=0, prcsg1='A'):
+    def _insert_claim(bene_id, clm_id, from_dt, thru_dt, pmt1=0, ddctbl1=0, coinsrnc1=0, prmry1=0, alowd1=0, prcsg1='A',
+                       icd9_1=None, icd9_2=None, npi_1=None):
         null_cols_count = len(create_cols) - 4  # minus the 4 base cols
         vals = [f"'{bene_id}'", str(clm_id), str(from_dt), str(thru_dt)]
         # ICD9 diags (8)
-        vals.extend(["NULL"] * 8)
+        vals.append(f"'{icd9_1}'" if icd9_1 else "NULL")
+        vals.append(f"'{icd9_2}'" if icd9_2 else "NULL")
+        vals.extend(["NULL"] * 6)
         # PRF_PHYSN_NPI (13)
-        vals.extend(["NULL"] * 13)
+        vals.append(f"'{npi_1}'" if npi_1 else "NULL")
+        vals.extend(["NULL"] * 12)
         # TAX_NUM (13)
         vals.extend(["NULL"] * 13)
         # HCPCS_CD (13)
@@ -113,16 +117,22 @@ def con():
         c.execute(f"INSERT INTO carrier_claims VALUES ({', '.join(vals)})")
 
     # BENE_A claims in 2008 (should sum to MEDREIMB_CAR=300)
-    _insert_claim('BENE_A', 1001, 20080101, 20080101, pmt1=150, ddctbl1=20, coinsrnc1=20, prmry1=7.5, alowd1=200, prcsg1='A')
-    _insert_claim('BENE_A', 1002, 20080601, 20080601, pmt1=150, ddctbl1=20, coinsrnc1=20, prmry1=7.5, alowd1=200, prcsg1='A')
+    _insert_claim('BENE_A', 1001, 20080101, 20080101, pmt1=150, ddctbl1=20, coinsrnc1=20, prmry1=7.5, alowd1=200, prcsg1='A',
+                  icd9_1='4019', icd9_2='25000', npi_1='1234567890')
+    _insert_claim('BENE_A', 1002, 20080601, 20080601, pmt1=150, ddctbl1=20, coinsrnc1=20, prmry1=7.5, alowd1=200, prcsg1='A',
+                  icd9_1='V5789', npi_1='1234567890')
     # BENE_A claim in 2009
-    _insert_claim('BENE_A', 1003, 20090301, 20090301, pmt1=310, ddctbl1=22, coinsrnc1=20, prmry1=16, alowd1=400, prcsg1='A')
+    _insert_claim('BENE_A', 1003, 20090301, 20090301, pmt1=310, ddctbl1=22, coinsrnc1=20, prmry1=16, alowd1=400, prcsg1='A',
+                  icd9_1='4019', npi_1='9876543210')
     # BENE_B claim AFTER death (death=20080615, claim=20080901)
-    _insert_claim('BENE_B', 2001, 20080901, 20080901, pmt1=80, ddctbl1=10, coinsrnc1=8, prmry1=7, alowd1=100, prcsg1='A')
+    _insert_claim('BENE_B', 2001, 20080901, 20080901, pmt1=80, ddctbl1=10, coinsrnc1=8, prmry1=7, alowd1=100, prcsg1='A',
+                  icd9_1='E8859', npi_1='1111111111')
     # BENE_D claim with date inversion (from > thru)
-    _insert_claim('BENE_D', 4001, 20080815, 20080801, pmt1=500, ddctbl1=30, coinsrnc1=30, prmry1=25, alowd1=600, prcsg1='A')
+    _insert_claim('BENE_D', 4001, 20080815, 20080801, pmt1=500, ddctbl1=30, coinsrnc1=30, prmry1=25, alowd1=600, prcsg1='A',
+                  icd9_1='4019', npi_1='2222222222')
     # ORPHAN claim (bene not in summary)
-    _insert_claim('ORPHAN_X', 9001, 20080501, 20080501, pmt1=50, ddctbl1=5, coinsrnc1=5, prmry1=2, alowd1=60, prcsg1='A')
+    _insert_claim('ORPHAN_X', 9001, 20080501, 20080501, pmt1=50, ddctbl1=5, coinsrnc1=5, prmry1=2, alowd1=60, prcsg1='A',
+                  icd9_1='4019', npi_1='3333333333')
 
     return c
 
