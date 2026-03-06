@@ -202,25 +202,62 @@ Every page in the hosted report includes **Report Pal** — an AI assistant that
 - Stop button (🔇) in header bar immediately cancels AI voice mid-sentence
 - No push-to-talk — server VAD detects when you start/stop speaking
 
-### Cached Answers
+### Cached Answers — How They Are Generated
 
-Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** generated from the pipeline results. These provide instant responses without hitting the Lambda API. Questions span all Bloom's Taxonomy levels:
+Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that provide instant responses without hitting the Lambda API. These are **not AI-generated** — they are deterministic, template-based answers assembled programmatically from the pipeline's actual results.
 
-- **Create/Synthesize** — "Draft a go/no-go recommendation", "Propose a remediation plan", "Synthesize findings into a risk scorecard"
-- **Evaluate/Judge** — "Based on the Codebook, which discrepancies represent true data corruption?", "Is the new system acceptable for CMS reporting?"
-- **Analyze** — "What patterns connect the data scrubbing types?", "Why does the 0.90 ratio affect all claim lines uniformly?"
-- **Explain/Summarize** — Coverage period, ESRD, state codes, death chain, ICD-9, NPI, claim line utilization
-- **Codebook lookups** — "What does BENE_HMO_CVRAGE_TOT_MONS mean?", "What does SP_STATE_CODE mean?"
+**How it works:**
 
-For anything not cached, the widget falls through to the Lambda API (requires internet).
+1. The pipeline runs all validation, comparison, and analysis checks
+2. Step 6 (`src/report.py`) calls `generate_cached_answers()` from `src/chat_answers.py`, passing the complete `report_data` dictionary
+3. `chat_answers.py` extracts ~30 data points from the pipeline results (counts, rates, field names, financial totals, validation outcomes, match statistics, year-over-year trends, chronic condition prevalence, claim line utilization)
+4. These data points are interpolated into **f-string templates** — each template is a hand-written analytical narrative with Markdown formatting, tables, and CMS Codebook references
+5. Each answer is paired with associated SQL queries (for the "Review SQL" button)
+6. The output is serialized to `docs/cached-answers.js` and loaded on every page before `chat-widget.js`
+
+**Question categories (organized by Bloom's Taxonomy level):**
+
+| Level | Example | Count |
+|-------|---------|-------|
+| 6 — Create | "Draft a go/no-go recommendation for the system migration" | 5 |
+| 5 — Evaluate | "Based on the Codebook, which discrepancies represent true data corruption?" | 5 |
+| 4 — Analyze | "Why does the 0.90 payment ratio affect all claim lines uniformly?" | 4 |
+| 3 — Understand | "Can you explain the coverage period validation?" | ~20 |
+| 2 — Remember | "What does BENE_HMO_CVRAGE_TOT_MONS mean?" | ~7 |
+| 1 — Retrieve | "Which validation checks failed?" | ~15 |
+
+The higher-level answers (Levels 4–6) cross-reference findings across domains and cite the **CMS DE-SynPUF Codebook**, **Data Users Document**, and **FAQ** as sources.
+
+For anything not cached, the widget falls through to the Lambda API.
+
+### AI Models and Prompting
+
+Report Pal uses two AI backends:
+
+**Text mode — OpenAI GPT-4o** (`gpt-4o`, temperature 0.4)
+
+The Chat Lambda constructs a system prompt from `src/chat_prompt.py` with live context:
+
+- **Identity & domain knowledge** — Medicare beneficiary data, carrier claims, validation checks
+- **`{findings_context}`** — live data injected at runtime by querying DuckDB (beneficiary/claim counts, discrepancy totals, match status breakdowns)
+- **Database schema** — full column listings for all 8 tables (`beneficiary_summary`, `carrier_claims`, `_discrepancy_detail`, `_financial_recon`, etc.)
+- **SQL notes** — reserved keyword warnings, join patterns, ZZ prefix convention, date format
+- **Navigation tags** — `[[sql]]`, `[[report]]`, `[[validation]]`, etc. — rendered as clickable links by the chat widget
+- **One tool: `query_database`** — executes read-only SQL against DuckDB (max 50 rows, up to 5 rounds of tool calls per question)
+
+**Voice mode — OpenAI Realtime API** (`gpt-4o-realtime-preview-2025-06-03`)
+
+- Condensed system prompt sent via `session.update` over the WebRTC data channel
+- **Whisper-1** transcription for input audio → text appears in chat panel
+- **coral** voice for AI responses, server-side VAD for automatic turn detection
+- Ephemeral token from Session Lambda (expires 60 seconds) — no API keys in browser
 
 ### Security
 
-- No API keys in the browser — all calls go through Lambda backends
+- No API keys in the browser — all OpenAI calls go through Lambda backends
 - Ephemeral tokens for voice mode expire after 60 seconds
 - OpenAI API key stored in AWS SSM Parameter Store
 - No credentials committed to the repository
-- **Reviewer bundle** excludes all Lambda source code (`cloud/`, `infra/`, `backend/`) — the AI Assistant works via hardcoded Lambda URLs
 
 ---
 

@@ -189,7 +189,8 @@
   <a href="#how-to-try-it" class="depth-3">How to Try It</a>
   <a href="#text-mode" class="depth-3">Text Mode</a>
   <a href="#voice-mode" class="depth-3">Voice Mode</a>
-  <a href="#cached-answers" class="depth-3">Cached Answers</a>
+  <a href="#cached-answers-how-they-are-generated" class="depth-3">Cached Answers — How They Are Generated</a>
+  <a href="#ai-models-and-prompting" class="depth-3">AI Models and Prompting</a>
   <a href="#security" class="depth-3">Security</a>
   <a href="#code-reading-order" class="depth-2">Code Reading Order</a>
   <a href="#assessment-requirements-mapping" class="depth-2">Assessment Requirements Mapping</a>
@@ -370,23 +371,86 @@ docker run --rm -p 8888:8888 \
 <li>Stop button (🔇) in header bar immediately cancels AI voice mid-sentence</li>
 <li>No push-to-talk — server VAD detects when you start/stop speaking</li>
 </ul>
-<h3 id="cached-answers">Cached Answers</h3>
-<p>Every page loads <code>docs/cached-answers.js</code> — <strong>92 pre-built Q&amp;A pairs</strong> generated from the pipeline results. These provide instant responses without hitting the Lambda API. Questions span all Bloom's Taxonomy levels:</p>
+<h3 id="cached-answers-how-they-are-generated">Cached Answers — How They Are Generated</h3>
+<p>Every page loads <code>docs/cached-answers.js</code> — <strong>92 pre-built Q&amp;A pairs</strong> that provide instant responses without hitting the Lambda API. These are <strong>not AI-generated</strong> — they are deterministic, template-based answers assembled programmatically from the pipeline's actual results.</p>
+<p><strong>How it works:</strong></p>
+<ol>
+<li>The pipeline runs all validation, comparison, and analysis checks</li>
+<li>Step 6 (<code>src/report.py</code>) calls <code>generate_cached_answers()</code> from <code>src/chat_answers.py</code>, passing the complete <code>report_data</code> dictionary</li>
+<li><code>chat_answers.py</code> extracts ~30 data points from the pipeline results (counts, rates, field names, financial totals, validation outcomes, match statistics, year-over-year trends, chronic condition prevalence, claim line utilization)</li>
+<li>These data points are interpolated into <strong>f-string templates</strong> — each template is a hand-written analytical narrative with Markdown formatting, tables, and CMS Codebook references</li>
+<li>Each answer is paired with associated SQL queries (for the "Review SQL" button)</li>
+<li>The output is serialized to <code>docs/cached-answers.js</code> and loaded on every page before <code>chat-widget.js</code></li>
+</ol>
+<p><strong>Question categories (organized by Bloom's Taxonomy level):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Example</th>
+<th>Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6 — Create</td>
+<td>"Draft a go/no-go recommendation for the system migration"</td>
+<td>5</td>
+</tr>
+<tr>
+<td>5 — Evaluate</td>
+<td>"Based on the Codebook, which discrepancies represent true data corruption?"</td>
+<td>5</td>
+</tr>
+<tr>
+<td>4 — Analyze</td>
+<td>"Why does the 0.90 payment ratio affect all claim lines uniformly?"</td>
+<td>4</td>
+</tr>
+<tr>
+<td>3 — Understand</td>
+<td>"Can you explain the coverage period validation?"</td>
+<td>~20</td>
+</tr>
+<tr>
+<td>2 — Remember</td>
+<td>"What does BENE_HMO_CVRAGE_TOT_MONS mean?"</td>
+<td>~7</td>
+</tr>
+<tr>
+<td>1 — Retrieve</td>
+<td>"Which validation checks failed?"</td>
+<td>~15</td>
+</tr>
+</tbody>
+</table>
+<p>The higher-level answers (Levels 4–6) cross-reference findings across domains and cite the <strong>CMS DE-SynPUF Codebook</strong>, <strong>Data Users Document</strong>, and <strong>FAQ</strong> as sources.</p>
+<p>For anything not cached, the widget falls through to the Lambda API.</p>
+<h3 id="ai-models-and-prompting">AI Models and Prompting</h3>
+<p>Report Pal uses two AI backends:</p>
+<p><strong>Text mode — OpenAI GPT-4o</strong> (<code>gpt-4o</code>, temperature 0.4)</p>
+<p>The Chat Lambda constructs a system prompt from <code>src/chat_prompt.py</code> with live context:</p>
 <ul>
-<li><strong>Create/Synthesize</strong> — "Draft a go/no-go recommendation", "Propose a remediation plan", "Synthesize findings into a risk scorecard"</li>
-<li><strong>Evaluate/Judge</strong> — "Based on the Codebook, which discrepancies represent true data corruption?", "Is the new system acceptable for CMS reporting?"</li>
-<li><strong>Analyze</strong> — "What patterns connect the data scrubbing types?", "Why does the 0.90 ratio affect all claim lines uniformly?"</li>
-<li><strong>Explain/Summarize</strong> — Coverage period, ESRD, state codes, death chain, ICD-9, NPI, claim line utilization</li>
-<li><strong>Codebook lookups</strong> — "What does BENE_HMO_CVRAGE_TOT_MONS mean?", "What does SP_STATE_CODE mean?"</li>
+<li><strong>Identity &amp; domain knowledge</strong> — Medicare beneficiary data, carrier claims, validation checks</li>
+<li><strong><code>{findings_context}</code></strong> — live data injected at runtime by querying DuckDB (beneficiary/claim counts, discrepancy totals, match status breakdowns)</li>
+<li><strong>Database schema</strong> — full column listings for all 8 tables (<code>beneficiary_summary</code>, <code>carrier_claims</code>, <code>_discrepancy_detail</code>, <code>_financial_recon</code>, etc.)</li>
+<li><strong>SQL notes</strong> — reserved keyword warnings, join patterns, ZZ prefix convention, date format</li>
+<li><strong>Navigation tags</strong> — <code>[[sql]]</code>, <code>[[report]]</code>, <code>[[validation]]</code>, etc. — rendered as clickable links by the chat widget</li>
+<li><strong>One tool: <code>query_database</code></strong> — executes read-only SQL against DuckDB (max 50 rows, up to 5 rounds of tool calls per question)</li>
 </ul>
-<p>For anything not cached, the widget falls through to the Lambda API (requires internet).</p>
+<p><strong>Voice mode — OpenAI Realtime API</strong> (<code>gpt-4o-realtime-preview-2025-06-03</code>)</p>
+<ul>
+<li>Condensed system prompt sent via <code>session.update</code> over the WebRTC data channel</li>
+<li><strong>Whisper-1</strong> transcription for input audio → text appears in chat panel</li>
+<li><strong>coral</strong> voice for AI responses, server-side VAD for automatic turn detection</li>
+<li>Ephemeral token from Session Lambda (expires 60 seconds) — no API keys in browser</li>
+</ul>
 <h3 id="security">Security</h3>
 <ul>
-<li>No API keys in the browser — all calls go through Lambda backends</li>
+<li>No API keys in the browser — all OpenAI calls go through Lambda backends</li>
 <li>Ephemeral tokens for voice mode expire after 60 seconds</li>
 <li>OpenAI API key stored in AWS SSM Parameter Store</li>
 <li>No credentials committed to the repository</li>
-<li><strong>Reviewer bundle</strong> excludes all Lambda source code (<code>cloud/</code>, <code>infra/</code>, <code>backend/</code>) — the AI Assistant works via hardcoded Lambda URLs</li>
 </ul>
 <hr />
 <h2 id="code-reading-order">Code Reading Order</h2>

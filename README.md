@@ -567,31 +567,86 @@ Browser (chat-widget.js)
 - **CORS** configured on Lambda Function URLs to allow only the CloudFront origin
 - No credentials are committed to the repository (verified via git history scan)
 
-### Reviewer Bundle
+### Cached Answers — How They Are Generated
 
-The project can be bundled for reviewers **with the AI Assistant fully functional** on all pages, without shipping the proprietary Lambda backend source code.
+Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that provide instant responses without hitting the Lambda API. These are **not AI-generated** — they are deterministic, template-based answers assembled programmatically from the pipeline's actual results.
 
-```bash
-# 1. Run the pipeline (generates report + cached answers)
-python -m src.main
+**Generation pipeline:**
 
-# 2. Re-render docs (picks up cached-answers.js template change)
-python scripts/render_md_docs.py
+1. The 6-step pipeline runs all validation, comparison, and analysis checks
+2. Step 6 (`src/report.py`) calls `generate_cached_answers()` from `src/chat_answers.py`, passing the complete `report_data` dictionary
+3. `chat_answers.py` extracts ~30 data points from the pipeline results (counts, rates, field names, financial totals, validation outcomes, match statistics, year-over-year trends, chronic condition prevalence, claim line utilization)
+4. These data points are interpolated into **f-string templates** — each template is a hand-written analytical narrative with Markdown formatting, tables, and specific CMS Codebook references
+5. The function returns a `dict[str, {answer, queries}]` where each key is a question, each value contains the rendered answer text and associated SQL queries for the "Review SQL" button
+6. `report.py` serializes this dict to JSON and writes `docs/cached-answers.js` (`var CACHED_ANSWERS = {...};`)
+7. Every page loads this file before `chat-widget.js`, which checks `CACHED_ANSWERS` before falling through to the Lambda API
 
-# 3. Create the reviewer bundle
-./scripts/bundle.sh --code-only
+**Question categories (organized by Bloom's Taxonomy level):**
+
+| Level | Category | Example | Count |
+|-------|----------|---------|-------|
+| 6 — Create | Synthesize, propose, draft | "Draft a go/no-go recommendation for the system migration" | 5 |
+| 5 — Evaluate | Judge, assess, critique | "Based on the Codebook, which discrepancies represent true data corruption?" | 5 |
+| 4 — Analyze | Find patterns, correlate | "Why does the 0.90 payment ratio affect all claim lines uniformly?" | 4 |
+| 3 — Understand | Explain, summarize | "Can you explain the coverage period validation?" | ~20 |
+| 2 — Remember | Codebook lookups | "What does BENE_HMO_CVRAGE_TOT_MONS mean?" | ~7 |
+| 1 — Retrieve | Data lookups | "Which validation checks failed?" | ~15 |
+| — | Aliases | Alternate phrasings → same answer | ~36 |
+
+The higher-level answers (Levels 4–6) cross-reference findings across domains and cite the **CMS DE-SynPUF Codebook**, **Data Users Document**, and **FAQ** as sources. For example, the go/no-go recommendation synthesizes financial, clinical, demographic, and temporal findings into a structured memo with a blocking-defects table.
+
+### AI Models and Prompting
+
+Report Pal uses two AI backends, each with its own model and prompting strategy:
+
+**Text mode — OpenAI GPT-4o** (`gpt-4o`, temperature 0.4)
+
+The Chat Lambda receives the user's message and conversation history, then constructs a prompt:
+
+```
+System prompt (src/chat_prompt.py)
+├── Identity: "You are Report Pal, a friendly and knowledgeable data analyst assistant..."
+├── Domain knowledge: Medicare beneficiary data, carrier claims, validation checks
+├── Key Findings: {findings_context}  ← live data injected at runtime
+│   └── Built by querying DuckDB: beneficiary/claim counts, discrepancy totals,
+│       match status breakdowns (cloud/handlers.py → _build_chat_findings)
+├── Database Schema: full column listings for all 8 tables
+│   └── beneficiary_summary, new_beneficiary_summary, carrier_claims,
+│       new_carrier_claims, _discrepancy_detail, _financial_recon,
+│       _match_beneficiary, _match_claims
+├── SQL Notes: reserved keyword warnings, join patterns, ZZ prefix convention
+├── Navigation Tags: [[sql]], [[report]], [[validation]], etc.
+│   └── Chat widget auto-renders these as clickable page/section links
+└── Guidelines: be concise, explain SQL, summarize in tables, explain impact
 ```
 
-**What's included:** All source code, docs, report, tests, and `docs/cached-answers.js` (92 pre-built Q&A pairs covering all Bloom's Taxonomy levels).
+The model has access to one tool — `query_database` — which executes read-only SQL against the DuckDB database (max 50 rows, up to 5 rounds of tool calls per question). This gives the AI live access to the actual data, not just the cached summaries.
 
-**What's excluded:** `cloud/` (Lambda handlers), `infra/` (SAM templates), `backend/` (session proxy), raw data files, and `.git`.
+**Voice mode — OpenAI Realtime API** (`gpt-4o-realtime-preview-2025-06-03`)
 
-**How the AI Assistant works in the bundle:**
-- **Cached answers** — 92 instant responses embedded in `docs/cached-answers.js`, loaded on every page. No network needed for these.
-- **Lambda fallback** — For questions not in the cache, the widget calls the live Lambda endpoints (hardcoded in `chat-widget.js`). Requires internet access to the Lambda URLs.
-- **Voice mode** — WebRTC voice via the live Session Lambda. Requires internet access.
+Voice uses a condensed version of the system prompt (sent via `session.update` over the WebRTC data channel):
 
-The reviewer gets the full AI-assisted experience without access to the backend implementation.
+```
+REALTIME_INSTRUCTIONS (chat-widget.js)
+├── Identity: same as text mode
+├── Key findings summary: condensed from the report
+├── Voice-specific: "Always respond in English", "Be conversational"
+└── Transcription: Whisper-1 for input audio → text in chat panel
+```
+
+Voice mode connects directly to OpenAI's Realtime API via WebRTC — the Session Lambda only generates an ephemeral token (expires in 60 seconds), no API keys reach the browser. The AI responds with OpenAI's **coral** voice using server-side VAD for automatic turn detection.
+
+**Prompt context flow:**
+
+```
+Pipeline run
+  └── report_data dict (validation results, comparisons, financial totals, ...)
+        ├── chat_answers.py → cached-answers.js (92 deterministic answers)
+        │     └── Loaded on every page, checked FIRST before any API call
+        └── report_data.json → S3 → DuckDB (Parquet exports)
+              └── Chat Lambda: _build_chat_findings(DuckDB) → {findings_context}
+                    └── Injected into system prompt → sent to GPT-4o with user message
+```
 
 ---
 
