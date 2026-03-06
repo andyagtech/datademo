@@ -1395,12 +1395,79 @@
     'When a user asks about documentation or diagrams, call navigate_to_page with the appropriate page_id ' +
     'AND tell them what you are showing them. For example: "Let me take you to the Architecture Diagrams" ' +
     'then call navigate_to_page with page_id "architecture".\n\n' +
-    'Be concise, warm, and data-driven. Explain technical terms in plain language. ' +
-    'If the user asks about specific data queries, suggest they type the question for detailed SQL-backed answers.\n\n' +
+    'TOOLS AVAILABLE:\n' +
+    '1. navigate_to_page — Open a documentation page or scroll to a report section\n' +
+    '2. query_database — Run SQL queries against the DuckDB database to get real data. Use this for any data question!\n' +
+    '   Tables: beneficiary_summary, new_beneficiary_summary, carrier_claims, new_carrier_claims, ' +
+    '_discrepancy_detail, _financial_recon, _match_beneficiary, _match_claims\n' +
+    '   NEVER use "new" or "old" as aliases (reserved in DuckDB). Use oc/nc instead.\n' +
+    '   Always add LIMIT 50. Dates are BIGINT YYYYMMDD. CLM_ID: cast to VARCHAR for joins.\n' +
+    '3. show_chart — Scroll to and highlight a chart on the report page\n' +
+    '4. lookup_codebook — Look up column definitions from the CMS DE-SynPUF codebook\n\n' +
+    'Be concise, warm, and data-driven. Explain technical terms in plain language.\n\n' +
     'IMPORTANT: When discussing SQL queries, NEVER read the raw SQL code aloud verbatim. ' +
     'Instead, describe what the query does naturally. Keep SQL discussion conversational and high-level.';
 
-  // Navigation tool definition for Realtime API
+  // ── Codebook: column definitions for lookup_codebook tool ──
+  var CODEBOOK = {
+    // Beneficiary Summary
+    DESYNPUF_ID:            { table: 'beneficiary_summary', type: 'VARCHAR', desc: 'Unique beneficiary identifier (16-char hex)', example: '00013D2EFD8E45D1' },
+    summary_year:           { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Calendar year (derived from filename during ingestion)', example: '2008' },
+    BENE_BIRTH_DT:          { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Date of birth (YYYYMMDD format)', example: '19230501' },
+    BENE_DEATH_DT:          { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Date of death, 0 if alive (YYYYMMDD)', example: '0 or 20090715' },
+    BENE_SEX_IDENT_CD:      { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Sex: 1 = Male, 2 = Female', example: '1' },
+    BENE_RACE_CD:           { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Race: 1=White, 2=Black, 3=Other, 5=Hispanic', example: '1' },
+    SP_STATE_CODE:          { table: 'beneficiary_summary', type: 'INTEGER', desc: 'State SSA code (1-53)', example: '26' },
+    BENE_COUNTY_CD:         { table: 'beneficiary_summary', type: 'INTEGER', desc: 'County SSA code', example: '999' },
+    BENE_HI_CVRAGE_TOT_MONS:  { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Months of Part A (Hospital Insurance) coverage (0-12)', example: '12' },
+    BENE_SMI_CVRAGE_TOT_MONS: { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Months of Part B (Supplementary Medical Insurance) coverage (0-12)', example: '12' },
+    BENE_HMO_CVRAGE_TOT_MONS: { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Months of HMO coverage (0-12)', example: '0' },
+    PLAN_CVRG_MOS_NUM:      { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Months of Part D (prescription drug) coverage (0-12)', example: '12' },
+    BENE_ESRD_IND:          { table: 'beneficiary_summary', type: 'VARCHAR', desc: 'End-Stage Renal Disease indicator: Y=has ESRD, 0=no ESRD. Irreversible condition.', example: '0' },
+    // Chronic conditions (1=yes, 2=no)
+    SP_ALZHDMTA:            { table: 'beneficiary_summary', type: 'INTEGER', desc: "Alzheimer's Disease / Related Dementia (1=yes, 2=no)", example: '2' },
+    SP_CHF:                 { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Heart Failure (1=yes, 2=no)', example: '2' },
+    SP_CHRNKIDN:            { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Chronic Kidney Disease (1=yes, 2=no)', example: '2' },
+    SP_CNCR:                { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Cancer — Breast, Colorectal, Prostate, Lung, Endometrial (1=yes, 2=no)', example: '2' },
+    SP_COPD:                { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Chronic Obstructive Pulmonary Disease (1=yes, 2=no)', example: '2' },
+    SP_DEPRESSN:            { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Depression (1=yes, 2=no)', example: '2' },
+    SP_DIABETES:            { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Diabetes (1=yes, 2=no)', example: '1' },
+    SP_ISCHMCHT:            { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Ischemic Heart Disease (1=yes, 2=no)', example: '2' },
+    SP_OSTEOPRS:            { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Osteoporosis (1=yes, 2=no)', example: '2' },
+    SP_RA_OA:               { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Rheumatoid Arthritis / Osteoarthritis (1=yes, 2=no)', example: '2' },
+    SP_STRKETIA:            { table: 'beneficiary_summary', type: 'INTEGER', desc: 'Stroke / Transient Ischemic Attack (1=yes, 2=no)', example: '2' },
+    // Financial summary
+    MEDREIMB_IP:            { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Medicare reimbursement — Inpatient', example: '5000.00' },
+    BENRES_IP:              { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Beneficiary responsibility — Inpatient', example: '1200.00' },
+    PPPYMT_IP:              { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Primary payer payment — Inpatient', example: '0.00' },
+    MEDREIMB_OP:            { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Medicare reimbursement — Outpatient', example: '800.00' },
+    BENRES_OP:              { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Beneficiary responsibility — Outpatient', example: '200.00' },
+    PPPYMT_OP:              { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Primary payer payment — Outpatient', example: '0.00' },
+    MEDREIMB_CAR:           { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Medicare reimbursement — Carrier (should = SUM of LINE_NCH_PMT_AMT for approved lines)', example: '1500.00' },
+    BENRES_CAR:             { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Beneficiary responsibility — Carrier (deductible + coinsurance)', example: '300.00' },
+    PPPYMT_CAR:             { table: 'beneficiary_summary', type: 'DOUBLE', desc: 'Primary payer payment — Carrier', example: '0.00' },
+    // Carrier Claims header
+    CLM_ID:                 { table: 'carrier_claims', type: 'BIGINT/VARCHAR', desc: 'Unique claim identifier. BIGINT in old system, VARCHAR in new — cast to VARCHAR for joins.', example: '196661176960050' },
+    CLM_FROM_DT:            { table: 'carrier_claims', type: 'INTEGER', desc: 'Claim start date (YYYYMMDD format)', example: '20090812' },
+    CLM_THRU_DT:            { table: 'carrier_claims', type: 'INTEGER', desc: 'Claim end date (YYYYMMDD format)', example: '20090812' },
+    // Line-level (pattern)
+    LINE_NCH_PMT_AMT:       { table: 'carrier_claims', type: 'DOUBLE', desc: 'Medicare payment amount per claim line (columns _1 through _13). Key financial field — new system shows systematic 0.90x ratio vs old.', example: '45.00' },
+    LINE_BENE_PTB_DDCTBL_AMT: { table: 'carrier_claims', type: 'DOUBLE', desc: 'Beneficiary Part B deductible per line (_1 through _13)', example: '0.00' },
+    LINE_COINSRNC_AMT:      { table: 'carrier_claims', type: 'DOUBLE', desc: 'Beneficiary coinsurance amount per line (_1 through _13)', example: '9.00' },
+    LINE_ALOWD_CHRG_AMT:    { table: 'carrier_claims', type: 'DOUBLE', desc: 'Allowed charge amount per line (_1 through _13)', example: '45.00' },
+    LINE_BENE_PRMRY_PYR_PD_AMT: { table: 'carrier_claims', type: 'DOUBLE', desc: 'Primary payer payment per line (_1 through _13)', example: '0.00' },
+    LINE_PRCSG_IND_CD:      { table: 'carrier_claims', type: 'VARCHAR', desc: 'Processing indicator per line: A=Allowed, R=Rejected, S=Secondary (_1 through _13)', example: 'A' },
+    LINE_ICD9_DGNS_CD:      { table: 'carrier_claims', type: 'VARCHAR', desc: 'Line-level ICD-9 diagnosis code (_1 through _13). Format: 3-5 alphanumeric chars.', example: '4019' },
+    HCPCS_CD:               { table: 'carrier_claims', type: 'VARCHAR', desc: 'HCPCS procedure code per line (_1 through _13)', example: '99213' },
+    ICD9_DGNS_CD:           { table: 'carrier_claims', type: 'VARCHAR', desc: 'Claim-level ICD-9 diagnosis codes (_1 through _8). Format: 3-5 alphanumeric chars.', example: '4019' },
+    PRF_PHYSN_NPI:          { table: 'carrier_claims', type: 'VARCHAR', desc: 'Performing physician NPI (_1 and _2)', example: '0000000000' },
+    TAX_NUM:                { table: 'carrier_claims', type: 'VARCHAR', desc: 'Provider tax number per line (_1 through _13)', example: '' },
+    // Derived tables
+    total_diffs:            { table: '_discrepancy_detail', type: 'INTEGER', desc: 'Total number of field-level mismatches for this beneficiary-year', example: '5' },
+    match_status:           { table: '_match_beneficiary / _match_claims', type: 'VARCHAR', desc: 'Record match status: matched, old_only, or new_only', example: 'matched' }
+  };
+
+  // Tool definitions for Realtime API voice mode
   var REALTIME_TOOLS = [
     {
       type: 'function',
@@ -1419,6 +1486,55 @@
           }
         },
         required: ['page_id']
+      }
+    },
+    {
+      type: 'function',
+      name: 'query_database',
+      description: 'Run a read-only SQL query against the DuckDB database containing all pipeline data. Use this to answer questions about specific numbers, counts, beneficiaries, claims, discrepancies, or any data-driven question. Always use LIMIT (max 50 rows). NEVER use "new" or "old" as table aliases — use "oc"/"nc" or "old_claims"/"new_claims". Available tables: beneficiary_summary, new_beneficiary_summary, carrier_claims, new_carrier_claims, _discrepancy_detail, _financial_recon, _match_beneficiary, _match_claims.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sql: {
+            type: 'string',
+            description: 'The SQL SELECT query to execute. Must be read-only with LIMIT clause.'
+          },
+          explanation: {
+            type: 'string',
+            description: 'Brief plain-English explanation of what this query does (do NOT read raw SQL aloud)'
+          }
+        },
+        required: ['sql']
+      }
+    },
+    {
+      type: 'function',
+      name: 'show_chart',
+      description: 'Scroll to and highlight a specific chart or visualization on the report page. Use when the user asks to see a chart, graph, or visualization.',
+      parameters: {
+        type: 'object',
+        properties: {
+          chart_id: {
+            type: 'string',
+            description: 'Chart identifier. Options: "field_mismatches_chart" (field mismatches by column), "discrepancy_trend_chart" (discrepancy trend by year), "fin_divergence_chart" (financial divergence), "reimb_comparison_chart" (reimbursement comparison old vs new), "financial_trends_chart" (financial trends by year), "payment_distribution" (payment distribution box plots), "chronic_conditions" (chronic condition prevalence), "yoy_beneficiaries" (beneficiaries by year), "yoy_claims" (claims by year), "issues_by_check" (issues by validation check)'
+          }
+        },
+        required: ['chart_id']
+      }
+    },
+    {
+      type: 'function',
+      name: 'lookup_codebook',
+      description: 'Look up the definition of a data field/column from the CMS DE-SynPUF codebook. Use when the user asks what a column means, what values are valid, or needs field definitions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          column_name: {
+            type: 'string',
+            description: 'The column name to look up (e.g., "BENE_ESRD_IND", "LINE_NCH_PMT_AMT", "SP_DIABETES", "MEDREIMB_CAR"). Strip any trailing _N suffix for line-level columns.'
+          }
+        },
+        required: ['column_name']
       }
     }
   ];
@@ -1684,59 +1800,171 @@
         messagesEl.scrollTop = messagesEl.scrollHeight;
         break;
 
-      // Tool call completed — handle navigate_to_page
+      // Tool call completed — handle all Realtime tools
       case 'response.function_call_arguments.done':
-        if (event.name === 'navigate_to_page') {
-          var args;
-          try { args = JSON.parse(event.arguments); } catch (ex) { args = {}; }
-          var navPageId = args.page_id || '';
-          var navReason = args.reason || '';
-          console.log('Realtime tool call: navigate_to_page', navPageId, navReason);
+        (function handleToolCall() {
+          var tcArgs;
+          try { tcArgs = JSON.parse(event.arguments); } catch (ex) { tcArgs = {}; }
+          console.log('Realtime tool call:', event.name, tcArgs);
 
-          // Look up in PAGE_MAP
-          var navTarget = PAGE_MAP[navPageId];
-          if (navTarget) {
-            // Show navigation button in chat
-            var navMsg = navReason ? ('📍 **Navigating:** ' + navReason) : ('📍 **Navigating to ' + (navTarget.label || navPageId) + '**');
-            var navDiv = addMessage('assistant', '');
-            navDiv.innerHTML = renderMarkdown(navMsg);
-
-            // Actually navigate
-            if (navTarget.url) {
-              // Cross-page navigation (design docs, tools)
-              var navUrl = navTarget.url;
-              // Make absolute if relative
-              if (navUrl.indexOf('http') !== 0 && navUrl.indexOf('/') !== 0) {
-                var basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-                navUrl = basePath + navUrl;
-              }
-              setTimeout(function () { window.open(navUrl, '_blank'); }, 300);
-            } else if (navTarget.section) {
-              // Same-page scroll
-              var targetEl = document.getElementById(navTarget.section);
-              if (targetEl) {
-                setTimeout(function () { targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
-              }
-            } else if (navTarget.report) {
-              var reportUrl = navTarget.report;
-              var basePath2 = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-              setTimeout(function () { window.open(basePath2 + reportUrl, '_blank'); }, 300);
+          function sendToolResult(callId, result) {
+            if (rtcDataChannel && rtcDataChannel.readyState === 'open') {
+              rtcDataChannel.send(JSON.stringify({
+                type: 'conversation.item.create',
+                item: { type: 'function_call_output', call_id: callId, output: JSON.stringify(result) }
+              }));
+              rtcDataChannel.send(JSON.stringify({ type: 'response.create' }));
             }
           }
 
-          // Send tool result back to Realtime API so it continues
-          if (rtcDataChannel && rtcDataChannel.readyState === 'open') {
-            rtcDataChannel.send(JSON.stringify({
-              type: 'conversation.item.create',
-              item: {
-                type: 'function_call_output',
-                call_id: event.call_id,
-                output: JSON.stringify({ success: true, navigated_to: navPageId, label: navTarget ? navTarget.label : navPageId })
+          // ── navigate_to_page ──
+          if (event.name === 'navigate_to_page') {
+            var navPageId = tcArgs.page_id || '';
+            var navReason = tcArgs.reason || '';
+            var navTarget = PAGE_MAP[navPageId];
+            if (navTarget) {
+              var navMsg = navReason ? ('📍 **Navigating:** ' + navReason) : ('📍 **Navigating to ' + (navTarget.label || navPageId) + '**');
+              var navDiv = addMessage('assistant', '');
+              navDiv.innerHTML = renderMarkdown(navMsg);
+              if (navTarget.url) {
+                var navUrl = navTarget.url;
+                if (navUrl.indexOf('http') !== 0 && navUrl.indexOf('/') !== 0) {
+                  var bp = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+                  navUrl = bp + navUrl;
+                }
+                setTimeout(function () { window.open(navUrl, '_blank'); }, 300);
+              } else if (navTarget.section) {
+                var targetEl = document.getElementById(navTarget.section);
+                if (targetEl) setTimeout(function () { targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
               }
-            }));
-            rtcDataChannel.send(JSON.stringify({ type: 'response.create' }));
+            }
+            sendToolResult(event.call_id, { success: true, navigated_to: navPageId, label: navTarget ? navTarget.label : navPageId });
           }
-        }
+
+          // ── query_database ──
+          else if (event.name === 'query_database') {
+            var sqlQuery = tcArgs.sql || '';
+            var sqlExpl = tcArgs.explanation || '';
+            // Show query indicator in chat
+            var sqlMsgDiv = addMessage('assistant', '');
+            sqlMsgDiv.innerHTML = renderMarkdown('🔍 **Running query...**' + (sqlExpl ? ' ' + sqlExpl : ''));
+            sqlMsgDiv.style.fontSize = '0.78rem';
+            sqlMsgDiv.style.borderLeft = '3px solid #38bdf8';
+
+            // POST to Lambda — same endpoint as text mode, with a direct SQL message
+            var lambdaUrl = (apiUrlInput ? apiUrlInput.value.replace(/\/+$/, '') : LAMBDA_URL);
+            fetch(lambdaUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: 'Execute this SQL query and return the results: ' + sqlQuery,
+                conversationHistory: [],
+                provider: 'openai',
+                model: 'gpt-4o-mini'
+              })
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              var queryResults = data.queries || [];
+              var resultText = '';
+              if (queryResults.length > 0) {
+                var qr = queryResults[0];
+                if (qr.result_preview && qr.result_preview.error) {
+                  resultText = 'SQL Error: ' + qr.result_preview.error;
+                } else if (qr.result_preview) {
+                  resultText = 'Query returned ' + qr.result_preview.row_count + ' row(s). ';
+                  if (qr.result_preview.columns && qr.result_preview.data) {
+                    // Format as a readable table summary
+                    var cols = qr.result_preview.columns;
+                    var rows = qr.result_preview.data;
+                    resultText += 'Columns: ' + cols.join(', ') + '. ';
+                    rows.slice(0, 10).forEach(function (row, i) {
+                      resultText += 'Row ' + (i + 1) + ': ' + cols.map(function (c, ci) { return c + '=' + row[ci]; }).join(', ') + '. ';
+                    });
+                    if (rows.length > 10) resultText += '(' + (rows.length - 10) + ' more rows...)';
+                  }
+                }
+                // Update the chat indicator with result summary
+                sqlMsgDiv.innerHTML = renderMarkdown('🔍 **Query:** ' + (sqlExpl || 'SQL query') + '\n\n' +
+                  '<span style="color:#4ade80">' + (qr.result_preview ? qr.result_preview.row_count + ' row(s)' : 'done') + '</span>');
+                // Show SQL in collapsible details
+                var detailsHtml = '<details style="margin-top:4px"><summary style="cursor:pointer;color:#64748b;font-size:0.7rem">Show SQL</summary>' +
+                  '<pre style="margin:4px 0 0;background:rgba(0,0,0,0.3);padding:6px 8px;border-radius:4px;overflow-x:auto;font-size:0.72rem"><code>' +
+                  sqlQuery.replace(/</g, '&lt;') + '</code></pre></details>';
+                sqlMsgDiv.innerHTML += detailsHtml;
+                addSqlInteractivity(sqlMsgDiv);
+              } else {
+                resultText = data.content || 'No query results returned.';
+              }
+              sendToolResult(event.call_id, { success: true, result: resultText });
+            })
+            .catch(function (err) {
+              sqlMsgDiv.innerHTML = renderMarkdown('🔍 **Query failed:** ' + err.message);
+              sendToolResult(event.call_id, { success: false, error: err.message });
+            });
+            return; // Don't send result synchronously — it's async
+          }
+
+          // ── show_chart ──
+          else if (event.name === 'show_chart') {
+            var chartId = tcArgs.chart_id || '';
+            var chartEntry = PAGE_MAP[chartId];
+            var chartFound = false;
+            if (chartEntry && chartEntry.section) {
+              var chartEl = document.getElementById(chartEntry.section);
+              if (chartEl) {
+                chartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Add temporary highlight effect
+                chartEl.style.transition = 'box-shadow 0.3s, outline 0.3s';
+                chartEl.style.outline = '2px solid #38bdf8';
+                chartEl.style.boxShadow = '0 0 20px rgba(56,189,248,0.3)';
+                setTimeout(function () {
+                  chartEl.style.outline = 'none';
+                  chartEl.style.boxShadow = 'none';
+                }, 3000);
+                chartFound = true;
+              }
+            }
+            var chartMsg = chartFound
+              ? ('📊 **Scrolling to:** ' + (chartEntry ? chartEntry.label : chartId))
+              : ('📊 Chart "' + chartId + '" not found on this page. Try viewing the **Comparison Report** first.');
+            var chartDiv = addMessage('assistant', '');
+            chartDiv.innerHTML = renderMarkdown(chartMsg);
+            sendToolResult(event.call_id, { success: chartFound, chart: chartId, label: chartEntry ? chartEntry.label : chartId });
+          }
+
+          // ── lookup_codebook ──
+          else if (event.name === 'lookup_codebook') {
+            var colName = (tcArgs.column_name || '').toUpperCase().replace(/_\d+$/, ''); // strip trailing _N
+            // Also try lowercase for derived table columns
+            var entry = CODEBOOK[colName] || CODEBOOK[tcArgs.column_name] || CODEBOOK[colName.toLowerCase()];
+            var cbResult;
+            if (entry) {
+              cbResult = {
+                column: colName,
+                table: entry.table,
+                type: entry.type,
+                description: entry.desc,
+                example: entry.example
+              };
+              var cbMsg = '📖 **' + colName + '** (' + entry.table + ')\n\n' +
+                'Type: `' + entry.type + '`\n\n' +
+                entry.desc + '\n\nExample: `' + entry.example + '`';
+              var cbDiv = addMessage('assistant', '');
+              cbDiv.innerHTML = renderMarkdown(cbMsg);
+            } else {
+              // Try fuzzy match
+              var matches = Object.keys(CODEBOOK).filter(function (k) { return k.indexOf(colName) !== -1 || colName.indexOf(k) !== -1; });
+              cbResult = { column: colName, found: false, similar: matches.slice(0, 5) };
+            }
+            sendToolResult(event.call_id, cbResult);
+          }
+
+          // Unknown tool
+          else {
+            sendToolResult(event.call_id, { error: 'Unknown tool: ' + event.name });
+          }
+        })();
         break;
 
       // Full response complete
