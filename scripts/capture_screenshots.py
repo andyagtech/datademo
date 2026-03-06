@@ -216,39 +216,63 @@ def main():
         page.screenshot(path=str(SCREENSHOTS_DIR / "screenshot_4.png"), full_page=False)
         print(f"  ✓ screenshot_4.png")
 
-        # Screenshot 5: Validation Results — table with pass/fail + bar chart
+        # Screenshot 5: Validation Results — expand Issues by Check bar chart
         print("[5/12] Validation Results...")
-        el = page.query_selector("#validation-results-heading")
-        if el:
-            el.scroll_into_view_if_needed()
+        # Click to expand the "Issues by Check" collapsible bar chart
+        toggle = page.query_selector("#issues-by-check")
+        if toggle:
+            toggle.click()
+            page.wait_for_timeout(800)
+            # Pin the bar chart summary to top of viewport so chart dominates
+            page.evaluate('''() => {
+                const el = document.querySelector("#issues-by-check");
+                if (el) el.scrollIntoView({block: "start", behavior: "instant"});
+            }''')
             page.wait_for_timeout(500)
         page.screenshot(path=str(SCREENSHOTS_DIR / "screenshot_5.png"), full_page=False)
         print(f"  ✓ screenshot_5.png")
 
-        # Screenshot 6: Financial Reconciliation — reimbursement charts and detail
+        # Screenshot 6: Financial Reconciliation — MEDREIMB/BENRES/PPPYMT rows
         print("[6/12] Financial Reconciliation...")
-        el = page.query_selector("#financial-analysis-heading")
-        if el:
-            el.scroll_into_view_if_needed()
-            page.wait_for_timeout(500)
+        # Scroll to the financial_recon_medreimb_car row in the validation table
+        page.evaluate('''() => {
+            const cells = document.querySelectorAll("#validation-table td");
+            for (const cell of cells) {
+                if (cell.textContent.trim() === "financial_recon_medreimb_car") {
+                    cell.closest("tr").scrollIntoView({block: "center"});
+                    return;
+                }
+            }
+        }''')
+        page.wait_for_timeout(500)
         page.screenshot(path=str(SCREENSHOTS_DIR / "screenshot_6.png"), full_page=False)
         print(f"  ✓ screenshot_6.png")
 
         # Screenshot 7: System Comparison — schema diffs, row-level, field-level, aggregates
         print("[7/12] System Comparison...")
-        el = page.query_selector("#system-comparison-heading")
-        if el:
-            el.scroll_into_view_if_needed()
+        # Expand the comparison checks detail, then pin heading to top
+        detail = page.query_selector("#comparison-checks-detail")
+        if detail:
+            detail.evaluate("el => el.open = true")
             page.wait_for_timeout(500)
+        page.evaluate('''() => {
+            const el = document.querySelector("#system-comparison-heading");
+            if (el) el.scrollIntoView({block: "start", behavior: "instant"});
+        }''')
+        page.wait_for_timeout(500)
         page.screenshot(path=str(SCREENSHOTS_DIR / "screenshot_7.png"), full_page=False)
         print(f"  ✓ screenshot_7.png")
 
         # Screenshot 8: Year-over-Year Trends — interactive Plotly charts
         print("[8/12] Year-over-Year Trends...")
-        el = page.query_selector("#yoy-trends-heading")
-        if el:
-            el.scroll_into_view_if_needed()
-            page.wait_for_timeout(500)
+        # Fresh page load so collapsed details don't affect layout
+        page.goto(f"{BASE_URL}/reports/comparison_report.html", wait_until="networkidle", timeout=30000)
+        page.wait_for_timeout(2000)
+        page.evaluate('''() => {
+            const el = document.querySelector("#yoy-trends-heading");
+            if (el) el.scrollIntoView({block: "start", behavior: "instant"});
+        }''')
+        page.wait_for_timeout(500)
         page.screenshot(path=str(SCREENSHOTS_DIR / "screenshot_8.png"), full_page=False)
         print(f"  ✓ screenshot_8.png")
 
