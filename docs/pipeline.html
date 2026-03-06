@@ -184,18 +184,11 @@
   <a href="#chart-data-series-in-json" class="depth-3">Chart Data Series in JSON</a>
   <a href="#data-model" class="depth-2">Data Model</a>
   <a href="#duckdb-tables-in-memory" class="depth-3">DuckDB Tables in-memory</a>
-  <a href="#validation-checks-reference" class="depth-2">Validation Checks Reference</a>
-  <a href="#identity-checks-checkkeyintegrity" class="depth-3">Identity Checks checkkeyintegrity</a>
-  <a href="#temporal-checks-checktemporalconsistency" class="depth-3">Temporal Checks checktemporalconsistency</a>
-  <a href="#demographic-checks-checkdemographicconsistency" class="depth-3">Demographic Checks checkdemographicconsistency</a>
-  <a href="#financial-checks-checkfinancialreconciliation" class="depth-3">Financial Checks checkfinancialreconciliation</a>
-  <a href="#result-dataclass" class="depth-3">Result Dataclass</a>
   <a href="#comparison-checks-reference" class="depth-2">Comparison Checks Reference</a>
-  <a href="#check-categories" class="depth-3">Check Categories</a>
   <a href="#schema-checks-3-per-table-pair-2-pairs-6" class="depth-3">Schema Checks 3 per table pair × 2 pairs = 6</a>
   <a href="#row-level-checks-3-per-table-pair-2-pairs-6" class="depth-3">Row-Level Checks 3 per table pair × 2 pairs = 6</a>
-  <a href="#field-level-checks-15-beneficiary-6-claims-21" class="depth-3">Field-Level Checks 15 beneficiary + 6 claims = 21</a>
-  <a href="#aggregate-checks-9-beneficiary-4-claims-13" class="depth-3">Aggregate Checks 9 beneficiary + 4 claims = 13</a>
+  <a href="#field-level-checks-22-beneficiary-44-claims-66" class="depth-3">Field-Level Checks 22 beneficiary + 44 claims = 66</a>
+  <a href="#aggregate-checks-9-beneficiary-23-claims-32" class="depth-3">Aggregate Checks 9 beneficiary + 23 claims = 32</a>
   <a href="#result-dataclass" class="depth-3">Result Dataclass</a>
   <a href="#output-artifacts" class="depth-2">Output Artifacts</a>
   <a href="#report-files" class="depth-3">Report Files</a>
@@ -437,7 +430,7 @@ reports/exports/*.csv           (raw diff tables)
 </table>
 <p>Results are stored in DuckDB tables <code>_match_beneficiary</code> and <code>_match_claims</code>.</p>
 <h3 id="internal-validation-src-validate-py">Internal Validation (<code>src/validate.py</code>)</h3>
-<p>Runs 11 checks organized into 4 categories against the <strong>old system data</strong> to establish a quality baseline. Each check is a standalone function that runs a SQL query, counts violations, and returns a <code>ValidationResult</code>.</p>
+<p>Runs 19 checks organized into 6 categories against the <strong>old system data</strong> to establish a quality baseline. Each check is a standalone function that runs a SQL query, counts violations, and returns a <code>ValidationResult</code>.</p>
 <blockquote>
 <p><strong>See <a href="#validation-checks-reference">Validation Checks Reference</a> below for the complete check-by-check breakdown.</strong></p>
 </blockquote>
@@ -445,7 +438,7 @@ reports/exports/*.csv           (raw diff tables)
 <h2 id="step-5-compare-analyze">Step 5 — Compare &amp; Analyze</h2>
 <p><strong>Source:</strong> <code>src/pipeline/step5_compare.py</code>, <code>src/compare.py</code></p>
 <p><strong>Purpose:</strong> For every matched record pair, compare each field value between old and new systems. Quantify discrepancies by column, category, and financial impact.</p>
-<p>Runs 46 checks organized into 4 categories against two table pairs. Each check returns a <code>ComparisonResult</code>.</p>
+<p>Runs 110 checks organized into 4 categories against two table pairs. Each check returns a <code>ComparisonResult</code>.</p>
 <blockquote>
 <p><strong>See <a href="#comparison-checks-reference">Comparison Checks Reference</a> below for the complete check-by-check breakdown.</strong></p>
 </blockquote>
@@ -454,9 +447,12 @@ reports/exports/*.csv           (raw diff tables)
     {
         &quot;old&quot;: &quot;beneficiary_summary&quot;,
         &quot;new&quot;: &quot;new_beneficiary_summary&quot;,
-        &quot;key&quot;: &quot;DESYNPUF_ID&quot;,
+        &quot;key&quot;: [&quot;DESYNPUF_ID&quot;, &quot;summary_year&quot;],
         &quot;compare_cols&quot;: [
             &quot;BENE_BIRTH_DT&quot;, &quot;BENE_DEATH_DT&quot;, &quot;BENE_SEX_IDENT_CD&quot;, &quot;BENE_RACE_CD&quot;,
+            &quot;BENE_ESRD_IND&quot;, &quot;SP_STATE_CODE&quot;, &quot;BENE_COUNTY_CD&quot;,
+            &quot;BENE_HI_CVRAGE_TOT_MONS&quot;, &quot;BENE_SMI_CVRAGE_TOT_MONS&quot;,
+            &quot;BENE_HMO_CVRAGE_TOT_MONS&quot;, &quot;PLAN_CVRG_MOS_NUM&quot;,
             &quot;SP_ALZHDMTA&quot;, &quot;SP_CHF&quot;, &quot;SP_CHRNKIDN&quot;, &quot;SP_CNCR&quot;, &quot;SP_COPD&quot;,
             &quot;SP_DEPRESSN&quot;, &quot;SP_DIABETES&quot;, &quot;SP_ISCHMCHT&quot;, &quot;SP_OSTEOPRS&quot;, &quot;SP_RA_OA&quot;,
             &quot;SP_STRKETIA&quot;,
@@ -470,15 +466,23 @@ reports/exports/*.csv           (raw diff tables)
     {
         &quot;old&quot;: &quot;carrier_claims&quot;,
         &quot;new&quot;: &quot;new_carrier_claims&quot;,
-        &quot;key&quot;: &quot;CLM_ID&quot;,
+        &quot;key&quot;: [&quot;CLM_ID&quot;],
         &quot;compare_cols&quot;: [
             &quot;DESYNPUF_ID&quot;, &quot;CLM_FROM_DT&quot;, &quot;CLM_THRU_DT&quot;,
-            &quot;ICD9_DGNS_CD_1&quot;, &quot;ICD9_DGNS_CD_2&quot;, &quot;HCPCS_CD_1&quot;,
-        ],
+            &quot;ICD9_DGNS_CD_1&quot;, ..., &quot;ICD9_DGNS_CD_8&quot;,       # 8 diagnosis codes
+            &quot;HCPCS_CD_1&quot;, ..., &quot;HCPCS_CD_13&quot;,               # 13 procedure codes
+            &quot;PRF_PHYSN_NPI_1&quot;, ..., &quot;PRF_PHYSN_NPI_5&quot;,       # 5 provider NPIs
+            &quot;TAX_NUM_1&quot;, ..., &quot;TAX_NUM_5&quot;,                   # 5 tax numbers
+            &quot;LINE_PRCSG_IND_CD_1&quot;, ..., &quot;_5&quot;,                # 5 processing indicators
+            &quot;LINE_ICD9_DGNS_CD_1&quot;, ..., &quot;_5&quot;,                # 5 line diagnosis codes
+        ],                                                    # 44 columns total
         &quot;numeric_cols&quot;: [
-            &quot;LINE_NCH_PMT_AMT_1&quot;, &quot;LINE_BENE_PTB_DDCTBL_AMT_1&quot;,
-            &quot;LINE_COINSRNC_AMT_1&quot;, &quot;LINE_ALOWD_CHRG_AMT_1&quot;,
-        ],
+            &quot;LINE_NCH_PMT_AMT_1&quot;, ..., &quot;_5&quot;,                 # 5 payment amounts
+            &quot;LINE_BENE_PTB_DDCTBL_AMT_1&quot;, ..., &quot;_5&quot;,         # 5 deductibles
+            &quot;LINE_BENE_PRMRY_PYR_PD_AMT_1&quot;, ..., &quot;_3&quot;,       # 3 primary payer
+            &quot;LINE_COINSRNC_AMT_1&quot;, ..., &quot;_5&quot;,                 # 5 coinsurance
+            &quot;LINE_ALOWD_CHRG_AMT_1&quot;, ..., &quot;_5&quot;,               # 5 allowed charges
+        ],                                                    # 23 columns total
     },
 ]
 </code></pre>
@@ -609,183 +613,8 @@ reports/exports/*.csv           (raw diff tables)
 </tbody>
 </table>
 <hr />
-<h2 id="validation-checks-reference">Validation Checks Reference</h2>
-<p>These 11 checks run against <strong>old system data</strong> in Step 4 to establish a quality baseline. Each is a standalone function in <code>src/validate.py</code> that executes a SQL query and returns a <code>ValidationResult</code>.</p>
-<h3 id="identity-checks-checkkeyintegrity">Identity Checks (<code>check_key_integrity</code>)</h3>
-<table>
-<thead>
-<tr>
-<th>#</th>
-<th>Check Name</th>
-<th>SQL Logic</th>
-<th>What It Catches</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td><code>orphan_claims_beneficiaries</code></td>
-<td><code>LEFT JOIN carrier_claims → beneficiary_summary WHERE bs.DESYNPUF_ID IS NULL</code></td>
-<td>Claim records referencing beneficiary IDs that don't exist in any summary file</td>
-</tr>
-<tr>
-<td>2</td>
-<td><code>beneficiaries_without_claims</code></td>
-<td><code>LEFT JOIN beneficiary_summary → carrier_claims WHERE cc.DESYNPUF_ID IS NULL</code></td>
-<td>Beneficiaries who appear in summary files but have zero carrier claims</td>
-</tr>
-<tr>
-<td>3</td>
-<td><code>duplicate_claim_ids</code></td>
-<td><code>GROUP BY CLM_ID HAVING COUNT(*) &gt; 1</code></td>
-<td>Claim IDs that appear more than once (should be unique)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="temporal-checks-checktemporalconsistency">Temporal Checks (<code>check_temporal_consistency</code>)</h3>
-<table>
-<thead>
-<tr>
-<th>#</th>
-<th>Check Name</th>
-<th>SQL Logic</th>
-<th>What It Catches</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>4</td>
-<td><code>claims_after_death</code></td>
-<td><code>JOIN on DESYNPUF_ID WHERE CLM_FROM_DT &gt; BENE_DEATH_DT</code></td>
-<td>Claims filed after the beneficiary's recorded death date</td>
-</tr>
-<tr>
-<td>5</td>
-<td><code>claim_date_inversion</code></td>
-<td><code>WHERE CLM_FROM_DT &gt; CLM_THRU_DT</code></td>
-<td>Claims where the start date is after the end date (impossible)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="demographic-checks-checkdemographicconsistency">Demographic Checks (<code>check_demographic_consistency</code>)</h3>
-<table>
-<thead>
-<tr>
-<th>#</th>
-<th>Check Name</th>
-<th>SQL Logic</th>
-<th>What It Catches</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>6</td>
-<td><code>sex_change_across_years</code></td>
-<td><code>GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_SEX_IDENT_CD) &gt; 1</code></td>
-<td>Sex code changes between summary years (should be immutable)</td>
-</tr>
-<tr>
-<td>7</td>
-<td><code>race_change_across_years</code></td>
-<td><code>GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_RACE_CD) &gt; 1</code></td>
-<td>Race code changes between summary years (should be immutable)</td>
-</tr>
-<tr>
-<td>8</td>
-<td><code>dob_change_across_years</code></td>
-<td><code>GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_BIRTH_DT) &gt; 1</code></td>
-<td>Date of birth changes between summary years (should be immutable)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="financial-checks-checkfinancialreconciliation">Financial Checks (<code>check_financial_reconciliation</code>)</h3>
-<p>These checks verify that the <strong>summary-level financial totals</strong> on each beneficiary record match what you get when you <strong>recompute them from the individual claim line items</strong>. This is the most complex validation — it unpivots the 13 claim lines per claim, applies the CMS codebook filter (<code>LINE_PRCSG_IND_CD = 'A'</code> or approved overrides), and aggregates per beneficiary per year.</p>
-<table>
-<thead>
-<tr>
-<th>#</th>
-<th>Check Name</th>
-<th>Formula Verified</th>
-<th>What It Catches</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>9</td>
-<td><code>financial_recon_pppymt_car</code></td>
-<td><code>PPPYMT_CAR = SUM(LINE_BENE_PRMRY_PYR_PD_AMT)</code></td>
-<td>Primary payer amount: summary vs claim-line aggregate</td>
-</tr>
-<tr>
-<td>10</td>
-<td><code>financial_recon_medreimb_car</code></td>
-<td><code>MEDREIMB_CAR = SUM(LINE_NCH_PMT_AMT)</code></td>
-<td>Medicare reimbursement: summary vs claim-line aggregate</td>
-</tr>
-<tr>
-<td>11</td>
-<td><code>financial_recon_benres_car</code></td>
-<td><code>BENRES_CAR = SUM(LINE_BENE_PTB_DDCTBL_AMT + LINE_COINSRNC_AMT)</code></td>
-<td>Beneficiary responsibility: summary vs claim-line aggregate</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Pass/fail rule:</strong> A check passes if <code>issues_found == 0</code>. No thresholds — any discrepancy &gt;$0.01 is counted as an issue.</p>
-<h3 id="result-dataclass">Result Dataclass</h3>
-<pre><code class="language-python">@dataclass
-class ValidationResult:
-    check_name: str        # e.g. &quot;claims_after_death&quot;
-    category: str          # identity | temporal | demographic | financial
-    description: str       # human-readable explanation
-    total_checked: int     # denominator (records examined)
-    issues_found: int      # numerator (records that violated the rule)
-    issue_pct: float       # issues_found / total_checked × 100
-    details: list[dict]    # optional extra context
-
-    @property
-    def passed(self) -&gt; bool:
-        return self.issues_found == 0
-</code></pre>
-<hr />
 <h2 id="comparison-checks-reference">Comparison Checks Reference</h2>
-<p>These 46 checks run in Step 5 when new system data is available. They compare <strong>old vs new</strong> across two table pairs. Each is a function in <code>src/compare.py</code> that returns a <code>ComparisonResult</code>.</p>
-<h3 id="check-categories">Check Categories</h3>
-<table>
-<thead>
-<tr>
-<th>Category</th>
-<th>Function</th>
-<th>Checks Per Pair</th>
-<th>What It Does</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>schema</strong></td>
-<td><code>compare_schemas()</code></td>
-<td>3</td>
-<td>Compares column names and data types between old and new tables</td>
-</tr>
-<tr>
-<td><strong>row_level</strong></td>
-<td><code>compare_row_counts()</code></td>
-<td>3</td>
-<td>Counts total rows, keys missing in new, keys extra in new</td>
-</tr>
-<tr>
-<td><strong>field_level</strong></td>
-<td><code>compare_field_values()</code></td>
-<td>15 (bene) + 6 (claims)</td>
-<td>For each configured column, counts value mismatches on matched rows</td>
-</tr>
-<tr>
-<td><strong>aggregate</strong></td>
-<td><code>compare_aggregates()</code></td>
-<td>9 (bene) + 4 (claims)</td>
-<td>Compares SUM and AVG of numeric columns between systems</td>
-</tr>
-</tbody>
-</table>
+<p>These 110 checks run in Step 5 when new system data is available. They compare <strong>old vs new</strong> across two table pairs. Each is a function in <code>src/compare.py</code> that returns a <code>ComparisonResult</code>.</p>
 <h3 id="schema-checks-3-per-table-pair-2-pairs-6">Schema Checks (3 per table pair × 2 pairs = 6)</h3>
 <table>
 <thead>
@@ -832,14 +661,14 @@ class ValidationResult:
 </tr>
 </tbody>
 </table>
-<h3 id="field-level-checks-15-beneficiary-6-claims-21">Field-Level Checks (15 beneficiary + 6 claims = 21)</h3>
+<h3 id="field-level-checks-22-beneficiary-44-claims-66">Field-Level Checks (22 beneficiary + 44 claims = 66)</h3>
 <p>For each column listed in <code>compare_cols</code>, runs:</p>
 <pre><code class="language-sql">SELECT COUNT(*) AS matched_rows,
        SUM(CASE WHEN old.col::VARCHAR IS DISTINCT FROM new.col::VARCHAR
            THEN 1 ELSE 0 END) AS mismatches
 FROM old_table INNER JOIN new_table ON key = key
 </code></pre>
-<p><strong>Beneficiary columns compared (15):</strong></p>
+<p><strong>Beneficiary columns compared (22):</strong></p>
 <table>
 <thead>
 <tr>
@@ -849,6 +678,41 @@ FROM old_table INNER JOIN new_table ON key = key
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>BENE_ESRD_IND</code></td>
+<td>Clinical</td>
+<td>End-stage renal disease indicator</td>
+</tr>
+<tr>
+<td><code>SP_STATE_CODE</code></td>
+<td>Geographic</td>
+<td>State SSA code</td>
+</tr>
+<tr>
+<td><code>BENE_COUNTY_CD</code></td>
+<td>Geographic</td>
+<td>County SSA code</td>
+</tr>
+<tr>
+<td><code>BENE_HI_CVRAGE_TOT_MONS</code></td>
+<td>Coverage</td>
+<td>Part A coverage months</td>
+</tr>
+<tr>
+<td><code>BENE_SMI_CVRAGE_TOT_MONS</code></td>
+<td>Coverage</td>
+<td>Part B coverage months</td>
+</tr>
+<tr>
+<td><code>BENE_HMO_CVRAGE_TOT_MONS</code></td>
+<td>Coverage</td>
+<td>HMO coverage months</td>
+</tr>
+<tr>
+<td><code>PLAN_CVRG_MOS_NUM</code></td>
+<td>Coverage</td>
+<td>Part D coverage months</td>
+</tr>
 <tr>
 <td><code>BENE_BIRTH_DT</code></td>
 <td>Demographic</td>
@@ -926,7 +790,7 @@ FROM old_table INNER JOIN new_table ON key = key
 </tr>
 </tbody>
 </table>
-<p><strong>Carrier claims columns compared (6):</strong></p>
+<p><strong>Carrier claims columns compared (44):</strong></p>
 <table>
 <thead>
 <tr>
@@ -952,23 +816,38 @@ FROM old_table INNER JOIN new_table ON key = key
 <td>Claim end date</td>
 </tr>
 <tr>
-<td><code>ICD9_DGNS_CD_1</code></td>
+<td><code>ICD9_DGNS_CD_1</code>–<code>_8</code></td>
 <td>Clinical</td>
-<td>Primary diagnosis code</td>
+<td>8 diagnosis codes per claim</td>
 </tr>
 <tr>
-<td><code>ICD9_DGNS_CD_2</code></td>
+<td><code>HCPCS_CD_1</code>–<code>_13</code></td>
 <td>Clinical</td>
-<td>Secondary diagnosis code</td>
+<td>13 procedure codes per claim line</td>
 </tr>
 <tr>
-<td><code>HCPCS_CD_1</code></td>
+<td><code>PRF_PHYSN_NPI_1</code>–<code>_5</code></td>
+<td>Provider</td>
+<td>5 performing physician NPIs</td>
+</tr>
+<tr>
+<td><code>TAX_NUM_1</code>–<code>_5</code></td>
+<td>Provider</td>
+<td>5 provider tax numbers</td>
+</tr>
+<tr>
+<td><code>LINE_PRCSG_IND_CD_1</code>–<code>_5</code></td>
+<td>Processing</td>
+<td>5 line processing indicators</td>
+</tr>
+<tr>
+<td><code>LINE_ICD9_DGNS_CD_1</code>–<code>_5</code></td>
 <td>Clinical</td>
-<td>Primary procedure code</td>
+<td>5 line-level diagnosis codes</td>
 </tr>
 </tbody>
 </table>
-<h3 id="aggregate-checks-9-beneficiary-4-claims-13">Aggregate Checks (9 beneficiary + 4 claims = 13)</h3>
+<h3 id="aggregate-checks-9-beneficiary-23-claims-32">Aggregate Checks (9 beneficiary + 23 claims = 32)</h3>
 <p>For each column listed in <code>numeric_cols</code>, compares <code>SUM()</code> and <code>AVG()</code> between old and new tables. The <code>metric_value</code> is the absolute difference in sums.</p>
 <p><strong>Beneficiary numeric columns (9):</strong></p>
 <table>
@@ -1017,7 +896,7 @@ FROM old_table INNER JOIN new_table ON key = key
 </tr>
 </tbody>
 </table>
-<p><strong>Carrier claims numeric columns (4):</strong></p>
+<p><strong>Carrier claims numeric columns (23):</strong></p>
 <table>
 <thead>
 <tr>
@@ -1027,24 +906,28 @@ FROM old_table INNER JOIN new_table ON key = key
 </thead>
 <tbody>
 <tr>
-<td><code>LINE_NCH_PMT_AMT_1</code></td>
-<td>Line 1 payment amount</td>
+<td><code>LINE_NCH_PMT_AMT_1</code>–<code>_5</code></td>
+<td>Payment amounts for lines 1–5</td>
 </tr>
 <tr>
-<td><code>LINE_BENE_PTB_DDCTBL_AMT_1</code></td>
-<td>Line 1 beneficiary deductible</td>
+<td><code>LINE_BENE_PTB_DDCTBL_AMT_1</code>–<code>_5</code></td>
+<td>Beneficiary deductibles for lines 1–5</td>
 </tr>
 <tr>
-<td><code>LINE_COINSRNC_AMT_1</code></td>
-<td>Line 1 coinsurance amount</td>
+<td><code>LINE_BENE_PRMRY_PYR_PD_AMT_1</code>–<code>_3</code></td>
+<td>Primary payer payments for lines 1–3</td>
 </tr>
 <tr>
-<td><code>LINE_ALOWD_CHRG_AMT_1</code></td>
-<td>Line 1 allowed charge amount</td>
+<td><code>LINE_COINSRNC_AMT_1</code>–<code>_5</code></td>
+<td>Coinsurance amounts for lines 1–5</td>
+</tr>
+<tr>
+<td><code>LINE_ALOWD_CHRG_AMT_1</code>–<code>_5</code></td>
+<td>Allowed charges for lines 1–5</td>
 </tr>
 </tbody>
 </table>
-<h3 id="result-dataclass_1">Result Dataclass</h3>
+<h3 id="result-dataclass">Result Dataclass</h3>
 <pre><code class="language-python">@dataclass
 class ComparisonResult:
     check_name: str       # e.g. &quot;field_mismatch_bene_birth_dt&quot;

@@ -221,12 +221,12 @@
 <tr>
 <td>Validation engine</td>
 <td><code>src/validate.py</code></td>
-<td>17 internal consistency checks (identity, temporal, demographic, financial)</td>
+<td>19 internal consistency checks (identity, temporal, demographic, coverage, clinical, financial)</td>
 </tr>
 <tr>
 <td>Comparison engine</td>
 <td><code>src/compare.py</code></td>
-<td>46 cross-system checks (schema, row-level, field-level, aggregate)</td>
+<td>110 cross-system checks (schema, row-level, field-level, aggregate)</td>
 </tr>
 <tr>
 <td>Record matching</td>
@@ -408,7 +408,7 @@
 </tr>
 <tr>
 <td><code>docs/PIPELINE.md</code></td>
-<td>492-line reference documenting all 6 pipeline steps, data model, 57 validation/comparison checks, output artifacts</td>
+<td>469-line reference documenting all 6 pipeline steps, data model, 129 validation/comparison checks, output artifacts</td>
 </tr>
 <tr>
 <td><code>docs/DATA_DICTIONARY.md</code></td>
@@ -447,7 +447,7 @@
 </tr>
 <tr>
 <td><strong>Documentation</strong></td>
-<td>5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 87 automated tests.</td>
+<td>5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 95 automated tests.</td>
 </tr>
 </tbody>
 </table>
@@ -541,12 +541,12 @@
 <p>The HTML report (<code>reports/comparison_report.html</code>) includes:<br />
 - <strong>Sidebar navigation</strong> with active section highlighting<br />
 - <strong>Data Context</strong> — what's being compared (file inventories, match results)<br />
-- <strong>Executive Summary</strong> — 4 KPI cards, failed checks highlighted<br />
+- <strong>Executive Summary</strong> — 8 KPI cards, failed checks highlighted<br />
 - <strong>Discrepancy Dashboard</strong> — 4 KPI cards, 4 interactive charts, Key Findings narrative with accuracy assessment<br />
-- <strong>Validation Results</strong> — 17-check table + bar chart<br />
+- <strong>Validation Results</strong> — 19-check table + bar chart<br />
 - <strong>Year-over-Year Trends</strong> — beneficiary count, claims count charts<br />
 - <strong>Financial Analysis</strong> — reimbursement trends, payment distribution, chronic condition prevalence<br />
-- <strong>System Comparison</strong> — 46-check collapsible table<br />
+- <strong>System Comparison</strong> — 110-check collapsible table<br />
 - <strong>Data Profiles</strong> — collapsible column-level quality profiles for all tables</p>
 <hr />
 <h2 id="submission-requirements">Submission Requirements</h2>
@@ -571,16 +571,66 @@
 <blockquote>
 <p>"Screenshots of your report, output or UI."</p>
 </blockquote>
-<p><strong>Status: ⚠️ GAP — screenshots directory is empty (placeholder README only)</strong></p>
-<p>The <code>screenshots/</code> directory contains only a <code>README.md</code> with instructions. <strong>Actual screenshots need to be captured and added before submission.</strong></p>
-<p>Required screenshots:<br />
-1. Executive Summary (top of report)<br />
-2. Discrepancy Dashboard with Key Findings<br />
-3. Year-over-Year Trends charts<br />
-4. Financial Analysis charts<br />
-5. System Comparison (collapsible)<br />
-6. Data Profiles (expanded)<br />
-7. Web UI upload interface (optional but impressive)</p>
+<p><strong>Status: FULFILLED</strong></p>
+<p>The <code>screenshots/</code> directory contains 12 screenshots captured via <code>scripts/capture_screenshots.py</code> (Playwright):</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>screenshot_1.png</code></td>
+<td>Pipeline run — all 6 steps completing</td>
+</tr>
+<tr>
+<td><code>screenshot_2.png</code></td>
+<td>Test suite — 95 passed</td>
+</tr>
+<tr>
+<td><code>screenshot_3.png</code></td>
+<td>Executive Summary with KPIs</td>
+</tr>
+<tr>
+<td><code>screenshot_4.png</code></td>
+<td>Key Findings narrative</td>
+</tr>
+<tr>
+<td><code>screenshot_5.png</code></td>
+<td>Validation Results — Issues by Check bar chart</td>
+</tr>
+<tr>
+<td><code>screenshot_6.png</code></td>
+<td>Financial Reconciliation (MEDREIMB/BENRES/PPPYMT rows)</td>
+</tr>
+<tr>
+<td><code>screenshot_7.png</code></td>
+<td>System Comparison — 110 checks table</td>
+</tr>
+<tr>
+<td><code>screenshot_8.png</code></td>
+<td>Year-over-Year Trends — Plotly charts</td>
+</tr>
+<tr>
+<td><code>screenshot_9.png</code></td>
+<td>Documentation Hub landing page</td>
+</tr>
+<tr>
+<td><code>screenshot_10.png</code></td>
+<td>Schema Explorer ERD</td>
+</tr>
+<tr>
+<td><code>screenshot_11.png</code></td>
+<td>SQL Explorer with query results</td>
+</tr>
+<tr>
+<td><code>screenshot_12.png</code></td>
+<td>Parquet Viewer with data preview</td>
+</tr>
+</tbody>
+</table>
 <h3 id="req-18-readme-md">REQ-18: README.md</h3>
 <blockquote>
 <p>"A README.md that describes your project and how to run it."</p>
@@ -644,15 +694,15 @@
 <th>#</th>
 <th>Gap</th>
 <th>Severity</th>
-<th>Action Required</th>
+<th>Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1</td>
-<td><strong>Screenshots pending</strong></td>
-<td>MEDIUM</td>
-<td>Capture screenshots of report sections and docs hub, add to <code>screenshots/</code> (stubs created in <code>screenshots/README.md</code>)</td>
+<td>—</td>
+<td>No open gaps</td>
+<td>—</td>
+<td>All requirements fulfilled ✅</td>
 </tr>
 </tbody>
 </table>
