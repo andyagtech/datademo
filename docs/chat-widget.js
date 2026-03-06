@@ -1279,7 +1279,13 @@
       micBtn.classList.remove('recording');
     };
 
-    // Request mic permission
+    // Request mic permission (requires HTTPS — navigator.mediaDevices is undefined on HTTP)
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      addMessage('assistant', '**Voice mode requires a secure connection (HTTPS).** \n\nThis page is served over HTTP, so the browser blocks microphone access. You can still type your questions below!\n\nTo use voice mode, access the report via HTTPS.');
+      conversationHistory.push({ role: 'assistant', content: 'Voice mode unavailable — page not served over HTTPS.' });
+      saveSession();
+      return;
+    }
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       stream.getTracks().forEach(function (t) { t.stop(); });
       voiceMode = true;
