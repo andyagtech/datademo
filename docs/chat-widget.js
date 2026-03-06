@@ -11,6 +11,7 @@
   'use strict';
 
   var LAMBDA_URL = 'https://zn5ugmlfnpuwwpabueyzgzaar40ovvmo.lambda-url.us-east-1.on.aws';
+  var SESSION_LAMBDA_URL = 'https://wexuzysr2w6zfqp3e4xdxu7zva0ulpqy.lambda-url.us-east-1.on.aws';
   var SESSION_KEY = 'cms_chat_session';
   var HISTORY_KEY = 'cms_chat_history';
   var API_URL_KEY = 'cms_chat_api_url';
@@ -348,9 +349,14 @@
   var conversationHistory = [];
   var isLoading = false;
   var voiceMode = false;
-  var recognition = null;
-  var synthesis = window.speechSynthesis || null;
   var introShown = false;
+  // WebRTC Realtime API state
+  var rtcPeer = null;        // RTCPeerConnection
+  var rtcDataChannel = null; // data channel for events
+  var rtcAudioEl = null;     // <audio> element for AI voice output
+  var rtcLocalStream = null; // local microphone stream
+  var rtcConnected = false;  // true when data channel is open
+  var rtcMuted = false;      // microphone mute state
 
   // ── Suggested questions for autocomplete ──
   var SUGGESTIONS = [
@@ -528,6 +534,7 @@
     saveSession();
   });
   resetBtn.addEventListener('click', function () {
+    if (rtcConnected || voiceMode) disconnectRealtime();
     conversationHistory = [];
     messagesEl.innerHTML = '';
     introShown = false;
@@ -1211,97 +1218,260 @@
     return result;
   }
 
-  // ── Voice mode ──
-  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // ── Voice mode (OpenAI Realtime API via WebRTC) ──
+  // Same pattern as PurlPal: ephemeral token → WebRTC peer connection → full-duplex voice
+
+  // Condensed Report Pal instructions for Realtime voice session
+  var REALTIME_INSTRUCTIONS = 'You are Report Pal, a friendly and knowledgeable data analyst assistant ' +
+    'embedded in the CMS Claims Comparison Report. You help reviewers understand findings from comparing ' +
+    'an old Medicare claims processing system (CMS DE-SynPUF) against a new replacement system.\n\n' +
+    'Key findings you know about:\n' +
+    '- Overall accuracy ~85-90% between old and new systems\n' +
+    '- Systematic 0.90 payment ratio: new system payments = old * 0.90 (10% reduction across the board)\n' +
+    '- "ZZ" prefix beneficiaries are fabricated test records injected by the new system\n' +
+    '- Phantom records exist in the new system with no match in old\n' +
+    '- Chronic condition flags mostly match, some discrepancies in diabetes and depression\n' +
+    '- Financial reconciliation shows consistent 10% divergence pattern\n\n' +
+    'When discussing report sections, mention them by name so the user can find them:\n' +
+    '- Discrepancy Dashboard, Financial Analysis, Data Quality Validation\n' +
+    '- Year-over-Year Trends, System Comparison, Data Profiles, Executive Summary\n\n' +
+    'Be concise, warm, and data-driven. Explain technical terms in plain language. ' +
+    'If the user asks about specific data queries, suggest they type the question for detailed SQL-backed answers.';
+
+  // Streaming state for assistant voice transcript
+  var rtcAssistantDiv = null;
+  var rtcAssistantText = '';
 
   function speakText(text) {
-    if (!synthesis || !voiceMode) return;
-    synthesis.cancel();
-    var plain = text.replace(/[*_#`|\[\]]/g, '').replace(/\n+/g, '. ').substring(0, 800);
-    var utter = new SpeechSynthesisUtterance(plain);
-    utter.rate = 1.05;
-    utter.pitch = 1;
-    synthesis.speak(utter);
-  }
-
-  function startListening() {
-    if (!recognition) return;
-    try {
-      micBtn.classList.add('recording');
-      recognition.start();
-    } catch (e) { /* already started */ }
-  }
-
-  function stopListening() {
-    if (!recognition) return;
-    micBtn.classList.remove('recording');
-    try { recognition.stop(); } catch (e) {}
+    // No-op: Realtime API handles voice output through WebRTC audio stream.
+    // Browser TTS has been removed.
   }
 
   micBtn.addEventListener('click', function () {
-    if (!SpeechRecognition) {
-      addMessage('assistant', 'Sorry, your browser doesn\'t support speech recognition. Please use Chrome or Edge.');
-      return;
-    }
-    if (!voiceMode) {
-      initVoiceMode();
-      return;
-    }
-    if (micBtn.classList.contains('recording')) {
-      stopListening();
+    if (rtcConnected) {
+      // Toggle microphone mute
+      rtcMuted = !rtcMuted;
+      if (rtcLocalStream) {
+        rtcLocalStream.getAudioTracks().forEach(function (t) { t.enabled = !rtcMuted; });
+      }
+      micBtn.classList.toggle('recording', !rtcMuted);
+      if (rtcMuted) {
+        addMessage('assistant', '*Microphone muted.* Click the mic button to unmute.');
+      } else {
+        addMessage('assistant', '*Microphone unmuted.* I\'m listening...');
+      }
     } else {
-      startListening();
+      initVoiceMode();
     }
   });
 
   function initVoiceMode() {
-    if (!SpeechRecognition) return;
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-
-    recognition.onresult = function (event) {
-      var transcript = event.results[0][0].transcript;
-      micBtn.classList.remove('recording');
-      inputEl.value = transcript;
-      inputEl.style.height = 'auto';
-      inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
-      sendMessage(transcript);
-    };
-    recognition.onerror = function (event) {
-      micBtn.classList.remove('recording');
-      if (event.error !== 'aborted' && event.error !== 'no-speech') {
-        addMessage('assistant', 'Microphone error: ' + event.error + '. Please try again.');
-      }
-    };
-    recognition.onend = function () {
-      micBtn.classList.remove('recording');
-    };
-
-    // Request mic permission (requires HTTPS — navigator.mediaDevices is undefined on HTTP)
+    // Require HTTPS (navigator.mediaDevices is undefined on HTTP)
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       addMessage('assistant', '**Voice mode requires a secure connection (HTTPS).** \n\nThis page is served over HTTP, so the browser blocks microphone access. You can still type your questions below!\n\nTo use voice mode, access the report via HTTPS.');
       conversationHistory.push({ role: 'assistant', content: 'Voice mode unavailable — page not served over HTTPS.' });
       saveSession();
       return;
     }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      stream.getTracks().forEach(function (t) { t.stop(); });
-      voiceMode = true;
-      var confirmMsg = addMessage('assistant', '**Microphone access granted!** \n\nA few things to note:\n\n' +
-        '- Make sure your **volume is up** so you can hear my responses\n' +
-        '- Click the **microphone button** to speak a question\n' +
-        '- You can always **type a question** too — whatever feels natural\n\n' +
-        'I\'m ready when you are! What would you like to know about the report?');
-      speakText('Microphone access granted! Make sure your volume is up. Click the microphone button or just type whenever you are ready. What would you like to know about the report?');
-      conversationHistory.push({ role: 'assistant', content: 'Voice mode enabled. Microphone access granted.' });
-      saveSession();
-    }).catch(function (err) {
-      addMessage('assistant', '**Microphone access was denied.** \n\nNo worries! You can still type your questions. If you\'d like to try voice mode later, click the microphone button and allow access when prompted.');
-      conversationHistory.push({ role: 'assistant', content: 'Microphone access denied. Using text mode.' });
+
+    addMessage('assistant', 'Connecting to Report Pal voice...');
+    conversationHistory.push({ role: 'assistant', content: 'Connecting to voice...' });
+    micBtn.classList.add('recording');
+
+    // 1. Fetch ephemeral Realtime API token from our session Lambda
+    fetch(SESSION_LAMBDA_URL + '/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice: 'coral' })
+    })
+    .then(function (res) {
+      if (!res.ok) throw new Error('Session API returned ' + res.status);
+      return res.json();
+    })
+    .then(function (data) {
+      if (!data.client_secret || !data.client_secret.value) {
+        throw new Error('No ephemeral token received');
+      }
+      return connectWebRTC(data.client_secret.value);
+    })
+    .catch(function (err) {
+      console.error('Voice connection failed:', err);
+      micBtn.classList.remove('recording');
+      addMessage('assistant', '**Could not connect to voice.** ' + err.message + '\n\nYou can still type your questions below.');
+      conversationHistory.push({ role: 'assistant', content: 'Voice connection failed: ' + err.message });
       saveSession();
     });
+  }
+
+  function connectWebRTC(ephemeralToken) {
+    // 2. Create RTCPeerConnection
+    rtcPeer = new RTCPeerConnection();
+
+    // 3. Audio output element
+    rtcAudioEl = document.createElement('audio');
+    rtcAudioEl.autoplay = true;
+    rtcPeer.ontrack = function (e) {
+      rtcAudioEl.srcObject = e.streams[0];
+    };
+
+    // 4. Microphone input
+    return navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(function (stream) {
+      rtcLocalStream = stream;
+      stream.getTracks().forEach(function (track) {
+        rtcPeer.addTrack(track, stream);
+      });
+
+      // 5. Data channel for events
+      rtcDataChannel = rtcPeer.createDataChannel('oai-events');
+      rtcDataChannel.onopen = onRtcDataChannelOpen;
+      rtcDataChannel.onmessage = onRtcDataChannelMessage;
+      rtcDataChannel.onclose = function () {
+        console.log('Realtime data channel closed');
+        disconnectRealtime();
+        addMessage('assistant', '*Voice session ended.* Click the mic button to reconnect, or type your questions below.');
+      };
+
+      // 6. Create SDP offer
+      return rtcPeer.createOffer();
+    })
+    .then(function (offer) {
+      return rtcPeer.setLocalDescription(offer);
+    })
+    .then(function () {
+      // 7. Exchange SDP with OpenAI Realtime API
+      return fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03', {
+        method: 'POST',
+        body: rtcPeer.localDescription.sdp,
+        headers: {
+          'Authorization': 'Bearer ' + ephemeralToken,
+          'Content-Type': 'application/sdp',
+        },
+      });
+    })
+    .then(function (res) {
+      if (!res.ok) throw new Error('OpenAI Realtime SDP exchange failed: ' + res.status);
+      return res.text();
+    })
+    .then(function (sdp) {
+      return rtcPeer.setRemoteDescription({ type: 'answer', sdp: sdp });
+    })
+    .then(function () {
+      voiceMode = true;
+      console.log('WebRTC peer connection established');
+    });
+  }
+
+  function onRtcDataChannelOpen() {
+    rtcConnected = true;
+    console.log('Realtime data channel open — sending session.update');
+
+    // Configure the Realtime session with Report Pal instructions
+    rtcDataChannel.send(JSON.stringify({
+      type: 'session.update',
+      session: {
+        instructions: REALTIME_INSTRUCTIONS,
+        voice: 'coral',
+        turn_detection: {
+          type: 'server_vad',
+          threshold: 0.5,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 500,
+        },
+        input_audio_transcription: {
+          model: 'whisper-1',
+        },
+      }
+    }));
+
+    // Update UI
+    micBtn.classList.add('recording');
+    addMessage('assistant', '**Voice connected!** \n\n' +
+      '- Make sure your **volume is up** so you can hear me\n' +
+      '- Just **speak naturally** — I\'m listening\n' +
+      '- Click the **mic button** to mute/unmute\n' +
+      '- You can always **type a question** too\n\n' +
+      'What would you like to know about the report?');
+    conversationHistory.push({ role: 'assistant', content: 'Voice connected via OpenAI Realtime API.' });
+    saveSession();
+  }
+
+  function onRtcDataChannelMessage(e) {
+    var event;
+    try { event = JSON.parse(e.data); } catch (err) { return; }
+
+    switch (event.type) {
+      // User's spoken words transcribed
+      case 'conversation.item.input_audio_transcription.completed':
+        var userText = event.transcript && event.transcript.trim() ? event.transcript.trim() : '[inaudible]';
+        if (userText !== '[inaudible]') {
+          addMessage('user', userText);
+          conversationHistory.push({ role: 'user', content: userText });
+        }
+        break;
+
+      // Assistant voice transcript streaming
+      case 'response.audio_transcript.delta':
+        if (!rtcAssistantDiv) {
+          rtcAssistantDiv = addMessage('assistant', '');
+        }
+        rtcAssistantText += (event.delta || '');
+        rtcAssistantDiv.innerHTML = renderMarkdown(rtcAssistantText);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        break;
+
+      // Assistant voice transcript complete
+      case 'response.audio_transcript.done':
+        var finalText = event.transcript || rtcAssistantText;
+        if (rtcAssistantDiv) {
+          rtcAssistantDiv.innerHTML = renderMarkdown(finalText);
+          addSqlInteractivity(rtcAssistantDiv);
+        }
+        conversationHistory.push({ role: 'assistant', content: finalText });
+        rtcAssistantDiv = null;
+        rtcAssistantText = '';
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        break;
+
+      // Full response complete
+      case 'response.done':
+        saveSession();
+        break;
+
+      // Errors
+      case 'error':
+        console.error('Realtime API error:', event.error || event);
+        break;
+
+      default:
+        // Log other events for debugging
+        if (event.type && event.type.indexOf('session.') === 0) {
+          console.log('Realtime session event:', event.type);
+        }
+        break;
+    }
+  }
+
+  function disconnectRealtime() {
+    if (rtcDataChannel) { try { rtcDataChannel.close(); } catch (e) {} }
+    if (rtcPeer) { try { rtcPeer.close(); } catch (e) {} }
+    if (rtcLocalStream) {
+      rtcLocalStream.getTracks().forEach(function (t) { t.stop(); });
+    }
+    if (rtcAudioEl) {
+      rtcAudioEl.srcObject = null;
+      rtcAudioEl = null;
+    }
+    rtcPeer = null;
+    rtcDataChannel = null;
+    rtcLocalStream = null;
+    rtcConnected = false;
+    rtcMuted = false;
+    voiceMode = false;
+    rtcAssistantDiv = null;
+    rtcAssistantText = '';
+    micBtn.classList.remove('recording');
+    console.log('Realtime session disconnected');
   }
 
   // ── Intro flow ──
@@ -1336,12 +1506,6 @@
       bar.remove();
       addMessage('user', 'Voice');
       conversationHistory.push({ role: 'user', content: 'Voice' });
-      if (!SpeechRecognition) {
-        addMessage('assistant', 'Sorry, your browser doesn\'t support speech recognition. Please use **Chrome** or **Edge** for voice mode. You can still type your questions below!');
-        return;
-      }
-      addMessage('assistant', 'Setting up voice mode — I\'ll need access to your microphone...');
-      conversationHistory.push({ role: 'assistant', content: 'Setting up voice mode...' });
       initVoiceMode();
     });
 
