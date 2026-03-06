@@ -207,6 +207,7 @@ HTML_TEMPLATE = """\
   {body}
 </div>
 
+<script src="cached-answers.js"></script>
 <script src="chat-widget.js"></script>
 </body>
 </html>

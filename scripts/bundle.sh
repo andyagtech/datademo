@@ -36,6 +36,8 @@ case "$MODE" in
       -x "reports/exports/*" \
       -x "node_modules/*" \
       -x "backend/*" \
+      -x "cloud/*" \
+      -x "infra/*" \
       -x ".playwright/*" \
       -x ".deploy/*"
     ;;
@@ -76,6 +78,8 @@ case "$MODE" in
       -x "data/database/*.duckdb" \
       -x "data/database/*.wal" \
       -x "backend/*" \
+      -x "cloud/*" \
+      -x "infra/*" \
       -x ".playwright/*" \
       -x ".deploy/*"
     ;;

@@ -185,6 +185,12 @@
   <a href="#schema-explorer" class="depth-3">Schema Explorer</a>
   <a href="#sql-explorer" class="depth-3">SQL Explorer</a>
   <a href="#parquet-viewer" class="depth-3">Parquet Viewer</a>
+  <a href="#report-pal-ai-chat-assistant" class="depth-2">Report Pal AI Chat Assistant</a>
+  <a href="#how-to-try-it" class="depth-3">How to Try It</a>
+  <a href="#text-mode" class="depth-3">Text Mode</a>
+  <a href="#voice-mode" class="depth-3">Voice Mode</a>
+  <a href="#cached-answers" class="depth-3">Cached Answers</a>
+  <a href="#security" class="depth-3">Security</a>
   <a href="#code-reading-order" class="depth-2">Code Reading Order</a>
   <a href="#assessment-requirements-mapping" class="depth-2">Assessment Requirements Mapping</a>
   <a href="#key-design-decisions" class="depth-2">Key Design Decisions</a>
@@ -198,9 +204,9 @@
 <h2 id="hosted-version">Hosted Version</h2>
 <p>A live, read-only version of the reports and documentation is available — no setup required:</p>
 <ul>
-<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/reports/comparison_report.html">Comparison Report</a></strong> — the primary deliverable with KPIs, charts, and findings</li>
-<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/index.html">Documentation Hub</a></strong> — interactive tools, design docs, and architecture diagrams</li>
-<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/reviewer_readme.html">Reviewer Walkthrough</a></strong> — this page, hosted online with all screenshots</li>
+<li><strong><a href="https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html">Comparison Report</a></strong> — the primary deliverable with KPIs, charts, and findings</li>
+<li><strong><a href="https://ddmmvtx76d1f8.cloudfront.net/docs/index.html">Documentation Hub</a></strong> — interactive tools, design docs, and architecture diagrams</li>
+<li><strong><a href="https://ddmmvtx76d1f8.cloudfront.net/docs/reviewer_readme.html">Reviewer Walkthrough</a></strong> — this page, hosted online with all screenshots</li>
 </ul>
 <hr />
 <h2 id="0-data-setup-before-running-anything">0. Data Setup (before running anything)</h2>
@@ -342,6 +348,47 @@ docker run --rm -p 8888:8888 \
 <p>Drag and drop any <code>.parquet</code> file to instantly view its schema (column names, types, row count) and preview the first N rows in a formatted table. Powered by hyparquet for fully client-side parsing.</p>
 <p><img alt="Parquet Viewer" src="../screenshots/screenshot_12.png" /></p>
 <hr />
+<h2 id="report-pal-ai-chat-assistant">Report Pal (AI Chat Assistant)</h2>
+<p>Every page in the hosted report includes <strong>Report Pal</strong> — an AI assistant that helps reviewers explore findings through natural conversation.</p>
+<h3 id="how-to-try-it">How to Try It</h3>
+<ol>
+<li>Open the <a href="https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html">hosted report</a></li>
+<li>Click the chat bubble in the bottom-right corner</li>
+<li>Choose <strong>Text</strong> (type questions) or <strong>Voice</strong> (speak naturally via WebRTC)</li>
+</ol>
+<h3 id="text-mode">Text Mode</h3>
+<ul>
+<li>Powered by GPT-4o with live DuckDB access — it writes and runs SQL to answer data questions</li>
+<li>Pre-cached answers for common questions (instant, no API call)</li>
+<li>SQL queries shown inline with copy-to-clipboard and "Open in SQL Explorer" links</li>
+<li>Suggested questions bar + autocomplete for quick exploration</li>
+</ul>
+<h3 id="voice-mode">Voice Mode</h3>
+<ul>
+<li>Powered by OpenAI Realtime API via WebRTC — full-duplex voice conversation</li>
+<li>AI speaks with OpenAI's <strong>coral</strong> voice; user speech transcribed via Whisper</li>
+<li>Stop button (🔇) in header bar immediately cancels AI voice mid-sentence</li>
+<li>No push-to-talk — server VAD detects when you start/stop speaking</li>
+</ul>
+<h3 id="cached-answers">Cached Answers</h3>
+<p>Every page loads <code>docs/cached-answers.js</code> — <strong>92 pre-built Q&amp;A pairs</strong> generated from the pipeline results. These provide instant responses without hitting the Lambda API. Questions span all Bloom's Taxonomy levels:</p>
+<ul>
+<li><strong>Create/Synthesize</strong> — "Draft a go/no-go recommendation", "Propose a remediation plan", "Synthesize findings into a risk scorecard"</li>
+<li><strong>Evaluate/Judge</strong> — "Based on the Codebook, which discrepancies represent true data corruption?", "Is the new system acceptable for CMS reporting?"</li>
+<li><strong>Analyze</strong> — "What patterns connect the data scrubbing types?", "Why does the 0.90 ratio affect all claim lines uniformly?"</li>
+<li><strong>Explain/Summarize</strong> — Coverage period, ESRD, state codes, death chain, ICD-9, NPI, claim line utilization</li>
+<li><strong>Codebook lookups</strong> — "What does BENE_HMO_CVRAGE_TOT_MONS mean?", "What does SP_STATE_CODE mean?"</li>
+</ul>
+<p>For anything not cached, the widget falls through to the Lambda API (requires internet).</p>
+<h3 id="security">Security</h3>
+<ul>
+<li>No API keys in the browser — all calls go through Lambda backends</li>
+<li>Ephemeral tokens for voice mode expire after 60 seconds</li>
+<li>OpenAI API key stored in AWS SSM Parameter Store</li>
+<li>No credentials committed to the repository</li>
+<li><strong>Reviewer bundle</strong> excludes all Lambda source code (<code>cloud/</code>, <code>infra/</code>, <code>backend/</code>) — the AI Assistant works via hardcoded Lambda URLs</li>
+</ul>
+<hr />
 <h2 id="code-reading-order">Code Reading Order</h2>
 <p>For reviewers who want to understand the code:</p>
 <table>
@@ -398,18 +445,36 @@ docker run --rm -p 8888:8888 \
 </tr>
 <tr>
 <td>8</td>
+<td><code>src/chat_prompt.py</code></td>
+<td>~130</td>
+<td>Shared Report Pal system prompt and OpenAI tool definitions</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>docs/chat-widget.js</code></td>
+<td>~1600</td>
+<td>Self-contained AI chat widget (text + WebRTC voice)</td>
+</tr>
+<tr>
+<td>—</td>
+<td><code>docs/cached-answers.js</code></td>
+<td>(generated)</td>
+<td>92 pre-built Q&amp;A pairs loaded on all pages (auto-generated by pipeline)</td>
+</tr>
+<tr>
+<td>10</td>
 <td><code>tests/conftest.py</code></td>
 <td>~160</td>
 <td>How test data is designed with intentional edge cases</td>
 </tr>
 <tr>
-<td>9</td>
+<td>11</td>
 <td><code>docs/SOLUTION.md</code></td>
 <td>—</td>
 <td>Design decisions explained in prose</td>
 </tr>
 <tr>
-<td>10</td>
+<td>12</td>
 <td><code>docs/REQUIREMENTS_TRACEABILITY.md</code></td>
 <td>—</td>
 <td>Maps every spec requirement to its implementation</td>
@@ -496,6 +561,7 @@ docker run --rm -p 8888:8888 \
 </ol>
 </div>
 
+<script src="cached-answers.js"></script>
 <script src="chat-widget.js"></script>
 </body>
 </html>
