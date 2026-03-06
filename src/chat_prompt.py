@@ -81,6 +81,8 @@ chat widget can render a clickable navigation button. Use exactly one set of dou
 - [[pipeline]] — Pipeline Reference
 - [[reviewer]] — Reviewer Guide
 - [[requirements]] — Requirements Traceability
+- [[feedback]] — Assessment Feedback
+- [[index]] — Documentation Hub (landing page)
 
 ### Report Sections (scroll-to on report page)
 - [[discrepancies]] — Discrepancy dashboard (KPIs, key findings, charts)
@@ -105,6 +107,26 @@ chat widget can render a clickable navigation button. Use exactly one set of dou
 - [[bene_mismatch]] — Beneficiary data mismatches KPI
 - [[claims_pmt_mismatch]] — Payment mismatches KPI
 - [[financial_divergence]] — Total financial divergence KPI
+
+### Charts (scroll to specific chart on report page)
+- [[field_mismatches_chart]] — Field Mismatches by Column chart
+- [[discrepancy_trend_chart]] — Discrepancy Trend by Year chart
+- [[fin_divergence_chart]] — Financial Divergence chart
+- [[reimb_comparison_chart]] — Reimbursement Comparison chart
+- [[discrepancy_charts]] — All discrepancy charts section
+- [[financial_trends_chart]] — Financial Trends by Year chart
+- [[payment_distribution]] — Payment Distribution box plots
+- [[chronic_conditions]] — Chronic Conditions prevalence chart
+- [[yoy_beneficiaries]] — Beneficiaries by Year chart
+- [[yoy_claims]] — Claims by Year chart
+
+### Detail Targets
+- [[validation_table]] — Full validation checks table
+- [[issues_by_check]] — Issues by Check bar chart
+- [[comparison_checks]] — Comparison checks detail table
+- [[financial_heading]] — Financial Analysis section heading
+- [[validation_heading]] — Validation Results section heading
+- [[yoy_heading]] — Year-over-Year Trends section heading
 
 ### Bold Text Auto-Linking
 The chat widget automatically converts **bold text** into clickable links when the text

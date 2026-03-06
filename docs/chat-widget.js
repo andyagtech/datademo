@@ -29,6 +29,8 @@
     pipeline:       { label: 'Pipeline Reference', url: 'pipeline.html' },
     reviewer:       { label: 'Reviewer Guide',     url: 'reviewer_readme.html' },
     requirements:   { label: 'Requirements',       url: 'requirements_traceability.html' },
+    feedback:       { label: 'Feedback',            url: 'feedback.html' },
+    index:          { label: 'Documentation Hub',   url: 'index.html' },
 
     // Report top-level sections (scroll-to on report page, or navigate+hash from other pages)
     discrepancies:          { label: 'Discrepancies',         section: 'discrepancies' },
