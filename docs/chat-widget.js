@@ -287,7 +287,7 @@
     '.chat-nav-tag:hover{background:rgba(56,189,248,0.25);border-color:#38bdf8;text-decoration:none}',
     '.chat-nav-tag svg{width:10px;height:10px;flex-shrink:0}',
     '@media(max-width:500px){.chat-panel{width:calc(100vw - 16px);right:8px;bottom:8px;height:calc(100vh - 16px);max-height:none;border-radius:12px}}',
-    '.chat-coach{position:fixed;bottom:32px;right:92px;z-index:9998;background:linear-gradient(135deg,#1e3a5f,#1e293b);color:#e2e8f0;padding:10px 16px;border-radius:12px;font-size:.82rem;font-family:"Inter",system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.4);border:1px solid #334155;white-space:nowrap;animation:coachFadeIn .5s ease-out,coachPulse 3s ease-in-out .5s infinite;cursor:pointer;transition:opacity .3s}',
+    '.chat-coach{position:fixed;bottom:16px;right:92px;z-index:9998;background:linear-gradient(135deg,#1e3a5f,#1e293b);color:#e2e8f0;padding:10px 16px;border-radius:12px;font-size:.82rem;font-family:"Inter",system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.4);border:1px solid #334155;max-width:280px;line-height:1.45;animation:coachFadeIn .5s ease-out,coachPulse 3s ease-in-out .5s infinite;cursor:pointer;transition:opacity .3s}',
     '.chat-coach::after{content:"";position:absolute;right:-8px;top:50%;transform:translateY(-50%);border:8px solid transparent;border-left-color:#1e3a5f}',
     '.chat-coach:hover{opacity:0.85}',
     '.chat-coach .coach-dismiss{display:inline;margin-left:10px;color:#64748b;font-size:.7rem;cursor:pointer}',
@@ -314,7 +314,7 @@
   if (!localStorage.getItem(COACH_KEY)) {
     coachMark = document.createElement('div');
     coachMark.className = 'chat-coach';
-    coachMark.innerHTML = '\uD83E\uDD16 Chat with the AI Assistant about this data &amp; report <span class="coach-dismiss">&times;</span>';
+    coachMark.innerHTML = 'Click to chat with the AI Assistant about this data &amp; report.<br><span style="color:#94a3b8;font-size:.75rem">You can ask questions via speech or text.</span> <span class="coach-dismiss">&times;</span>';
     coachMark.querySelector('.coach-dismiss').addEventListener('click', function(e) { e.stopPropagation(); dismissCoach(); });
     coachMark.addEventListener('click', function() { dismissCoach(); fab.click(); });
   }
