@@ -8,9 +8,16 @@ A guided tour of the CMS Claims Comparison Pipeline — what to look at, in what
 
 A live, read-only version of the reports and documentation is available — no setup required:
 
-- **[Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, and findings
-- **[Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html)** — interactive tools, design docs, and architecture diagrams
+- **[Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, findings, and **AI Assistant**
+- **[Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html)** — interactive tools, design docs, architecture diagrams, and **AI Assistant**
 - **[Reviewer Walkthrough](https://ddmmvtx76d1f8.cloudfront.net/docs/reviewer_readme.html)** — this page, hosted online with all screenshots
+
+### Downloads
+
+| Bundle | Contents | Link |
+|--------|----------|------|
+| **AI Assistant** | Code, docs, report, AI chat (no data) | [cmsdata-assessment_ai-assistant.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_ai-assistant.zip) |
+| **Full** | Code, docs, report, AI chat + data | [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip) |
 
 ---
 

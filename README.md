@@ -7,8 +7,10 @@ Built for the USDS Data Engineering Take-Home Assessment.
 | | |
 |---|---|
 | **Repository** | [github.com/andyagtech/cmsdata-assessment](https://github.com/andyagtech/cmsdata-assessment) |
-| **Hosted Report** | [ddmmvtx76d1f8.cloudfront.net](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html) |
-| **Full Bundle Download** | [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip) |
+| **Hosted Report** | [Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html) — interactive report with AI Assistant |
+| **Hosted Docs** | [Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html) — interactive tools, design docs, architecture diagrams |
+| **AI Assistant Bundle** | [cmsdata-assessment_ai-assistant.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_ai-assistant.zip) — code, docs, report (no data) |
+| **Full Bundle Download** | [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip) — code, docs, report + data |
 
 ---
 
