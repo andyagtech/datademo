@@ -1371,15 +1371,57 @@
     '- Phantom records exist in the new system with no match in old\n' +
     '- Chronic condition flags mostly match, some discrepancies in diabetes and depression\n' +
     '- Financial reconciliation shows consistent 10% divergence pattern\n\n' +
-    'When discussing report sections, mention them by name so the user can find them:\n' +
-    '- Discrepancy Dashboard, Financial Analysis, Data Quality Validation\n' +
-    '- Year-over-Year Trends, System Comparison, Data Profiles, Executive Summary\n\n' +
+    'DOCUMENTATION AWARENESS:\n' +
+    'You have full access to the project\'s design documentation through the navigate_to_page tool. ' +
+    'When users ask about documentation, diagrams, the pipeline, data definitions, architecture, or design decisions, ' +
+    'ALWAYS use the navigate_to_page tool to take them there. Never say you don\'t have access to documentation.\n\n' +
+    'Available pages for navigation:\n' +
+    '- "pipeline" — Pipeline Reference: all 6 steps, data model, 129 checks, output artifacts\n' +
+    '- "data_dictionary" — Data Dictionary: dataset overview, all table schemas, column definitions\n' +
+    '- "solution" — Solution Design: architecture decisions, why DuckDB, match strategy, findings\n' +
+    '- "architecture" — Architecture Diagrams: interactive Mermaid.js diagrams of the full pipeline\n' +
+    '- "requirements" — Requirements Traceability: maps requirements to implementation\n' +
+    '- "report" — Comparison Report: the main findings report\n' +
+    '- "sql" — SQL Explorer: run queries on pipeline exports\n' +
+    '- "schema" — Schema Explorer: visual ERD of all 8 DuckDB tables\n' +
+    '- "parquet" — Parquet Viewer: browse raw Parquet files\n' +
+    '- "index" — Documentation Hub: landing page with all docs\n' +
+    '- "reviewer" — Reviewer Walkthrough: guided tour for reviewers\n\n' +
+    'Section-level navigation (use page_id values like):\n' +
+    '- "dd_beneficiary", "dd_carrier", "dd_chronic", "dd_financial", "dd_schema_diff", "dd_derived"\n' +
+    '- "sol_decisions", "sol_duckdb", "sol_pipeline", "sol_match", "sol_findings"\n' +
+    '- "pipe_step1" through "pipe_step6", "pipe_data_model", "pipe_comparison_ref"\n' +
+    '- "discrepancies", "financial", "validation", "trends", "comparison", "summary"\n\n' +
+    'When a user asks about documentation or diagrams, call navigate_to_page with the appropriate page_id ' +
+    'AND tell them what you are showing them. For example: "Let me take you to the Architecture Diagrams" ' +
+    'then call navigate_to_page with page_id "architecture".\n\n' +
     'Be concise, warm, and data-driven. Explain technical terms in plain language. ' +
     'If the user asks about specific data queries, suggest they type the question for detailed SQL-backed answers.\n\n' +
     'IMPORTANT: When discussing SQL queries, NEVER read the raw SQL code aloud verbatim. ' +
-    'Instead, describe what the query does naturally. For example, say "This query joins the beneficiary table ' +
-    'with the claims table to compare payment amounts" or "The SELECT statement pulls together data from ' +
-    'three different tables." Keep SQL discussion conversational and high-level.';
+    'Instead, describe what the query does naturally. Keep SQL discussion conversational and high-level.';
+
+  // Navigation tool definition for Realtime API
+  var REALTIME_TOOLS = [
+    {
+      type: 'function',
+      name: 'navigate_to_page',
+      description: 'Navigate the user to a documentation page or report section. Use this whenever the user asks about documentation, diagrams, pipeline details, data definitions, or any available page.',
+      parameters: {
+        type: 'object',
+        properties: {
+          page_id: {
+            type: 'string',
+            description: 'The page identifier to navigate to. Examples: "pipeline", "data_dictionary", "solution", "architecture", "report", "sql", "schema", "parquet", "index", "reviewer", "requirements", "discrepancies", "financial", "validation", "trends", "dd_beneficiary", "dd_carrier", "sol_duckdb", "pipe_step1", etc.'
+          },
+          reason: {
+            type: 'string',
+            description: 'Brief reason for navigating (shown to user in chat)'
+          }
+        },
+        required: ['page_id']
+      }
+    }
+  ];
   var rtcConnecting = false; // guard against double-click
 
   // Streaming state for assistant voice transcript
@@ -1405,11 +1447,36 @@
     }
   });
 
-  // Stop AI voice button — immediately cancels the current response
+  // Stop AI voice button — immediately cancels response, stops audio, mutes mic
   document.getElementById('chatStopVoice').addEventListener('click', function () {
     if (rtcConnected && rtcDataChannel && rtcDataChannel.readyState === 'open') {
+      // 1. Cancel the in-flight response
       rtcDataChannel.send(JSON.stringify({ type: 'response.cancel' }));
-      // Also truncate the last assistant item to stop any residual audio
+
+      // 2. Immediately stop audio output
+      if (rtcAudioEl) {
+        rtcAudioEl.pause();
+        rtcAudioEl.currentTime = 0;
+        // Re-attach stream so future responses still play
+        var streams = rtcPeer && rtcPeer.getReceivers && rtcPeer.getReceivers();
+        if (streams && streams.length) {
+          var audioReceiver = streams.find(function(r) { return r.track && r.track.kind === 'audio'; });
+          if (audioReceiver) {
+            var ms = new MediaStream([audioReceiver.track]);
+            rtcAudioEl.srcObject = ms;
+          }
+        }
+      }
+
+      // 3. Mute the microphone
+      if (rtcLocalStream) {
+        rtcLocalStream.getAudioTracks().forEach(function (t) { t.enabled = false; });
+      }
+      rtcMuted = true;
+      micBtn.classList.remove('recording');
+      micBtn.title = 'Unmute microphone';
+
+      // 4. Truncate the last assistant message in chat
       if (rtcAssistantDiv) {
         rtcAssistantDiv.innerHTML = renderMarkdown(rtcAssistantText + ' *[stopped]*');
         addSqlInteractivity(rtcAssistantDiv);
@@ -1526,7 +1593,7 @@
     rtcConnecting = false;
     console.log('Realtime data channel open — sending session.update');
 
-    // Configure the Realtime session with Report Pal instructions
+    // Configure the Realtime session with Report Pal instructions + navigation tool
     rtcDataChannel.send(JSON.stringify({
       type: 'session.update',
       session: {
@@ -1541,6 +1608,8 @@
         input_audio_transcription: {
           model: 'whisper-1',
         },
+        tools: REALTIME_TOOLS,
+        tool_choice: 'auto',
       }
     }));
 
@@ -1613,6 +1682,61 @@
         rtcAssistantDiv = null;
         rtcAssistantText = '';
         messagesEl.scrollTop = messagesEl.scrollHeight;
+        break;
+
+      // Tool call completed — handle navigate_to_page
+      case 'response.function_call_arguments.done':
+        if (event.name === 'navigate_to_page') {
+          var args;
+          try { args = JSON.parse(event.arguments); } catch (ex) { args = {}; }
+          var navPageId = args.page_id || '';
+          var navReason = args.reason || '';
+          console.log('Realtime tool call: navigate_to_page', navPageId, navReason);
+
+          // Look up in PAGE_MAP
+          var navTarget = PAGE_MAP[navPageId];
+          if (navTarget) {
+            // Show navigation button in chat
+            var navMsg = navReason ? ('📍 **Navigating:** ' + navReason) : ('📍 **Navigating to ' + (navTarget.label || navPageId) + '**');
+            var navDiv = addMessage('assistant', '');
+            navDiv.innerHTML = renderMarkdown(navMsg);
+
+            // Actually navigate
+            if (navTarget.url) {
+              // Cross-page navigation (design docs, tools)
+              var navUrl = navTarget.url;
+              // Make absolute if relative
+              if (navUrl.indexOf('http') !== 0 && navUrl.indexOf('/') !== 0) {
+                var basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+                navUrl = basePath + navUrl;
+              }
+              setTimeout(function () { window.open(navUrl, '_blank'); }, 300);
+            } else if (navTarget.section) {
+              // Same-page scroll
+              var targetEl = document.getElementById(navTarget.section);
+              if (targetEl) {
+                setTimeout(function () { targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+              }
+            } else if (navTarget.report) {
+              var reportUrl = navTarget.report;
+              var basePath2 = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+              setTimeout(function () { window.open(basePath2 + reportUrl, '_blank'); }, 300);
+            }
+          }
+
+          // Send tool result back to Realtime API so it continues
+          if (rtcDataChannel && rtcDataChannel.readyState === 'open') {
+            rtcDataChannel.send(JSON.stringify({
+              type: 'conversation.item.create',
+              item: {
+                type: 'function_call_output',
+                call_id: event.call_id,
+                output: JSON.stringify({ success: true, navigated_to: navPageId, label: navTarget ? navTarget.label : navPageId })
+              }
+            }));
+            rtcDataChannel.send(JSON.stringify({ type: 'response.create' }));
+          }
+        }
         break;
 
       // Full response complete
