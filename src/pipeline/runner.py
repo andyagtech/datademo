@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from src.pipeline import PipelineContext, StepResult
-from src.pipeline.step1_receive import run as step1_run
+from src.pipeline.receive_pure import run as step1_run  # functional Step 1
 from src.pipeline.step2_schema_validate import run as step2_run
 from src.pipeline.step3_ingest import run as step3_run
 from src.pipeline.step4_match import run as step4_run
