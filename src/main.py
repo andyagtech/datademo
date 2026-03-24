@@ -22,7 +22,7 @@ from pathlib import Path
 
 from src.adapters.local import LocalStorage
 from src.pipeline import PipelineContext
-from src.pipeline.runner import run_pipeline
+from src.pipeline.runner_fp import run_pipeline_fp as run_pipeline
 from src.ingest import DB_PATH, RAW_DIR, get_connection
 
 logging.basicConfig(
