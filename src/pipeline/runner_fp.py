@@ -260,13 +260,17 @@ def run_pipeline_fp(ctx: PipelineContext) -> list[StepResult]:
     """
     Execute the 6-step pipeline using functional composition.
 
-    Pure steps run natively; imperative steps are wrapped.
+    All 6 steps are now functional:
+      - Steps 1-2: pure functions (no DB dependency)
+      - Steps 3-6: interpreter pattern (pure plans + effectful execution)
+      - Steps 4-5: Z-set algebra for record matching and comparison
+
     Returns list[StepResult] for backwards compatibility with main.py.
     """
-    from src.pipeline.step3_ingest import run as step3_run
-    from src.pipeline.step4_match import run as step4_run
-    from src.pipeline.step5_compare import run as step5_run
-    from src.pipeline.step6_report import run as step6_run
+    from src.pipeline.steps_fp import (
+        step3_functional, step4_functional,
+        step5_functional, step6_functional,
+    )
 
     # Build immutable config from mutable context
     config = PipelineConfig(
@@ -280,14 +284,14 @@ def run_pipeline_fp(ctx: PipelineContext) -> list[StepResult]:
 
     t_start = time.time()
 
-    # Compose the pipeline: pure steps + legacy-wrapped steps
+    # Compose the pipeline: all functional steps
     pipeline = compose_pipeline(
         step1_functional,
         step2_functional,
-        legacy_adapter("3. Ingest & Profile", step3_run, ctx),
-        legacy_adapter("4. Match & Validate", step4_run, ctx),
-        legacy_adapter("5. Compare & Analyze", step5_run, ctx),
-        legacy_adapter("6. Report", step6_run, ctx),
+        step3_functional(ctx),
+        step4_functional(ctx),
+        step5_functional(ctx),
+        step6_functional(ctx),
     )
 
     # Execute the composed pipeline
