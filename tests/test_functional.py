@@ -1,15 +1,20 @@
-"""Tests for functional programming utilities and pure pipeline functions."""
+"""Tests for functional programming utilities and pure pipeline functions.
+
+Uses the `returns` library (dry-python/returns) for Result/Maybe types.
+"""
 
 import zipfile
 
 import pytest
+from returns.primitives.exceptions import UnwrapFailedError
 
 from src.functional import (
-    Result, Success, Failure,
+    Success, Failure,
     Maybe, Some, Nothing,
     PipelineError,
     pipe, compose, tap, when, unless,
     try_op, catch_as_result, lazy,
+    is_ok, is_err, is_some, is_nothing,
 )
 from src.pipeline.receive_pure import (
     FileInfo, FileInventory, DiscoveredFiles,
@@ -22,20 +27,18 @@ from src.pipeline.state import (
 
 
 # ---------------------------------------------------------------------------
-# Result[T, E]
+# Result[T, E]  (returns library)
 # ---------------------------------------------------------------------------
 
 class TestResult:
     def test_success_creation(self):
         r = Success(42)
-        assert r.is_ok
-        assert not r.is_err
+        assert isinstance(r, Success)
         assert r.unwrap() == 42
 
     def test_failure_creation(self):
         r = Failure("oops")
-        assert r.is_err
-        assert not r.is_ok
+        assert isinstance(r, Failure)
 
     def test_map_success(self):
         r = Success(5).map(lambda x: x * 2)
@@ -43,7 +46,7 @@ class TestResult:
 
     def test_map_failure_passthrough(self):
         r = Failure("err").map(lambda x: x * 2)
-        assert r.is_err
+        assert isinstance(r, Failure)
 
     def test_bind_success(self):
         r = Success(5).bind(lambda x: Success(x + 1))
@@ -51,48 +54,39 @@ class TestResult:
 
     def test_bind_failure_short_circuits(self):
         r = Success(5).bind(lambda x: Failure("fail")).bind(lambda x: Success(x + 100))
-        assert r.is_err
+        assert isinstance(r, Failure)
 
     def test_bind_initial_failure(self):
         r = Failure("start").bind(lambda x: Success(x + 1))
-        assert r.is_err
+        assert isinstance(r, Failure)
 
-    def test_unwrap_or(self):
-        assert Success(10).unwrap_or(0) == 10
-        assert Failure("err").unwrap_or(0) == 0
-
-    def test_unwrap_or_else(self):
-        assert Success(10).unwrap_or_else(lambda e: -1) == 10
-        assert Failure("err").unwrap_or_else(lambda e: -1) == -1
+    def test_value_or(self):
+        assert Success(10).value_or(0) == 10
+        assert Failure("err").value_or(0) == 0
 
     def test_unwrap_failure_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(UnwrapFailedError):
             Failure("oops").unwrap()
 
-    def test_expect_failure_raises_custom_msg(self):
-        with pytest.raises(ValueError, match="custom"):
-            Failure("oops").expect("custom")
+    def test_alt_transforms_error(self):
+        r = Failure("lower").alt(lambda e: e.upper())
+        assert r.failure() == "LOWER"
 
-    def test_map_err(self):
-        r = Failure("lower").map_err(lambda e: e.upper())
-        assert r._error == "LOWER"
-
-    def test_map_err_passthrough_success(self):
-        r = Success(42).map_err(lambda e: e.upper())
+    def test_alt_passthrough_success(self):
+        r = Success(42).alt(lambda e: e.upper())
         assert r.unwrap() == 42
 
-    def test_to_optional(self):
-        assert Success(42).to_optional() == 42
-        assert Failure("err").to_optional() is None
+    def test_failure_value(self):
+        assert Success(42).value_or(None) == 42
+        assert Failure("err").value_or(None) is None
 
-    def test_from_exception_success(self):
-        r = Result.from_exception(lambda: 42)
+    def test_lash_recovery(self):
+        r = Failure("err").lash(lambda e: Success(0))
+        assert r.unwrap() == 0
+
+    def test_lash_passthrough_success(self):
+        r = Success(42).lash(lambda e: Success(0))
         assert r.unwrap() == 42
-
-    def test_from_exception_failure(self):
-        r = Result.from_exception(lambda: 1 / 0)
-        assert r.is_err
-        assert isinstance(r._error, ZeroDivisionError)
 
     def test_chained_operations(self):
         result = (
@@ -110,60 +104,64 @@ class TestResult:
             .bind(lambda x: Success(x + 5) if x > 15 else Failure("too small"))
             .map(lambda x: x * 3)
         )
-        assert result.is_err
+        assert isinstance(result, Failure)
+
+    def test_is_ok_helper(self):
+        assert is_ok(Success(42))
+        assert not is_ok(Failure("err"))
+
+    def test_is_err_helper(self):
+        assert is_err(Failure("err"))
+        assert not is_err(Success(42))
 
 
 # ---------------------------------------------------------------------------
-# Maybe[T]
+# Maybe[T]  (returns library)
 # ---------------------------------------------------------------------------
 
 class TestMaybe:
     def test_some_creation(self):
         m = Some(42)
-        assert m.is_some
-        assert not m.is_nothing
+        assert isinstance(m, Some)
         assert m.unwrap() == 42
 
-    def test_nothing_creation(self):
-        m = Nothing()
-        assert m.is_nothing
-        assert not m.is_some
+    def test_nothing_is_singleton(self):
+        assert Nothing is Nothing
+        assert not isinstance(Nothing, Some)
 
     def test_map_some(self):
         assert Some(5).map(lambda x: x * 3).unwrap() == 15
 
     def test_map_nothing(self):
-        assert Nothing().map(lambda x: x * 3).is_nothing
+        assert Nothing.map(lambda x: x * 3) is Nothing
 
     def test_bind_some(self):
         assert Some(5).bind(lambda x: Some(x + 1)).unwrap() == 6
 
     def test_bind_nothing(self):
-        assert Nothing().bind(lambda x: Some(x + 1)).is_nothing
+        assert Nothing.bind(lambda x: Some(x + 1)) is Nothing
 
-    def test_filter_keeps(self):
-        assert Some(10).filter(lambda x: x > 5).unwrap() == 10
-
-    def test_filter_removes(self):
-        assert Some(3).filter(lambda x: x > 5).is_nothing
-
-    def test_unwrap_or(self):
-        assert Some(10).unwrap_or(0) == 10
-        assert Nothing().unwrap_or(0) == 0
+    def test_value_or(self):
+        assert Some(10).value_or(0) == 10
+        assert Nothing.value_or(0) == 0
 
     def test_unwrap_nothing_raises(self):
-        with pytest.raises(ValueError):
-            Nothing().unwrap()
+        with pytest.raises(UnwrapFailedError):
+            Nothing.unwrap()
 
     def test_from_optional_value(self):
         assert Maybe.from_optional(42).unwrap() == 42
 
     def test_from_optional_none(self):
-        assert Maybe.from_optional(None).is_nothing
+        assert Maybe.from_optional(None) is Nothing
 
-    def test_to_result(self):
-        assert Some(42).to_result("err").unwrap() == 42
-        assert Nothing().to_result("err").is_err
+    def test_is_some_helper(self):
+        assert is_some(Some(42))
+        assert not is_some(Nothing)
+
+    def test_is_nothing_helper(self):
+        assert is_nothing(Nothing)
+        assert not is_nothing(Some(42))
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +219,7 @@ class TestErrorHandling:
 
     def test_try_op_failure(self):
         r = try_op(lambda: 1 / 0)
-        assert r.is_err
+        assert is_err(r)
 
     def test_pipeline_error_str(self):
         err = PipelineError(step="ingest", message="file not found")
@@ -240,8 +238,8 @@ class TestErrorHandling:
 
         assert divide(10, 2).unwrap() == 5.0
         result = divide(10, 0)
-        assert result.is_err
-        assert result._error.step == "test_step"
+        assert is_err(result)
+        assert result.failure().step == "test_step"
 
     def test_lazy_evaluation(self):
         call_count = 0
@@ -302,11 +300,11 @@ class TestFileInventory:
         inv = FileInventory(files=(
             FileInfo(name="a.csv", path="/a.csv", size_bytes=100, sha256="aaa"),
         ))
-        assert inv.get("a.csv").is_some
+        assert is_some(inv.get("a.csv"))
 
     def test_get_missing(self):
         inv = FileInventory(files=())
-        assert inv.get("missing.csv").is_nothing
+        assert is_nothing(inv.get("missing.csv"))
 
     def test_to_dict(self):
         inv = FileInventory(files=(
@@ -345,13 +343,13 @@ class TestComputeSha256:
 
     def test_nonexistent_file(self, tmp_path):
         r = compute_sha256(tmp_path / "nope.txt")
-        assert r.is_err
+        assert is_err(r)
 
 
 class TestInventoryDirectory:
     def test_inventory_csvs(self, csv_dir):
         result = inventory_directory(csv_dir)
-        assert result.is_ok
+        assert is_ok(result)
         inv = result.unwrap()
         assert len(inv.files) == 5
 
@@ -359,7 +357,7 @@ class TestInventoryDirectory:
         d = tmp_path / "empty"
         d.mkdir()
         result = inventory_directory(d)
-        assert result.is_ok
+        assert is_ok(result)
         assert len(result.unwrap().files) == 0
 
 
@@ -373,14 +371,14 @@ class TestExtractZip:
 
         dest = tmp_path / "extracted"
         result = extract_zip(zip_path, dest)
-        assert result.is_ok
+        assert is_ok(result)
         assert (dest / "data.csv").exists()
 
     def test_extract_bad_zip(self, tmp_path):
         bad_zip = tmp_path / "bad.zip"
         bad_zip.write_text("not a zip")
         result = extract_zip(bad_zip, tmp_path / "dest")
-        assert result.is_err
+        assert is_err(result)
 
 
 class TestValidateDiscovery:
@@ -414,7 +412,7 @@ class TestValidateDiscovery:
 class TestReceiveStepPure:
     def test_receive_complete(self, csv_dir):
         result = receive_step_pure(csv_dir.parent, old_system_subdir="old_system")
-        assert result.is_ok
+        assert is_ok(result)
         recv = result.unwrap()
         assert recv.is_complete
         assert len(recv.discovered.beneficiary) == 3
@@ -425,7 +423,7 @@ class TestReceiveStepPure:
         d.mkdir()
         (d / "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv").write_text("a\n1\n")
         result = receive_step_pure(tmp_path, old_system_subdir="old_system")
-        assert result.is_ok
+        assert is_ok(result)
         recv = result.unwrap()
         assert not recv.is_complete
         assert len(recv.missing_categories) > 0
@@ -477,7 +475,7 @@ class TestPipelineConfig:
         config = PipelineConfig(old_data_dir=tmp_path)
         assert config.skip_ingest is False
         assert config.mode == "local"
-        assert config.new_data_dir.is_nothing
+        assert is_nothing(config.new_data_dir)
 
 
 class TestPipelineState:
@@ -516,7 +514,7 @@ class TestPipelineState:
 
         assert state.get_step_outcome("receive").unwrap().success
         assert state.get_step_outcome("schema").unwrap().success
-        assert state.get_step_outcome("ingest").is_nothing
+        assert is_nothing(state.get_step_outcome("ingest"))
 
     def test_all_succeeded(self, tmp_path):
         config = PipelineConfig(old_data_dir=tmp_path)
@@ -537,7 +535,7 @@ class TestPipelineState:
 
         pipeline = compose_pipeline(step_a, step_b)
         result = pipeline(initial)
-        assert result.is_ok
+        assert is_ok(result)
         final = result.unwrap()
         assert final.total_count == 2
         assert final.all_succeeded
@@ -556,7 +554,7 @@ class TestPipelineState:
 
         pipeline = compose_pipeline(step_a, step_b)
         result = pipeline(initial)
-        assert result.is_ok
+        assert is_ok(result)
         final = result.unwrap()
         assert final.total_count == 1  # step_b never ran
         assert final.halted

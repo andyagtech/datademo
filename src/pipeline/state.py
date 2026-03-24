@@ -11,7 +11,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, final
 
-from src.functional import Result, Success, Maybe, Some, Nothing
+from src.functional import Result, Success, Maybe, Some, Nothing, is_err
 from src.pipeline.receive_pure import ReceiveResult
 
 
@@ -79,8 +79,8 @@ class PipelineConfig:
     All parameters for pipeline execution, frozen at start.
     """
     old_data_dir: Path
-    new_data_dir: Maybe[Path] = field(default_factory=Nothing)
-    db_path: Maybe[Path] = field(default_factory=Nothing)
+    new_data_dir: Maybe[Path] = Nothing
+    db_path: Maybe[Path] = Nothing
     skip_ingest: bool = False
     mode: str = "local"  # "local" or "cloud"
     
@@ -105,7 +105,7 @@ class PipelineState:
     outcomes: tuple[StepOutcome, ...] = field(default_factory=tuple)
     
     # Step-specific results (typed data classes, not dicts)
-    receive_result: Maybe[ReceiveResult] = field(default_factory=Nothing)
+    receive_result: Maybe[ReceiveResult] = Nothing
     # schema_result: Maybe[SchemaValidationResult] = field(default_factory=Nothing)
     # ingest_result: Maybe[IngestResult] = field(default_factory=Nothing)
     # match_result: Maybe[MatchResult] = field(default_factory=Nothing)
@@ -147,7 +147,7 @@ class PipelineState:
     def get_last_outcome(self) -> Maybe[StepOutcome]:
         """Get most recent outcome."""
         if not self.outcomes:
-            return Nothing()
+            return Nothing
         return Some(self.outcomes[-1])
     
     def get_step_outcome(self, step_name: str) -> Maybe[StepOutcome]:
@@ -155,7 +155,7 @@ class PipelineState:
         for o in self.outcomes:
             if o.step_name == step_name:
                 return Some(o)
-        return Nothing()
+        return Nothing
     
     @property
     def success_count(self) -> int:
@@ -197,9 +197,9 @@ def step_wrapper(
         # Execute step
         result = step_fn(state)
         
-        if result.is_err:
+        if is_err(result):
             # Convert to outcome and return new state
-            err = result.unwrap()
+            err = result.failure()
             outcome = StepOutcome.err(
                 step_name=step_name,
                 message=str(err),
@@ -240,7 +240,7 @@ def compose_pipeline(*steps: StepFunction) -> Pipeline:
         for step in steps:
             result = step(state)
             
-            if result.is_err:
+            if is_err(result):
                 return result
             
             state = result.unwrap()

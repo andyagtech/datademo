@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from src.functional import Result, Success, Failure, Maybe, Some, Nothing, try_op
+from src.functional import Result, Success, Failure, Maybe, Some, Nothing, try_op, is_err
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,7 @@ class FileInventory:
         for f in self.files:
             if f.name == name:
                 return Some(f)
-        return Nothing()
+        return Nothing
     
     def filter_by_pattern(self, pattern: str) -> FileInventory:
         """Filter files by glob pattern."""
@@ -137,8 +137,8 @@ def inventory_directory(directory: Path) -> Result[FileInventory, Exception]:
         files = []
         for p in sorted(directory.glob("*.csv")):
             hash_result = compute_sha256(p)
-            if hash_result.is_err:
-                raise hash_result.unwrap()  # Will be caught by try_op wrapper
+            if is_err(hash_result):
+                raise hash_result.failure()  # Will be caught by try_op wrapper
             
             files.append(FileInfo(
                 name=p.name,
@@ -250,8 +250,8 @@ def with_zip_extraction(
         
         for zip_file in zips:
             result = extract_zip(zip_file, directory, password)
-            if result.is_err:
-                return Failure(result.unwrap())
+            if is_err(result):
+                return Failure(result.failure())
         
         return Success(directory)
     
