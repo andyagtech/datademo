@@ -8,6 +8,7 @@ concept, then shows where and how it is used.
 
 ## Table of Contents
 
+### Core Concepts
 1. [Monads (Result, Maybe)](#1-monads-result-maybe)
 2. [Functors (.map)](#2-functors-map)
 3. [Function Composition (pipe, compose)](#3-function-composition-pipe-compose)
@@ -24,6 +25,15 @@ concept, then shows where and how it is used.
 14. [Conditional Combinators (when / unless)](#14-conditional-combinators-when--unless)
 15. [Property-Based Testing (Algebraic Laws)](#15-property-based-testing-algebraic-laws)
 16. [Recursion](#16-recursion)
+
+### Design Patterns
+17. [Railway-Oriented Programming](#17-railway-oriented-programming)
+18. [Functional Core, Imperative Shell](#18-functional-core-imperative-shell)
+19. [Smart Constructors](#19-smart-constructors)
+20. [Newtype / Semantic Wrapper](#20-newtype--semantic-wrapper)
+
+### Future Extensions
+21. [Where We'd Go Next](#21-where-wed-go-next)
 
 ---
 
@@ -951,7 +961,7 @@ class TestZSetAlgebraicProperties:
 A function that calls itself to solve a problem by breaking it into smaller
 sub-problems.
 
-### Honest assessment: We don't use explicit recursion
+### Current status: Not used (deliberately)
 
 This pipeline processes data with DuckDB SQL (set-based, not recursive) and
 Python loops. There is no recursive function in the codebase.
@@ -968,12 +978,615 @@ The **functional alternatives to recursion** that we do use:
 - **SQL set operations** — `FULL OUTER JOIN`, `GROUP BY`, `SUM` replace what
   might be recursive traversals in other contexts
 
-If we needed recursion (e.g., tree-structured data), we would use `reduce` or
-trampolining to stay within Python's stack limits.
+### Future use case: Recursive ICD Code Hierarchy Validation
+
+CMS claims data includes ICD diagnosis codes (e.g., `E11.65` — Type 2 diabetes
+with hyperglycemia). These codes form a **tree**:
+
+```
+ICD-10 Root
+├── E00-E89: Endocrine, nutritional, metabolic
+│   ├── E10: Type 1 diabetes
+│   │   ├── E10.1: with ketoacidosis
+│   │   ├── E10.2: with kidney complications
+│   │   │   ├── E10.21: with diabetic nephropathy
+│   │   │   └── E10.22: with diabetic CKD
+│   │   └── E10.6: with other specified complications
+│   └── E11: Type 2 diabetes
+│       ├── E11.6: with other specified complications
+│       │   └── E11.65: with hyperglycemia
+│       └── ...
+└── ...
+```
+
+If we needed to validate that every diagnosis code on a claim is consistent with
+its parent category (e.g., a claim for `E11.65` should also have the patient
+flagged for `SP_DIABETES`), we'd need to **walk up the tree** from each code.
+
+A recursive catamorphism (tree fold) would be the natural solution:
+
+```python
+@dataclass(frozen=True)
+class ICDNode:
+    code: str
+    description: str
+    children: tuple['ICDNode', ...]  # Recursive structure
+
+def catamorphism(node: ICDNode, f: Callable) -> T:
+    """
+    Recursive fold over a tree — the functional way to process
+    hierarchical data without mutation.
+
+    f receives the node and the already-folded results of its children.
+    """
+    child_results = tuple(catamorphism(child, f) for child in node.children)
+    return f(node, child_results)
+
+# Example: count all codes under a category
+def count_codes(node: ICDNode, child_counts: tuple[int, ...]) -> int:
+    return 1 + sum(child_counts)
+
+# Example: find all leaf codes (no children)
+def collect_leaves(node: ICDNode, child_leaves: tuple[list, ...]) -> list:
+    if not node.children:
+        return [node.code]
+    return [code for leaves in child_leaves for code in leaves]
+
+# Example: validate a claim's codes against the hierarchy
+def validate_claim_codes(
+    claim_codes: frozenset[str],
+    hierarchy: ICDNode,
+) -> Result[frozenset[str], list[str]]:
+    """
+    Recursively walk the ICD tree. For each code in the claim,
+    verify its ancestors are consistent with the patient's flags.
+    """
+    def check(node, child_results):
+        errors = [e for results in child_results for e in results]
+        if node.code in claim_codes:
+            # Check parent consistency...
+            pass
+        return errors
+
+    errors = catamorphism(hierarchy, check)
+    return Success(claim_codes) if not errors else Failure(errors)
+```
+
+To handle Python's stack limit for deep trees, we'd use **trampolining**:
+
+```python
+from typing import Generator
+
+def trampoline(f: Generator):
+    """
+    Trampoline: convert recursive calls into a flat loop.
+    Each 'yield' is a suspended recursive call; the trampoline
+    resumes it iteratively, avoiding stack overflow.
+    """
+    result = next(f)
+    stack = [f]
+    while stack:
+        try:
+            result = stack[-1].send(result)
+            if hasattr(result, '__next__'):
+                stack.append(result)
+                result = next(result)
+        except StopIteration as e:
+            stack.pop()
+            result = e.value
+    return result
+```
+
+This is not a stretch — CMS data **does** contain ICD codes, and hierarchical
+validation is a real need for claims data quality. The current pipeline validates
+flat fields; extending to tree-structured medical codes is a natural next step.
+
+---
+
+## 17. Railway-Oriented Programming
+
+### What is it?
+
+A design pattern (coined by Scott Wlaschin) where data flows along two "tracks":
+
+```
+Success track:  ──[Step 1]──→──[Step 2]──→──[Step 3]──→── ✓ Final result
+                     │              │              │
+Failure track:  ─────╳──────→──────╳──────→──────╳──→── ✗ First error
+```
+
+If any step fails, all subsequent steps are **automatically skipped** — the failure
+propagates along the bottom track. No explicit error checking between steps.
+
+This is implemented via the `Result` monad's `.bind()` method: `Failure.bind(f)`
+returns `Failure` without calling `f`.
+
+### Where it's used
+
+**The entire pipeline architecture** is railway-oriented.
+
+**`compose_pipeline` in `src/pipeline/state.py`** — the railway switchyard:
+
+```python
+def compose_pipeline(*steps: StepFunction) -> Pipeline:
+    def pipeline(initial_state: PipelineState) -> Result[PipelineState, Exception]:
+        state = initial_state
+        for step in steps:
+            result = step(state)        # Run the step
+            if is_err(result):
+                return result           # ← SWITCH TO FAILURE TRACK
+            state = result.unwrap()     # ← STAY ON SUCCESS TRACK
+            if state.should_halt():
+                break
+        return Success(state)
+    return pipeline
+```
+
+**`receive_step_pure` in `src/pipeline/receive_pure.py`** — railway within a step:
+
+```python
+return (
+    inventory_directory(old_system_dir)       # Step A: might fail
+    .bind(lambda inventory:                    # Step B: skipped if A failed
+        Success((inventory, discover_files(old_system_dir)))
+    )
+    .bind(lambda pair:                         # Step C: skipped if A or B failed
+        _create_receive_result(...)
+    )
+)
+```
+
+**`step_wrapper` in `src/pipeline/state.py`** — wraps any step into the railway:
+
+```python
+def step_wrapper(step_name, step_fn):
+    def wrapped(state):
+        if state.should_halt():        # Already on failure track
+            return Success(state)      # Pass through without running
+        result = step_fn(state)
+        if is_err(result):
+            outcome = StepOutcome.err(...)
+            return Success(state.with_outcome(outcome))  # Record failure, continue
+        return result
+    return wrapped
+```
+
+### Why it matters
+
+Without railway-oriented programming, the pipeline would look like:
+
+```python
+# Imperative error handling (what we replaced)
+result1 = step1(ctx)
+if not result1.success:
+    log_error(result1)
+    return result1
+result2 = step2(ctx)
+if not result2.success:
+    log_error(result2)
+    return result2
+result3 = step3(ctx)
+if not result3.success:
+    ...  # 6 levels of nesting
+```
+
+With the railway pattern, it's:
+
+```python
+# Railway-oriented (what we have)
+pipeline = compose_pipeline(step1, step2, step3, step4, step5, step6)
+final = pipeline(initial_state)  # Failures automatically propagate
+```
+
+---
+
+## 18. Functional Core, Imperative Shell
+
+### What is it?
+
+An architecture pattern (from Gary Bernhardt's "Boundaries" talk) where:
+
+- **Functional core**: Pure functions and immutable data — all business logic
+- **Imperative shell**: Thin layer at the edges that handles I/O, databases, files
+
+The core is easy to test (no mocks needed). The shell is thin enough that it
+barely needs testing.
+
+### Where it's used
+
+**This is the overall architecture of the refactored pipeline.**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     IMPERATIVE SHELL                         │
+│  runner_fp.py  — reads config, writes logs, manages DB conn  │
+│  steps_fp.py   — calls con.execute() at the boundary         │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │                   FUNCTIONAL CORE                        │ │
+│  │                                                          │ │
+│  │  state.py         — PipelineState, compose_pipeline      │ │
+│  │  query_algebra.py — IngestPlan, AnomalyCheck, MatchConfig│ │
+│  │  zset.py Layer 1  — diff_sql, stats_sql, field_diff_sql  │ │
+│  │  receive_pure.py  — discover_files, validate_discovery   │ │
+│  │  functional.py    — Result, Maybe, pipe, compose         │ │
+│  │  pattern_matching.py — structural match on domain types  │ │
+│  │                                                          │ │
+│  │  No I/O. No database. No side effects. Pure functions.   │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  zset.py Layer 2  — execute_diff() calls con.execute()       │
+│  steps_fp.py      — _execute_ingest_plan(), _execute_export  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Concrete example — Step 3 Ingest:**
+
+```python
+# CORE (pure): Build a plan — no database access
+plan = _build_ingest_plan(state.config)
+# plan is an IngestPlan(operations=(...), skip_ingest=False)
+
+# SHELL (effectful): Execute it — database access happens here only
+con_result = _execute_ingest_plan(plan, ctx)
+```
+
+**Concrete example — Z-set diff:**
+
+```python
+# CORE: Generate SQL string (pure, testable without DB)
+sql = diff_sql(old_ref, new_ref, "_zset_beneficiary")
+
+# SHELL: Execute it (effectful, requires DB connection)
+con.execute(sql)
+```
+
+### Why it matters
+
+The functional core can be tested with simple unit tests — no database, no
+filesystem, no mocks:
+
+```python
+def test_diff_sql_contains_full_outer_join(self, old_ref, new_ref):
+    sql = diff_sql(old_ref, new_ref, "_zset_test")  # No DB needed
+    assert "FULL OUTER JOIN" in sql
+```
+
+The imperative shell is tested with integration tests against a small in-memory
+DuckDB — but there's very little logic to test, since the shell just calls the
+core and executes the result.
+
+---
+
+## 19. Smart Constructors
+
+### What is a smart constructor?
+
+A class method that validates inputs and returns a well-formed instance, instead
+of letting callers construct invalid objects directly. This is the Python
+equivalent of Haskell's `mkFoo :: ... -> Maybe Foo`.
+
+### Where it's used
+
+**`StepOutcome.ok()` and `StepOutcome.err()` in `src/pipeline/state.py`:**
+
+```python
+@dataclass(frozen=True)
+class StepOutcome:
+    step_name: str
+    success: bool
+    message: str
+    data: dict[str, Any] = field(default_factory=dict)
+    errors: tuple[str, ...] = field(default_factory=tuple)
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+
+    @classmethod
+    def ok(cls, step_name, message, data=None) -> StepOutcome:
+        """Smart constructor: guarantees success=True, no errors."""
+        return cls(step_name=step_name, success=True, message=message, data=data or {})
+
+    @classmethod
+    def err(cls, step_name, message, errors, warnings=()) -> StepOutcome:
+        """Smart constructor: guarantees success=False, has errors."""
+        return cls(step_name=step_name, success=False, message=message,
+                   errors=errors, warnings=warnings)
+```
+
+You can't accidentally create a `StepOutcome(success=True, errors=("oops",))`
+when using the smart constructors — `ok()` always has empty errors, `err()` always
+has `success=False`.
+
+**`AnomalyResult.is_anomalous` in `src/pipeline/query_algebra.py`:**
+
+```python
+@dataclass(frozen=True)
+class AnomalyResult:
+    check: AnomalyCheck
+    count: int
+
+    @property
+    def is_anomalous(self) -> bool:
+        return self.count > self.check.threshold
+```
+
+The "is this an anomaly?" logic lives on the type itself, not scattered across
+the codebase. This is a weaker form of smart constructor — it doesn't prevent
+construction, but it centralizes the invariant.
+
+---
+
+## 20. Newtype / Semantic Wrapper
+
+### What is it?
+
+Wrapping a primitive value in a named type to give it meaning and prevent mixing
+up different things that happen to have the same underlying type. In Haskell:
+`newtype UserId = UserId String`.
+
+### Where it's used
+
+**`TableRef` in `src/zset.py`** — wraps a table name + key columns:
+
+```python
+@dataclass(frozen=True)
+class TableRef:
+    name: str
+    key_cols: tuple[str, ...]
+```
+
+Without `TableRef`, the Z-set functions would take `(str, tuple[str, ...])` pairs
+that could easily be confused. With it, the API is self-documenting:
+
+```python
+# Clear: two named references
+old = TableRef(name="beneficiary_summary", key_cols=("DESYNPUF_ID", "summary_year"))
+new = TableRef(name="new_beneficiary_summary", key_cols=("DESYNPUF_ID", "summary_year"))
+result = execute_diff(con, old, new, "_zset_beneficiary")
+
+# Unclear (what we'd have without the newtype):
+result = execute_diff(con, "beneficiary_summary", ("DESYNPUF_ID", "summary_year"),
+                      "new_beneficiary_summary", ("DESYNPUF_ID", "summary_year"), ...)
+```
+
+**`FileType` in `src/pipeline/schema_validate_pure.py`** — wraps a string kind:
+
+```python
+@dataclass(frozen=True)
+class FileType:
+    kind: str  # "beneficiary" | "carrier_claims" | "unknown"
+```
+
+Instead of passing raw strings like `"beneficiary"` through the system (which
+could be misspelled), we pass `FileType(kind="beneficiary")` — a typed wrapper
+that can be pattern-matched.
+
+**`PipelineError` in `src/functional.py`** — wraps error context:
+
+```python
+@dataclass(frozen=True)
+class PipelineError:
+    step: str
+    message: str
+    cause: Exception | None = None
+    context: dict[str, Any] = field(default_factory=dict)
+```
+
+Instead of `Failure("something went wrong")`, we have
+`Failure(PipelineError(step="ingest", message="...", cause=exc))` — structured,
+pattern-matchable errors.
+
+---
+
+## 21. Where We'd Go Next
+
+These are concrete extensions that a functional programming advocate would
+recognize as natural evolutions of the current architecture.
+
+### Optics (Lenses) — for deeply nested immutable updates
+
+**Problem**: Updating a deeply nested field in an immutable structure requires
+reconstructing every layer:
+
+```python
+# Current: manual reconstruction
+new_state = replace(state,
+    outcomes=state.outcomes + (outcome,),
+    halted=True,
+    halt_reason=outcome.message,
+)
+```
+
+**With lenses** (e.g., `python-lenses` library):
+
+```python
+from lenses import lens
+
+# Lens: a composable "path" into a data structure
+halt_lens = lens.halted
+reason_lens = lens.halt_reason
+outcome_lens = lens.outcomes
+
+# Compose lenses, then apply
+update = halt_lens.set(True) & reason_lens.set(msg) & outcome_lens.modify(lambda o: o + (outcome,))
+new_state = update(state)
+```
+
+This becomes valuable when `PipelineState` grows more typed result fields
+(e.g., `schema_result`, `ingest_result`, `match_result` — currently commented
+out in `state.py`). Lenses compose cleanly where manual `replace()` chains
+become unwieldy.
+
+### Free Monad — full DSL for pipeline operations
+
+**Problem**: Our interpreter pattern uses frozen dataclasses (`IngestPlan`,
+`AnomalyCheck`, `ExportOp`) as the "language" of operations. But each step
+has its own ad-hoc set of descriptions.
+
+**With a free monad**, all operations across all steps would share a single
+algebraic language:
+
+```python
+@dataclass(frozen=True)
+class PipelineOp:
+    """Base class for all pipeline operations."""
+    pass
+
+@dataclass(frozen=True)
+class ReadCSV(PipelineOp):
+    path: Path
+    target_table: str
+
+@dataclass(frozen=True)
+class ExecuteSQL(PipelineOp):
+    sql: str
+
+@dataclass(frozen=True)
+class ExportTable(PipelineOp):
+    table: str
+    format: str  # "csv" | "parquet"
+    path: Path
+
+# A pipeline is a sequence of operations — pure data, no effects
+Pipeline = tuple[PipelineOp, ...]
+
+# One interpreter for DuckDB
+def duckdb_interpreter(con, ops: Pipeline):
+    for op in ops:
+        match op:
+            case ReadCSV(path, table):
+                con.execute(f"CREATE TABLE {table} AS SELECT * FROM read_csv_auto('{path}')")
+            case ExecuteSQL(sql):
+                con.execute(sql)
+            case ExportTable(table, "csv", path):
+                con.execute(f"COPY {table} TO '{path}' (HEADER)")
+
+# A DIFFERENT interpreter for testing (no database at all)
+def mock_interpreter(ops: Pipeline) -> list[str]:
+    return [f"Would execute: {op}" for op in ops]
+```
+
+The key insight: you could swap the DuckDB interpreter for a Spark interpreter,
+a Snowflake interpreter, or a dry-run interpreter — the pipeline description
+stays the same.
+
+### Comonads — for windowed time-series analysis
+
+**Problem**: Claims data has temporal structure. Analyzing trends requires looking
+at surrounding context (previous year, next year) for each data point.
+
+A **comonad** is the dual of a monad — instead of wrapping a value to add effects,
+it wraps a value with its *context*. The key operation is `extend`: apply a
+function that can see the whole neighborhood.
+
+```python
+@dataclass(frozen=True)
+class Windowed(Generic[T]):
+    """A value with its temporal context — a comonadic structure."""
+    before: tuple[T, ...]   # Previous time periods
+    focus: T                 # Current time period
+    after: tuple[T, ...]    # Future time periods
+
+    def extract(self) -> T:
+        """Comonad extract: get the focused value."""
+        return self.focus
+
+    def extend(self, f: Callable[['Windowed[T]'], U]) -> 'Windowed[U]':
+        """Comonad extend: apply f at every position with full context."""
+        # f can see the entire window, not just the current value
+        results = []
+        for i in range(len(self.before) + 1 + len(self.after)):
+            shifted = self._shift_to(i)
+            results.append(f(shifted))
+        return Windowed(
+            before=tuple(results[:len(self.before)]),
+            focus=results[len(self.before)],
+            after=tuple(results[len(self.before)+1:]),
+        )
+
+# Usage: detect year-over-year anomalies in Medicare reimbursement
+def detect_yoy_anomaly(window: Windowed[YearlyStats]) -> AnomalyFlag:
+    current = window.focus.total_reimbursement
+    if window.before:
+        prev = window.before[-1].total_reimbursement
+        pct_change = (current - prev) / max(prev, 1)
+        if abs(pct_change) > 0.5:  # >50% change year-over-year
+            return AnomalyFlag(year=window.focus.year, change_pct=pct_change)
+    return AnomalyFlag(year=window.focus.year, change_pct=0.0)
+```
+
+This is relevant because the pipeline already detects financial divergences
+per year (2008, 2009, 2010). A comonadic approach would let us express
+"compare each year to its neighbors" as a composable, pure operation.
+
+### Recursive Z-Set Diff on Hierarchical Claims
+
+**Problem**: Claims have structure — a claim contains line items, each line item
+has diagnosis codes, and diagnosis codes form a hierarchy (see Section 16).
+
+Currently our Z-set diff operates on flat tables. A **recursive Z-set** would
+diff at each level of the hierarchy:
+
+```python
+@dataclass(frozen=True)
+class HierarchicalDiff:
+    """Z-set diff at one level, with recursive child diffs."""
+    level: str               # "claim" | "line_item" | "diagnosis"
+    stats: ZSetStats         # Insertions/deletions/unchanged at THIS level
+    field_deltas: tuple[FieldDelta, ...]
+    children: tuple['HierarchicalDiff', ...]  # Recursive: diffs at child levels
+
+def recursive_diff(
+    old: TableRef, new: TableRef, con, children: list[ChildSpec]
+) -> HierarchicalDiff:
+    """Recursively diff a hierarchy of tables."""
+    # Diff at this level
+    result = execute_diff(con, old, new, f"_zset_{old.name}")
+    zr = result.unwrap()
+
+    # Recursively diff children (only for matched records)
+    child_diffs = []
+    for child in children:
+        child_diff = recursive_diff(child.old, child.new, con, child.children)
+        child_diffs.append(child_diff)
+
+    return HierarchicalDiff(
+        level=old.name,
+        stats=zr.stats,
+        field_deltas=zr.field_deltas,
+        children=tuple(child_diffs),
+    )
+
+# Usage:
+full_diff = recursive_diff(
+    old=TableRef("carrier_claims", ("CLM_ID",)),
+    new=TableRef("new_carrier_claims", ("CLM_ID",)),
+    con=con,
+    children=[
+        ChildSpec(
+            old=TableRef("claim_lines", ("CLM_ID", "LINE_NUM")),
+            new=TableRef("new_claim_lines", ("CLM_ID", "LINE_NUM")),
+            children=[
+                ChildSpec(
+                    old=TableRef("diagnoses", ("CLM_ID", "LINE_NUM", "ICD_CODE")),
+                    new=TableRef("new_diagnoses", ("CLM_ID", "LINE_NUM", "ICD_CODE")),
+                    children=[],
+                )
+            ],
+        )
+    ],
+)
+```
+
+This would answer questions like: "For claims that matched, did their line items
+change? For line items that matched, did their diagnosis codes change?" — drilling
+down through each level of the hierarchy recursively.
 
 ---
 
 ## Summary Table
+
+### Core Concepts
 
 | Concept | Files | Primary Use |
 |---------|-------|-------------|
@@ -993,4 +1606,24 @@ trampolining to stay within Python's stack limits.
 | **Fold / reduce** | `functional.py`, `state.py`, `steps_fp.py` | Accumulate results |
 | **Conditional combinators** | `functional.py` | Composable conditionals |
 | **Property-based testing** | `test_property_based.py`, `test_zset.py` | Verify algebraic laws |
-| **Recursion** | *(not used)* | Replaced by reduce, SQL, iteration over immutable data |
+| **Recursion** | *(future: ICD hierarchy)* | Catamorphism over tree-structured medical codes |
+
+### Design Patterns
+
+| Pattern | Files | Primary Use |
+|---------|-------|-------------|
+| **Railway-oriented programming** | `state.py` (`compose_pipeline`), `receive_pure.py` (`.bind()` chains) | Automatic error propagation |
+| **Functional core / imperative shell** | Core: `state.py`, `query_algebra.py`, `zset.py` L1; Shell: `steps_fp.py`, `zset.py` L2 | Testable core, thin I/O boundary |
+| **Smart constructors** | `state.py` (`StepOutcome.ok`, `.err`) | Prevent invalid state construction |
+| **Newtype / semantic wrapper** | `zset.py` (`TableRef`), `schema_validate_pure.py` (`FileType`), `functional.py` (`PipelineError`) | Type safety, self-documenting APIs |
+
+### Future Extensions
+
+| Concept | Applicable To | What It Would Enable |
+|---------|--------------|---------------------|
+| **Optics (lenses)** | `PipelineState` nested updates | Composable immutable state updates without boilerplate |
+| **Free monad** | Steps 3-6 operation descriptions | Swappable interpreters (DuckDB → Spark → dry-run) |
+| **Comonads** | Year-over-year trend analysis | Windowed context for temporal anomaly detection |
+| **Recursive Z-set diff** | Claim → line item → diagnosis hierarchy | Multi-level structural diffing with catamorphisms |
+| **Catamorphism** | ICD-10 code tree validation | Recursive tree fold for hierarchical code consistency |
+| **Trampolining** | Deep ICD trees | Stack-safe recursion in Python |
