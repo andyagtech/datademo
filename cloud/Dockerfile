@@ -12,4 +12,4 @@ COPY cloud/__init__.py ${LAMBDA_TASK_ROOT}/cloud/__init__.py
 COPY cloud/handlers.py ${LAMBDA_TASK_ROOT}/cloud/handlers.py
 
 # Default handler (overridden per-function in SAM template)
-CMD ["cloud.handlers.handle_receive"]
+CMD ["cloud.handlers.handle_chat"]

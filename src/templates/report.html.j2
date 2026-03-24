@@ -48,6 +48,15 @@
   .badge-info { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
   .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
   .section { margin-bottom: 2.5rem; }
+  /* Scroll offset for fixed nav bar + breathing room */
+  [id] { scroll-margin-top: 52px; }
+  /* Highlight pulse when navigated to via chat or hash */
+  @keyframes highlightPulse {
+    0% { outline: 2px solid rgba(56,189,248,0.8); outline-offset: 2px; box-shadow: 0 0 15px rgba(56,189,248,0.4); }
+    50% { outline: 2px solid rgba(56,189,248,0.4); outline-offset: 4px; box-shadow: 0 0 25px rgba(56,189,248,0.2); }
+    100% { outline: 2px solid transparent; outline-offset: 6px; box-shadow: none; }
+  }
+  .highlight-target { animation: highlightPulse 1.8s ease-out forwards; border-radius: 8px; }
   .null-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--accent); }
   .impact-cell { font-size: 0.78rem; color: var(--muted); word-wrap: break-word; white-space: normal; line-height: 1.35; }
   .comparison-scroll { overflow-x: auto; margin: 0.5rem 0; }
@@ -147,7 +156,7 @@
 </nav>
 
 <div class="container" style="padding-top: calc(2rem + 32px)">
-  <h1>CMS Claims Data Comparison Report</h1>
+  <h1 id="report-title">CMS Claims Data Comparison Report</h1>
   <p class="subtitle">Generated {{ generated_at }}</p>
 
   <!-- Sidebar Navigation -->
@@ -169,7 +178,7 @@
   <!-- 0. DATA CONTEXT — what exactly is being compared              -->
   <!-- ============================================================ -->
   <div class="section" id="data-context">
-    <h2>Data Under Comparison</h2>
+    <h2 id="data-context-heading">Data Under Comparison</h2>
     <p style="color: var(--muted); margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.7; max-width: 900px;">
       This report compares outputs from two CMS Medicare claims processing systems.
       The <strong style="color: var(--accent);">old system</strong> is the legacy production pipeline
@@ -180,7 +189,7 @@
 
     <div class="grid-2">
       <!-- Old System -->
-      <div class="card card-accent">
+      <div class="card card-accent" id="old-system-files">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
           <strong style="font-size: 1rem;">Old System (Reference)</strong>
           <span class="badge badge-info">{{ old_system_file_count }} files</span>
@@ -199,7 +208,7 @@
       </div>
 
       <!-- New System -->
-      <div class="card" style="border-left: 3px solid #4ade80;">
+      <div class="card" style="border-left: 3px solid #4ade80;" id="new-system-files">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
           <strong style="font-size: 1rem;">New System (Under Test)</strong>
           {% if new_system_files %}
@@ -228,7 +237,7 @@
 
     {% if match_summary %}
     <!-- Match summary -->
-    <h3 style="margin-top: 1.5rem;">Record Matching Results</h3>
+    <h3 id="record-matching" style="margin-top: 1.5rem;">Record Matching Results</h3>
     <div class="grid">
       {% for m in match_summary %}
       <div class="card {{ 'card-green' if m.match_rate >= 99.5 else 'card-yellow' if m.match_rate >= 95 else 'card-red' }}">
@@ -245,46 +254,46 @@
   <!-- 1. EXECUTIVE SUMMARY — the most important numbers up front   -->
   <!-- ============================================================ -->
   <div class="section" id="summary">
-    <h2>Executive Summary</h2>
+    <h2 id="executive-summary-heading">Executive Summary</h2>
     <div class="grid">
-      <div class="card card-accent">
+      <div class="card card-accent" id="total-beneficiaries">
         <div class="card-label">Total Beneficiaries</div>
         <div class="card-value">{{ summary.total_beneficiaries }}</div>
         <div class="card-sub">Across {{ summary.summary_years }} summary years</div>
       </div>
-      <div class="card card-accent">
+      <div class="card card-accent" id="total-carrier-claims">
         <div class="card-label">Total Carrier Claims</div>
         <div class="card-value">{{ summary.total_claims }}</div>
         <div class="card-sub">Parts A + B combined</div>
       </div>
       <div class="card {{ 'card-green' if summary.failed_checks == 0 else 'card-red' }}">
-        <div class="card-label">Checks Passed</div>
+        <div class="card-label" id="checks-passed">Checks Passed</div>
         <div class="card-value {{ 'pass' if summary.failed_checks == 0 else '' }}">{{ summary.passed_checks }} / {{ summary.total_checks }}</div>
         <div class="card-sub">{{ summary.failed_checks }} issue{{ 's' if summary.failed_checks != 1 else '' }} detected</div>
       </div>
       <div class="card {{ 'card-green' if not comparisons else 'card-yellow' }}">
-        <div class="card-label">New System Status</div>
+        <div class="card-label" id="new-system-status">New System Status</div>
         <div class="card-value {{ 'warn' if not comparisons else '' }}">{{ 'Loaded' if comparisons else 'Pending' }}</div>
         <div class="card-sub">{{ comparisons|length if comparisons else 'No' }} comparison checks</div>
       </div>
     </div>
     <div class="grid">
-      <div class="card card-red">
+      <div class="card card-red" id="claims-payment-discrepancy">
         <div class="card-label">Claims Payment Discrepancy</div>
         <div class="card-value fail">{{ summary.total_claims_pmt_divergence }}</div>
         <div class="card-sub">Total NCH payment divergence across all claim lines</div>
       </div>
-      <div class="card card-red">
+      <div class="card card-red" id="claims-with-payment-changes">
         <div class="card-label">Claims with Payment Changes</div>
         <div class="card-value fail">{{ summary.claims_with_pmt_changes }}</div>
         <div class="card-sub">Matched claims with altered payment amounts</div>
       </div>
-      <div class="card card-yellow">
+      <div class="card card-yellow" id="beneficiaries-affected">
         <div class="card-label">Beneficiaries Affected</div>
         <div class="card-value warn">{{ summary.benes_with_any_change }}</div>
         <div class="card-sub">Distinct beneficiaries with any field-level change</div>
       </div>
-      <div class="card card-yellow">
+      <div class="card card-yellow" id="injected-test-records">
         <div class="card-label">Injected Test Records</div>
         <div class="card-value warn">159 + 4,777</div>
         <div class="card-sub">Fake "ZZ" beneficiaries + fabricated claims</div>
@@ -292,7 +301,7 @@
     </div>
 
     {% if failed_validations %}
-    <h3 style="color: var(--red); margin-top: 1.5rem;">Issues Requiring Attention</h3>
+    <h3 id="issues-requiring-attention" style="color: var(--red); margin-top: 1.5rem;">Issues Requiring Attention</h3>
     <div class="grid" style="grid-template-columns: 1fr;">
       {% for v in failed_validations %}
       <div class="card card-red">
@@ -317,7 +326,7 @@
   <!-- 1b. DISCREPANCY DASHBOARD — the spec's core ask              -->
   <!-- ============================================================ -->
   <div class="section" id="discrepancies">
-    <h2>Discrepancy Dashboard</h2>
+    <h2 id="discrepancy-dashboard-heading">Discrepancy Dashboard</h2>
     <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.88rem; line-height: 1.6; max-width: 900px;">
       The old system (CMS DE-SynPUF) is treated as <strong style="color: var(--accent);">ground truth</strong>.
       All metrics below quantify how the new system's outputs <strong style="color: var(--yellow);">deviate</strong>
@@ -351,7 +360,7 @@
 
     <!-- Key Findings — interpretive narrative (rendered by JS from analysis data) -->
     <div id="key-findings" style="margin-top: 1.5rem; display: none;">
-      <h3 style="margin-bottom: 0.75rem;">Key Findings</h3>
+      <h3 id="key-findings-heading" style="margin-bottom: 0.75rem;">Key Findings</h3>
       <div class="card" style="border-left: 3px solid var(--yellow); line-height: 1.8; font-size: 0.88rem;">
         <p id="finding-accuracy" style="margin-bottom: 0.6rem;"></p>
         <p id="finding-top-field" style="margin-bottom: 0.6rem;"></p>
@@ -361,7 +370,7 @@
         <p id="finding-trend" style="margin-bottom: 0;"></p>
       </div>
 
-      <h3 style="margin-top: 1.25rem; margin-bottom: 0.5rem;">What This Means for Accuracy</h3>
+      <h3 id="accuracy-assessment" style="margin-top: 1.25rem; margin-bottom: 0.5rem;">What This Means for Accuracy</h3>
       <div class="card" style="border-left: 3px solid #4ade80; line-height: 1.8; font-size: 0.88rem;">
         <p id="meaning-accuracy" style="margin-bottom: 0.6rem;"></p>
         <p id="meaning-risk" style="margin-bottom: 0;"></p>
@@ -369,19 +378,20 @@
     </div>
 
     <!-- Discrepancy charts -->
-    <div class="grid-2" style="margin-top: 1.5rem;">
-      <div class="chart-container">
+    <h3 id="discrepancy-charts" style="margin-top: 1.5rem;">Discrepancy Charts</h3>
+    <div class="grid-2">
+      <div class="chart-container" id="container-field-mismatches">
         <div id="chart-field-mismatches" style="width:100%;height:400px;"></div>
       </div>
-      <div class="chart-container">
+      <div class="chart-container" id="container-discrepancy-trend">
         <div id="chart-discrepancy-trend" style="width:100%;height:400px;"></div>
       </div>
     </div>
     <div class="grid-2">
-      <div class="chart-container">
+      <div class="chart-container" id="container-fin-divergence">
         <div id="chart-fin-divergence" style="width:100%;height:400px;"></div>
       </div>
-      <div class="chart-container">
+      <div class="chart-container" id="container-reimb-comparison">
         <div id="chart-reimb-comparison" style="width:100%;height:400px;"></div>
       </div>
     </div>
@@ -391,8 +401,8 @@
   <!-- 2. VALIDATION RESULTS — core analysis                        -->
   <!-- ============================================================ -->
   <div class="section" id="validation">
-    <h2>Validation Results</h2>
-    <table>
+    <h2 id="validation-results-heading">Validation Results</h2>
+    <table id="validation-table">
       <thead>
         <tr><th>Check</th><th>Category</th><th>Description</th><th>Checked</th><th>Issues</th><th>Rate</th><th>Status</th></tr>
       </thead>
@@ -411,7 +421,7 @@
       </tbody>
     </table>
     <details>
-      <summary>Issues by Check <span class="summary-meta">bar chart</span></summary>
+      <summary id="issues-by-check">Issues by Check <span class="summary-meta">bar chart</span></summary>
       <div class="details-content"><div id="chart-validation" style="width:100%;height:350px;"></div></div>
     </details>
   </div>
@@ -420,10 +430,10 @@
   <!-- 3. YEAR-OVER-YEAR TRENDS                                     -->
   <!-- ============================================================ -->
   <div class="section" id="trends">
-    <h2>Year-over-Year Trends</h2>
+    <h2 id="yoy-trends-heading">Year-over-Year Trends</h2>
     <div class="grid-2">
-      <div class="chart-container"><div id="chart-yoy-bene" style="width:100%;height:350px;"></div></div>
-      <div class="chart-container"><div id="chart-yoy-claims" style="width:100%;height:350px;"></div></div>
+      <div class="chart-container" id="container-yoy-bene"><div id="chart-yoy-bene" style="width:100%;height:350px;"></div></div>
+      <div class="chart-container" id="container-yoy-claims"><div id="chart-yoy-claims" style="width:100%;height:350px;"></div></div>
     </div>
   </div>
 
@@ -431,11 +441,11 @@
   <!-- 4. FINANCIAL ANALYSIS                                        -->
   <!-- ============================================================ -->
   <div class="section" id="financial">
-    <h2>Financial Analysis</h2>
-    <div class="chart-container"><div id="chart-financial-trends" style="width:100%;height:400px;"></div></div>
+    <h2 id="financial-analysis-heading">Financial Analysis</h2>
+    <div class="chart-container" id="container-financial-trends"><div id="chart-financial-trends" style="width:100%;height:400px;"></div></div>
     <div class="grid-2">
-      <div class="chart-container"><div id="chart-financial-dist" style="width:100%;height:400px;"></div></div>
-      <div class="chart-container"><div id="chart-chronic" style="width:100%;height:400px;"></div></div>
+      <div class="chart-container" id="container-financial-dist"><div id="chart-financial-dist" style="width:100%;height:400px;"></div></div>
+      <div class="chart-container" id="container-chronic"><div id="chart-chronic" style="width:100%;height:400px;"></div></div>
     </div>
   </div>
 
@@ -443,9 +453,9 @@
   <!-- 5. SYSTEM COMPARISON (old vs new)                            -->
   <!-- ============================================================ -->
   <div class="section" id="comparison">
-    <h2>System Comparison</h2>
+    <h2 id="system-comparison-heading">System Comparison</h2>
     {% if comparisons %}
-    <details open>
+    <details open id="comparison-checks-detail">
       <summary>
         All Comparison Checks
         <span class="summary-meta">{{ comparisons|length }} checks across schema, row-level, field-level, and aggregate categories</span>
@@ -496,7 +506,7 @@
   <!-- 6. DATA PROFILES — collapsible reference material            -->
   <!-- ============================================================ -->
   <div class="section" id="profiles">
-    <h2>Data Profiles</h2>
+    <h2 id="data-profiles-heading">Data Profiles</h2>
     <p style="color: var(--muted); margin-bottom: 1rem; font-size: 0.85rem;">
       Column-level quality profiles for each ingested table. Click to expand.
     </p>
@@ -547,6 +557,7 @@
   </div>
 </div>
 <script>
+var CACHED_ANSWERS = {{ cached_answers_json }};
 var REPORT_DATA = {{ chart_data_json }};
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -835,6 +846,27 @@ document.addEventListener('DOMContentLoaded', function() {
     sectionEls.forEach(function(el) { observer.observe(el); });
   }
 
+  /* -- Highlight target on hash navigation -- */
+  function highlightElement(el) {
+    if (!el) return;
+    el.classList.remove('highlight-target');
+    void el.offsetWidth; // force reflow to restart animation
+    el.classList.add('highlight-target');
+    el.addEventListener('animationend', function() { el.classList.remove('highlight-target'); }, { once: true });
+  }
+  if (window.location.hash) {
+    var hashEl = document.getElementById(window.location.hash.slice(1));
+    if (hashEl) {
+      setTimeout(function() { highlightElement(hashEl); }, 400);
+    }
+  }
+  window.addEventListener('hashchange', function() {
+    if (window.location.hash) {
+      var el = document.getElementById(window.location.hash.slice(1));
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); highlightElement(el); }
+    }
+  });
+
   /* -- Table sorting -- */
   document.querySelectorAll('table').forEach(function(table) {
     var headers = table.querySelectorAll('th');
@@ -870,5 +902,9 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+
+<!-- AI Chat Assistant Widget (standalone, shared across all pages) -->
+<script src="../docs/chat-widget.js"></script>
+
 </body>
 </html>

@@ -8,9 +8,16 @@ A guided tour of the CMS Claims Comparison Pipeline — what to look at, in what
 
 A live, read-only version of the reports and documentation is available — no setup required:
 
-- **[Comparison Report](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, and findings
-- **[Documentation Hub](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/index.html)** — interactive tools, design docs, and architecture diagrams
-- **[Reviewer Walkthrough](http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/reviewer_readme.html)** — this page, hosted online with all screenshots
+- **[Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, findings, and **AI Assistant**
+- **[Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html)** — interactive tools, design docs, architecture diagrams, and **AI Assistant**
+- **[Reviewer Walkthrough](https://ddmmvtx76d1f8.cloudfront.net/docs/reviewer_readme.html)** — this page, hosted online with all screenshots
+
+### Downloads
+
+| Bundle | Contents | Link |
+|--------|----------|------|
+| **AI Assistant** | Code, docs, report, AI chat (no data) | [cmsdata-assessment_ai-assistant.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_ai-assistant.zip) |
+| **Full** | Code, docs, report, AI chat + data | [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip) |
 
 ---
 
@@ -58,9 +65,9 @@ All 6 pipeline steps execute in sequence with gate logic — Steps 1-2 halt earl
 
 ## 2. Test Suite
 
-The project has **87 tests** across two categories:
+The project has **95 tests** across two categories:
 
-- **54 unit/integration tests** — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.
+- **62 unit/integration tests** — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.
 - **33 real-data tests** — validate the actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.
 
 ```bash
@@ -178,6 +185,96 @@ Drag and drop any `.parquet` file to instantly view its schema (column names, ty
 
 ---
 
+## Report Pal (AI Chat Assistant)
+
+Every page in the hosted report includes **Report Pal** — an AI assistant that helps reviewers explore findings through natural conversation.
+
+### How to Try It
+
+1. Open the [hosted report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)
+2. Click the chat bubble in the bottom-right corner
+3. Choose **Text** (type questions) or **Voice** (speak naturally via WebRTC)
+
+### Text Mode
+
+- Powered by GPT-4o with live DuckDB access — it writes and runs SQL to answer data questions
+- Pre-cached answers for common questions (instant, no API call)
+- SQL queries shown inline with copy-to-clipboard and "Open in SQL Explorer" links
+- Suggested questions bar + autocomplete for quick exploration
+
+### Voice Mode
+
+- Powered by OpenAI Realtime API via WebRTC — full-duplex voice conversation
+- AI speaks with OpenAI's **coral** voice; user speech transcribed via Whisper
+- Stop button (🔇) in header bar immediately cancels AI voice mid-sentence
+- No push-to-talk — server VAD detects when you start/stop speaking
+
+### Cached Answers — How They Are Generated
+
+Every page loads `docs/cached-answers.js` — **92 pre-built Q&A pairs** that provide instant responses without hitting the Lambda API.
+
+**Authorship:** The answer text — the analytical narratives, conclusions, risk assessments, and Codebook references — was **authored by Cascade (AI pair programmer)** during development. Each answer is an f-string template in `src/chat_answers.py` where the prose is fixed and **~30 dynamic data points** from the pipeline results are interpolated at build time. So the answers are AI-authored analysis with real pipeline data — not raw AI generation at runtime, and not purely hand-written either.
+
+**Generation flow:**
+
+1. The pipeline runs all validation, comparison, and analysis checks
+2. Step 6 (`src/report.py`) calls `generate_cached_answers()` from `src/chat_answers.py`
+3. `chat_answers.py` extracts data points from pipeline results (match statistics, validation outcomes, trends, financial reconciliation, etc.)
+4. These are interpolated into the AI-authored f-string templates — producing Markdown answers with tables, bullet points, and CMS references
+5. Each answer is paired with relevant SQL queries (for the "Review SQL" button)
+6. The output is serialized to `docs/cached-answers.js` and loaded on every page before `chat-widget.js`
+
+**Question categories (organized by Bloom's Taxonomy level):**
+
+| Level | Example | Count |
+|-------|---------|-------|
+| 6 — Create | "Draft a go/no-go recommendation for the system migration" | 5 |
+| 5 — Evaluate | "Based on the Codebook, which discrepancies represent true data corruption?" | 5 |
+| 4 — Analyze | "Why does the 0.90 payment ratio affect all claim lines uniformly?" | 4 |
+| 3 — Understand | "Can you explain the coverage period validation?" | ~20 |
+| 2 — Remember | "What does BENE_HMO_CVRAGE_TOT_MONS mean?" | ~7 |
+| 1 — Retrieve | "Which validation checks failed?" | ~15 |
+
+For anything not cached (or fuzzy match < 60%), the widget falls through to the Lambda API.
+
+### Lambda & Backend Functions
+
+Report Pal relies on two Lambda backends. The source code is proprietary — only the hardcoded Function URLs are present in `chat-widget.js`.
+
+**1. Chat Lambda — Multi-Provider AI Proxy** (`LAMBDA_URL`)
+
+Proxies user questions to AI models with full DuckDB database access. **Supports three providers** — switch models from the chat widget's config drawer (hover over the bottom bar):
+
+| Provider | Models | Auth |
+|----------|--------|------|
+| **OpenAI** | GPT-4o (default), GPT-4o Mini | SSM API key |
+| **OpenRouter** | Claude Sonnet 4, Gemini 2.0 Flash, Llama 3.3 70B | SSM API key |
+| **AWS Bedrock** | Nova Pro, Nova Lite, Nova Micro | IAM role (no key) |
+
+All providers share the same system prompt (`src/chat_prompt.py`), DuckDB database, and `query_database` tool (up to 5 rounds of SQL execution per question). OpenAI and OpenRouter use the OpenAI Python SDK (OpenRouter with a different `base_url`). Bedrock uses the `boto3` Converse API with the tool spec converted from OpenAI format.
+
+The model selector persists your choice in `localStorage` — switch at any time, no setup required.
+
+**2. Session Lambda — Voice Token Generator** (`SESSION_LAMBDA_URL`)
+
+Thin proxy for WebRTC voice sessions — no data processing, no DuckDB:
+
+1. Retrieves OpenAI API key from SSM
+2. Calls OpenAI `/v1/realtime/sessions` → ephemeral token (expires 60 seconds)
+3. Browser uses token to connect directly to **OpenAI Realtime API** (`gpt-4o-realtime-preview-2025-06-03`)
+4. Voice session configured via `session.update`: condensed Report Pal prompt, `coral` voice, server-side VAD, `whisper-1` transcription
+
+The Session Lambda source code is a standalone deployment (not in this repository).
+
+### Security
+
+- No API keys in the browser — all OpenAI calls go through Lambda backends
+- Ephemeral tokens for voice mode expire after 60 seconds
+- OpenAI API key stored in AWS SSM Parameter Store
+- No credentials committed to the repository
+
+---
+
 ## Code Reading Order
 
 For reviewers who want to understand the code:
@@ -191,9 +288,12 @@ For reviewers who want to understand the code:
 | 5 | `src/validate.py` | — | Deepest analytical work: financial reconciliation SQL, temporal checks |
 | 6 | `src/compare.py` | — | Old-vs-new comparison engine |
 | 7 | `src/report.py` | — | HTML report generation with Plotly charts |
-| 8 | `tests/conftest.py` | ~160 | How test data is designed with intentional edge cases |
-| 9 | `docs/SOLUTION.md` | — | Design decisions explained in prose |
-| 10 | `docs/REQUIREMENTS_TRACEABILITY.md` | — | Maps every spec requirement to its implementation |
+| 8 | `src/chat_prompt.py` | ~130 | Shared Report Pal system prompt and OpenAI tool definitions |
+| 9 | `docs/chat-widget.js` | ~1600 | Self-contained AI chat widget (text + WebRTC voice) |
+| — | `docs/cached-answers.js` | (generated) | 92 pre-built Q&A pairs loaded on all pages (auto-generated by pipeline) |
+| 10 | `tests/conftest.py` | ~160 | How test data is designed with intentional edge cases |
+| 11 | `docs/SOLUTION.md` | — | Design decisions explained in prose |
+| 12 | `docs/REQUIREMENTS_TRACEABILITY.md` | — | Maps every spec requirement to its implementation |
 
 ---
 
@@ -225,6 +325,6 @@ For reviewers who want to understand the code:
 
 4. **Docker for portability** — `docker build && docker run` runs everything on any machine.
 
-5. **87 tests** — 54 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.
+5. **95 tests** — 62 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.
 
 6. **Flexible file discovery** — the pipeline discovers CSVs by column headers, not filenames. Works with any of the 20 CMS DE-SynPUF samples without code changes.

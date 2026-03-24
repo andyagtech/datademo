@@ -15,7 +15,7 @@ Screenshots referenced by [`REVIEWER_README.md`](../REVIEWER_README.md). Each im
 | File | Section | What to capture |
 |------|---------|-----------------|
 | `screenshot_1.png` | Pipeline Run | Terminal showing all 6 steps completing with status messages |
-| `screenshot_2.png` | Test Suite | Terminal showing `87 passed` output from `pytest tests/ -v` |
+| `screenshot_2.png` | Test Suite | Terminal showing `95 passed` output from `pytest tests/ -v` |
 | `screenshot_3.png` | Executive Summary | Top of the report — KPIs, pass/fail indicators, matched counts |
 | `screenshot_4.png` | Key Findings | Narrative section — root cause hypotheses, risk assessment, recommendation |
 | `screenshot_5.png` | Validation Results | Bar chart of issues per check (identity, temporal, demographic, financial) |

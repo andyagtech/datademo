@@ -157,6 +157,7 @@
   <span class="nav-sep">|</span>
   <a href="../reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
+  <a href="solution.html">Design Docs</a>
   <a href="schema_explorer.html">Schema</a>
   <a href="parquet_viewer.html">Parquet</a>
   <a href="sql_explorer.html">SQL</a>
@@ -167,6 +168,7 @@
   <div class="toc-title">Contents</div>
   <a href="#reviewer-walkthrough" class="">Reviewer Walkthrough</a>
   <a href="#hosted-version" class="depth-2">Hosted Version</a>
+  <a href="#downloads" class="depth-3">Downloads</a>
   <a href="#0-data-setup-before-running-anything" class="depth-2">0. Data Setup before running anything</a>
   <a href="#1-running-the-pipeline-terminal" class="depth-2">1. Running the Pipeline Terminal</a>
   <a href="#local" class="">Local</a>
@@ -185,6 +187,13 @@
   <a href="#schema-explorer" class="depth-3">Schema Explorer</a>
   <a href="#sql-explorer" class="depth-3">SQL Explorer</a>
   <a href="#parquet-viewer" class="depth-3">Parquet Viewer</a>
+  <a href="#report-pal-ai-chat-assistant" class="depth-2">Report Pal AI Chat Assistant</a>
+  <a href="#how-to-try-it" class="depth-3">How to Try It</a>
+  <a href="#text-mode" class="depth-3">Text Mode</a>
+  <a href="#voice-mode" class="depth-3">Voice Mode</a>
+  <a href="#cached-answers-how-they-are-generated" class="depth-3">Cached Answers — How They Are Generated</a>
+  <a href="#lambda-backend-functions" class="depth-3">Lambda & Backend Functions</a>
+  <a href="#security" class="depth-3">Security</a>
   <a href="#code-reading-order" class="depth-2">Code Reading Order</a>
   <a href="#assessment-requirements-mapping" class="depth-2">Assessment Requirements Mapping</a>
   <a href="#key-design-decisions" class="depth-2">Key Design Decisions</a>
@@ -198,10 +207,32 @@
 <h2 id="hosted-version">Hosted Version</h2>
 <p>A live, read-only version of the reports and documentation is available — no setup required:</p>
 <ul>
-<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/reports/comparison_report.html">Comparison Report</a></strong> — the primary deliverable with KPIs, charts, and findings</li>
-<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/index.html">Documentation Hub</a></strong> — interactive tools, design docs, and architecture diagrams</li>
-<li><strong><a href="http://andy-barr-cmsdata-assessment.s3-website-us-west-2.amazonaws.com/docs/reviewer_readme.html">Reviewer Walkthrough</a></strong> — this page, hosted online with all screenshots</li>
+<li><strong><a href="https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html">Comparison Report</a></strong> — the primary deliverable with KPIs, charts, findings, and <strong>AI Assistant</strong></li>
+<li><strong><a href="https://ddmmvtx76d1f8.cloudfront.net/docs/index.html">Documentation Hub</a></strong> — interactive tools, design docs, architecture diagrams, and <strong>AI Assistant</strong></li>
+<li><strong><a href="https://ddmmvtx76d1f8.cloudfront.net/docs/reviewer_readme.html">Reviewer Walkthrough</a></strong> — this page, hosted online with all screenshots</li>
 </ul>
+<h3 id="downloads">Downloads</h3>
+<table>
+<thead>
+<tr>
+<th>Bundle</th>
+<th>Contents</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AI Assistant</strong></td>
+<td>Code, docs, report, AI chat (no data)</td>
+<td><a href="https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_ai-assistant.zip">cmsdata-assessment_ai-assistant.zip</a></td>
+</tr>
+<tr>
+<td><strong>Full</strong></td>
+<td>Code, docs, report, AI chat + data</td>
+<td><a href="https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip">cmsdata-assessment_full.zip</a></td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="0-data-setup-before-running-anything">0. Data Setup (before running anything)</h2>
 <p>The pipeline requires CMS data files on disk. See <a href="../README.md#data-setup">README.md → Data Setup</a> for full details, but in short:</p>
@@ -231,9 +262,9 @@ docker run --rm -p 8888:8888 \
 <p><img alt="Pipeline Run Output" src="../screenshots/screenshot_1.png" /></p>
 <hr />
 <h2 id="2-test-suite">2. Test Suite</h2>
-<p>The project has <strong>87 tests</strong> across two categories:</p>
+<p>The project has <strong>95 tests</strong> across two categories:</p>
 <ul>
-<li><strong>54 unit/integration tests</strong> — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.</li>
+<li><strong>62 unit/integration tests</strong> — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.</li>
 <li><strong>33 real-data tests</strong> — validate the actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.</li>
 </ul>
 <pre><code class="language-bash">pytest tests/ -v
@@ -342,6 +373,132 @@ docker run --rm -p 8888:8888 \
 <p>Drag and drop any <code>.parquet</code> file to instantly view its schema (column names, types, row count) and preview the first N rows in a formatted table. Powered by hyparquet for fully client-side parsing.</p>
 <p><img alt="Parquet Viewer" src="../screenshots/screenshot_12.png" /></p>
 <hr />
+<h2 id="report-pal-ai-chat-assistant">Report Pal (AI Chat Assistant)</h2>
+<p>Every page in the hosted report includes <strong>Report Pal</strong> — an AI assistant that helps reviewers explore findings through natural conversation.</p>
+<h3 id="how-to-try-it">How to Try It</h3>
+<ol>
+<li>Open the <a href="https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html">hosted report</a></li>
+<li>Click the chat bubble in the bottom-right corner</li>
+<li>Choose <strong>Text</strong> (type questions) or <strong>Voice</strong> (speak naturally via WebRTC)</li>
+</ol>
+<h3 id="text-mode">Text Mode</h3>
+<ul>
+<li>Powered by GPT-4o with live DuckDB access — it writes and runs SQL to answer data questions</li>
+<li>Pre-cached answers for common questions (instant, no API call)</li>
+<li>SQL queries shown inline with copy-to-clipboard and "Open in SQL Explorer" links</li>
+<li>Suggested questions bar + autocomplete for quick exploration</li>
+</ul>
+<h3 id="voice-mode">Voice Mode</h3>
+<ul>
+<li>Powered by OpenAI Realtime API via WebRTC — full-duplex voice conversation</li>
+<li>AI speaks with OpenAI's <strong>coral</strong> voice; user speech transcribed via Whisper</li>
+<li>Stop button (🔇) in header bar immediately cancels AI voice mid-sentence</li>
+<li>No push-to-talk — server VAD detects when you start/stop speaking</li>
+</ul>
+<h3 id="cached-answers-how-they-are-generated">Cached Answers — How They Are Generated</h3>
+<p>Every page loads <code>docs/cached-answers.js</code> — <strong>92 pre-built Q&amp;A pairs</strong> that provide instant responses without hitting the Lambda API.</p>
+<p><strong>Authorship:</strong> The answer text — the analytical narratives, conclusions, risk assessments, and Codebook references — was <strong>authored by Cascade (AI pair programmer)</strong> during development. Each answer is an f-string template in <code>src/chat_answers.py</code> where the prose is fixed and <strong>~30 dynamic data points</strong> from the pipeline results are interpolated at build time. So the answers are AI-authored analysis with real pipeline data — not raw AI generation at runtime, and not purely hand-written either.</p>
+<p><strong>Generation flow:</strong></p>
+<ol>
+<li>The pipeline runs all validation, comparison, and analysis checks</li>
+<li>Step 6 (<code>src/report.py</code>) calls <code>generate_cached_answers()</code> from <code>src/chat_answers.py</code></li>
+<li><code>chat_answers.py</code> extracts data points from pipeline results (match statistics, validation outcomes, trends, financial reconciliation, etc.)</li>
+<li>These are interpolated into the AI-authored f-string templates — producing Markdown answers with tables, bullet points, and CMS references</li>
+<li>Each answer is paired with relevant SQL queries (for the "Review SQL" button)</li>
+<li>The output is serialized to <code>docs/cached-answers.js</code> and loaded on every page before <code>chat-widget.js</code></li>
+</ol>
+<p><strong>Question categories (organized by Bloom's Taxonomy level):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Example</th>
+<th>Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6 — Create</td>
+<td>"Draft a go/no-go recommendation for the system migration"</td>
+<td>5</td>
+</tr>
+<tr>
+<td>5 — Evaluate</td>
+<td>"Based on the Codebook, which discrepancies represent true data corruption?"</td>
+<td>5</td>
+</tr>
+<tr>
+<td>4 — Analyze</td>
+<td>"Why does the 0.90 payment ratio affect all claim lines uniformly?"</td>
+<td>4</td>
+</tr>
+<tr>
+<td>3 — Understand</td>
+<td>"Can you explain the coverage period validation?"</td>
+<td>~20</td>
+</tr>
+<tr>
+<td>2 — Remember</td>
+<td>"What does BENE_HMO_CVRAGE_TOT_MONS mean?"</td>
+<td>~7</td>
+</tr>
+<tr>
+<td>1 — Retrieve</td>
+<td>"Which validation checks failed?"</td>
+<td>~15</td>
+</tr>
+</tbody>
+</table>
+<p>For anything not cached (or fuzzy match &lt; 60%), the widget falls through to the Lambda API.</p>
+<h3 id="lambda-backend-functions">Lambda &amp; Backend Functions</h3>
+<p>Report Pal relies on two Lambda backends. The source code is proprietary — only the hardcoded Function URLs are present in <code>chat-widget.js</code>.</p>
+<p><strong>1. Chat Lambda — Multi-Provider AI Proxy</strong> (<code>LAMBDA_URL</code>)</p>
+<p>Proxies user questions to AI models with full DuckDB database access. <strong>Supports three providers</strong> — switch models from the chat widget's config drawer (hover over the bottom bar):</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Models</th>
+<th>Auth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OpenAI</strong></td>
+<td>GPT-4o (default), GPT-4o Mini</td>
+<td>SSM API key</td>
+</tr>
+<tr>
+<td><strong>OpenRouter</strong></td>
+<td>Claude Sonnet 4, Gemini 2.0 Flash, Llama 3.3 70B</td>
+<td>SSM API key</td>
+</tr>
+<tr>
+<td><strong>AWS Bedrock</strong></td>
+<td>Nova Pro, Nova Lite, Nova Micro</td>
+<td>IAM role (no key)</td>
+</tr>
+</tbody>
+</table>
+<p>All providers share the same system prompt (<code>src/chat_prompt.py</code>), DuckDB database, and <code>query_database</code> tool (up to 5 rounds of SQL execution per question). OpenAI and OpenRouter use the OpenAI Python SDK (OpenRouter with a different <code>base_url</code>). Bedrock uses the <code>boto3</code> Converse API with the tool spec converted from OpenAI format.</p>
+<p>The model selector persists your choice in <code>localStorage</code> — switch at any time, no setup required.</p>
+<p><strong>2. Session Lambda — Voice Token Generator</strong> (<code>SESSION_LAMBDA_URL</code>)</p>
+<p>Thin proxy for WebRTC voice sessions — no data processing, no DuckDB:</p>
+<ol>
+<li>Retrieves OpenAI API key from SSM</li>
+<li>Calls OpenAI <code>/v1/realtime/sessions</code> → ephemeral token (expires 60 seconds)</li>
+<li>Browser uses token to connect directly to <strong>OpenAI Realtime API</strong> (<code>gpt-4o-realtime-preview-2025-06-03</code>)</li>
+<li>Voice session configured via <code>session.update</code>: condensed Report Pal prompt, <code>coral</code> voice, server-side VAD, <code>whisper-1</code> transcription</li>
+</ol>
+<p>The Session Lambda source code is a standalone deployment (not in this repository).</p>
+<h3 id="security">Security</h3>
+<ul>
+<li>No API keys in the browser — all OpenAI calls go through Lambda backends</li>
+<li>Ephemeral tokens for voice mode expire after 60 seconds</li>
+<li>OpenAI API key stored in AWS SSM Parameter Store</li>
+<li>No credentials committed to the repository</li>
+</ul>
+<hr />
 <h2 id="code-reading-order">Code Reading Order</h2>
 <p>For reviewers who want to understand the code:</p>
 <table>
@@ -398,18 +555,36 @@ docker run --rm -p 8888:8888 \
 </tr>
 <tr>
 <td>8</td>
+<td><code>src/chat_prompt.py</code></td>
+<td>~130</td>
+<td>Shared Report Pal system prompt and OpenAI tool definitions</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>docs/chat-widget.js</code></td>
+<td>~1600</td>
+<td>Self-contained AI chat widget (text + WebRTC voice)</td>
+</tr>
+<tr>
+<td>—</td>
+<td><code>docs/cached-answers.js</code></td>
+<td>(generated)</td>
+<td>92 pre-built Q&amp;A pairs loaded on all pages (auto-generated by pipeline)</td>
+</tr>
+<tr>
+<td>10</td>
 <td><code>tests/conftest.py</code></td>
 <td>~160</td>
 <td>How test data is designed with intentional edge cases</td>
 </tr>
 <tr>
-<td>9</td>
+<td>11</td>
 <td><code>docs/SOLUTION.md</code></td>
 <td>—</td>
 <td>Design decisions explained in prose</td>
 </tr>
 <tr>
-<td>10</td>
+<td>12</td>
 <td><code>docs/REQUIREMENTS_TRACEABILITY.md</code></td>
 <td>—</td>
 <td>Maps every spec requirement to its implementation</td>
@@ -488,7 +663,7 @@ docker run --rm -p 8888:8888 \
 <p><strong>Docker for portability</strong> — <code>docker build &amp;&amp; docker run</code> runs everything on any machine.</p>
 </li>
 <li>
-<p><strong>87 tests</strong> — 54 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.</p>
+<p><strong>95 tests</strong> — 62 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.</p>
 </li>
 <li>
 <p><strong>Flexible file discovery</strong> — the pipeline discovers CSVs by column headers, not filenames. Works with any of the 20 CMS DE-SynPUF samples without code changes.</p>
@@ -496,5 +671,7 @@ docker run --rm -p 8888:8888 \
 </ol>
 </div>
 
+<script src="cached-answers.js"></script>
+<script src="chat-widget.js"></script>
 </body>
 </html>

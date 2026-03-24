@@ -29,6 +29,8 @@ import boto3
 import duckdb
 
 from src.adapters.aws import S3Storage
+from src.chat_prompt import SYSTEM_PROMPT as _REPORT_PAL_PROMPT
+from src.chat_prompt import QUERY_DATABASE_TOOL, MAX_ROWS as _MAX_ROWS, MAX_TOOL_ROUNDS as _MAX_TOOL_ROUNDS
 from src.pipeline import PipelineContext, StepResult
 from src.pipeline.step1_receive import run as step1_run
 from src.pipeline.step2_schema_validate import run as step2_run
@@ -319,3 +321,489 @@ def _snapshot_db(ctx: PipelineContext, event: dict[str, Any]) -> None:
 
     # Re-open for any further use in this invocation
     ctx.con = duckdb.connect(str(ctx.db_path))
+
+
+# ---------------------------------------------------------------------------
+# AI Chat handler — multi-provider (OpenAI, OpenRouter, AWS Bedrock)
+# ---------------------------------------------------------------------------
+
+# Module-level caches (persist across warm Lambda invocations)
+_cached_api_keys: dict[str, str] = {}
+_cached_db_con: Any | None = None  # live duckdb.Connection with views over Parquet
+
+# Provider configuration — OpenAI-compatible providers
+_PROVIDER_CONFIG = {
+    "openai": {
+        "base_url": None,
+        "ssm_param_env": "OPENAI_API_KEY_SSM",
+        "ssm_param_default": "/cms-pipeline/openai-api-key",
+    },
+    "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "ssm_param_env": "OPENROUTER_API_KEY_SSM",
+        "ssm_param_default": "/cms-pipeline/openrouter-api-key",
+    },
+}
+
+
+def _get_api_key(provider: str) -> str:
+    """Retrieve API key from SSM Parameter Store (cached per provider)."""
+    global _cached_api_keys
+    if provider in _cached_api_keys:
+        return _cached_api_keys[provider]
+
+    config = _PROVIDER_CONFIG.get(provider)
+    if not config:
+        raise ValueError(f"No API key config for provider: {provider}")
+
+    ssm = boto3.client("ssm")
+    param_name = os.environ.get(config["ssm_param_env"], config["ssm_param_default"])
+    resp = ssm.get_parameter(Name=param_name, WithDecryption=True)
+    _cached_api_keys[provider] = resp["Parameter"]["Value"]
+    return _cached_api_keys[provider]
+
+
+_PARQUET_TABLES = [
+    "beneficiary_summary",
+    "carrier_claims",
+    "new_beneficiary_summary",
+    "new_carrier_claims",
+    "_discrepancy_detail",
+    "_financial_recon",
+    "_match_beneficiary",
+    "_match_claims",
+]
+
+
+def _ensure_db_ready(event: dict[str, Any]):
+    """Download Parquet files from S3 and return an in-memory DuckDB connection with views.
+
+    Much faster than downloading the 1.6 GB DuckDB file (~488 MB of Parquet).
+    On warm invocations the connection and Parquet files are already cached.
+    Returns a live duckdb.Connection — do NOT close it (it's reused across invocations).
+    """
+    global _cached_db_con
+
+    # Warm invocation — connection already cached
+    if _cached_db_con is not None:
+        logger.info("Using cached DuckDB connection + Parquet files")
+        return _cached_db_con
+
+    parquet_dir = Path(tempfile.gettempdir()) / "parquet"
+    parquet_dir.mkdir(parents=True, exist_ok=True)
+
+    # S3 prefix for parquet files
+    parquet_prefix = os.environ.get("PARQUET_S3_PREFIX", "runs/latest/parquet")
+    storage = _get_storage()
+    total_bytes = 0
+
+    for table_name in _PARQUET_TABLES:
+        s3_key = f"{parquet_prefix}/{table_name}.parquet"
+        local_file = parquet_dir / f"{table_name}.parquet"
+        if not local_file.exists():
+            data = storage.read_bytes(s3_key)
+            local_file.write_bytes(data)
+            total_bytes += len(data)
+            logger.info(f"Downloaded {s3_key} ({len(data) / 1024 / 1024:.1f} MB)")
+
+    logger.info(f"Total Parquet download: {total_bytes / 1024 / 1024:.1f} MB")
+
+    # Build in-memory DuckDB with lazy views (stays open for warm reuse)
+    # Try to EXCLUDE duckdb_schema metadata column (causes binder errors with aliases)
+    con = duckdb.connect(":memory:")
+    for table_name in _PARQUET_TABLES:
+        pq_path = str(parquet_dir / f"{table_name}.parquet")
+        try:
+            con.execute(f'CREATE VIEW "{table_name}" AS SELECT * EXCLUDE (duckdb_schema) FROM read_parquet(\'{pq_path}\')')
+        except Exception:
+            con.execute(f'CREATE VIEW "{table_name}" AS SELECT * FROM read_parquet(\'{pq_path}\')')
+    logger.info("Built in-memory DuckDB with views over Parquet files")
+
+    _cached_db_con = con
+    return con
+
+
+def _chat_execute_query(con, sql: str) -> dict:
+    """Execute a read-only SQL query against the cached DuckDB connection."""
+    sql_stripped = sql.strip().rstrip(";").strip()
+    first_word = sql_stripped.split()[0].upper() if sql_stripped else ""
+    if first_word not in ("SELECT", "WITH", "EXPLAIN", "DESCRIBE", "SHOW", "PRAGMA"):
+        return {"error": f"Only SELECT/WITH/EXPLAIN/DESCRIBE queries are allowed. Got: {first_word}"}
+
+    try:
+        result = con.execute(sql_stripped)
+        columns = [desc[0] for desc in result.description]
+        rows = result.fetchmany(_MAX_ROWS + 1)
+        truncated = len(rows) > _MAX_ROWS
+        if truncated:
+            rows = rows[:_MAX_ROWS]
+        clean_rows = []
+        for row in rows:
+            clean_row = []
+            for val in row:
+                if val is None:
+                    clean_row.append(None)
+                elif isinstance(val, (int, float, bool, str)):
+                    clean_row.append(val)
+                else:
+                    clean_row.append(str(val))
+            clean_rows.append(clean_row)
+        return {
+            "columns": columns,
+            "rows": clean_rows,
+            "row_count": len(clean_rows),
+            "truncated": truncated,
+        }
+    except Exception as e:
+        return {"error": f"Query failed: {str(e)}"}
+
+
+def _build_chat_findings(con) -> str:
+    """Build findings context by querying the cached DuckDB connection."""
+    lines = []
+    try:
+        # Basic counts
+        bene_count = con.execute("SELECT COUNT(*) FROM beneficiary_summary").fetchone()[0]
+        claim_count = con.execute("SELECT COUNT(*) FROM carrier_claims").fetchone()[0]
+        lines.append(f"- Total beneficiaries (old): {bene_count:,}")
+        lines.append(f"- Total carrier claims (old): {claim_count:,}")
+
+        # Check for new system tables
+        try:
+            new_bene = con.execute("SELECT COUNT(*) FROM new_beneficiary_summary").fetchone()[0]
+            new_claims = con.execute("SELECT COUNT(*) FROM new_carrier_claims").fetchone()[0]
+            lines.append(f"- Total beneficiaries (new): {new_bene:,}")
+            lines.append(f"- Total carrier claims (new): {new_claims:,}")
+        except Exception:
+            lines.append("- New system tables not available")
+
+        # Discrepancy summary
+        try:
+            disc = con.execute("SELECT COUNT(*), SUM(total_diffs) FROM _discrepancy_detail WHERE total_diffs > 0").fetchone()
+            lines.append(f"- Beneficiaries with discrepancies: {disc[0]:,} ({disc[1]:,} total diffs)")
+        except Exception:
+            pass
+
+        # Match status
+        try:
+            match_stats = con.execute("""
+                SELECT match_status, COUNT(*) as cnt
+                FROM _match_beneficiary
+                GROUP BY match_status
+            """).fetchall()
+            for status, cnt in match_stats:
+                lines.append(f"- Beneficiary match '{status}': {cnt:,}")
+        except Exception:
+            pass
+
+    except Exception as e:
+        lines.append(f"- Could not query database for findings: {e}")
+
+    return "\n".join(lines) if lines else "Database available but no summary could be built."
+
+
+# System prompt + tool imported from shared module (src/chat_prompt.py)
+_LAMBDA_SYSTEM_PROMPT = _REPORT_PAL_PROMPT
+_LAMBDA_TOOL = QUERY_DATABASE_TOOL
+
+# Bedrock tool spec — converted from OpenAI function-calling format
+_BEDROCK_TOOL_SPEC = {
+    "toolSpec": {
+        "name": QUERY_DATABASE_TOOL["function"]["name"],
+        "description": QUERY_DATABASE_TOOL["function"]["description"],
+        "inputSchema": {
+            "json": QUERY_DATABASE_TOOL["function"]["parameters"],
+        },
+    }
+}
+
+
+# ---------------------------------------------------------------------------
+# Provider-specific chat implementations
+# ---------------------------------------------------------------------------
+
+def _chat_openai_compatible(
+    provider: str, model: str, messages: list, db_con
+) -> dict[str, Any]:
+    """Run chat completion with tool calling via OpenAI-compatible API.
+
+    Used for both OpenAI and OpenRouter (same API format, different base URL).
+    """
+    import openai as openai_mod
+
+    config = _PROVIDER_CONFIG[provider]
+    api_key = _get_api_key(provider)
+
+    client_kwargs: dict[str, Any] = {"api_key": api_key}
+    if config["base_url"]:
+        client_kwargs["base_url"] = config["base_url"]
+
+    client = openai_mod.OpenAI(**client_kwargs)
+    tools = [_LAMBDA_TOOL]
+    sql_queries_run: list[dict] = []
+
+    # Extra headers for OpenRouter (required by their API)
+    extra_kwargs: dict[str, Any] = {}
+    if provider == "openrouter":
+        extra_kwargs["extra_headers"] = {
+            "HTTP-Referer": "https://ddmmvtx76d1f8.cloudfront.net",
+            "X-Title": "CMS Report Pal",
+        }
+
+    for _round in range(_MAX_TOOL_ROUNDS):
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+            max_tokens=2000,
+            temperature=0.4,
+            **extra_kwargs,
+        )
+
+        choice = response.choices[0]
+
+        if choice.finish_reason != "tool_calls" or not choice.message.tool_calls:
+            return {
+                "content": choice.message.content or "",
+                "model": response.model or model,
+                "queries": sql_queries_run,
+            }
+
+        messages.append(choice.message)
+
+        for tool_call in choice.message.tool_calls:
+            if tool_call.function.name == "query_database":
+                try:
+                    args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    args = {"sql": ""}
+
+                sql = args.get("sql", "")
+                explanation = args.get("explanation", "")
+                logger.info(f"[chat:{provider}] SQL: {sql[:200]}")
+
+                result = _chat_execute_query(db_con, sql)
+                sql_queries_run.append({
+                    "sql": sql,
+                    "explanation": explanation,
+                    "result_preview": {
+                        "columns": result.get("columns", []),
+                        "row_count": result.get("row_count", 0),
+                        "truncated": result.get("truncated", False),
+                        "error": result.get("error"),
+                    }
+                })
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result, default=str),
+                })
+            else:
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps({"error": f"Unknown tool: {tool_call.function.name}"}),
+                })
+
+    # Exhausted tool rounds — final answer
+    response = client.chat.completions.create(
+        model=model, messages=messages, max_tokens=2000, temperature=0.4,
+        **extra_kwargs,
+    )
+    return {
+        "content": response.choices[0].message.content or "",
+        "model": response.model or model,
+        "queries": sql_queries_run,
+    }
+
+
+def _chat_bedrock(
+    model: str, system_prompt: str, conversation_history: list,
+    user_message: str, db_con
+) -> dict[str, Any]:
+    """Run chat completion with tool calling via AWS Bedrock Converse API.
+
+    Used for Amazon Nova models. No API key needed — uses Lambda IAM role.
+    """
+    bedrock = boto3.client("bedrock-runtime")
+    sql_queries_run: list[dict] = []
+
+    # Convert conversation history to Bedrock message format
+    messages: list[dict] = []
+    for m in conversation_history:
+        messages.append({
+            "role": m["role"],
+            "content": [{"text": m["content"]}],
+        })
+    messages.append({"role": "user", "content": [{"text": user_message}]})
+
+    tool_config = {"tools": [_BEDROCK_TOOL_SPEC]}
+
+    for _round in range(_MAX_TOOL_ROUNDS):
+        response = bedrock.converse(
+            modelId=model,
+            messages=messages,
+            system=[{"text": system_prompt}],
+            inferenceConfig={"maxTokens": 2000, "temperature": 0.4},
+            toolConfig=tool_config,
+        )
+
+        output_msg = response["output"]["message"]
+        stop_reason = response.get("stopReason", "end_turn")
+
+        # No tool calls — extract final text
+        if stop_reason != "tool_use":
+            text_parts = [
+                block["text"] for block in output_msg["content"]
+                if "text" in block
+            ]
+            return {
+                "content": "\n".join(text_parts),
+                "model": model,
+                "queries": sql_queries_run,
+            }
+
+        # Append assistant message (contains toolUse blocks)
+        messages.append(output_msg)
+
+        # Process each tool call and build tool results
+        tool_results: list[dict] = []
+        for block in output_msg["content"]:
+            if "toolUse" not in block:
+                continue
+            tool_use = block["toolUse"]
+            if tool_use["name"] == "query_database":
+                sql = tool_use["input"].get("sql", "")
+                explanation = tool_use["input"].get("explanation", "")
+                logger.info(f"[chat:bedrock] SQL: {sql[:200]}")
+
+                result = _chat_execute_query(db_con, sql)
+                sql_queries_run.append({
+                    "sql": sql,
+                    "explanation": explanation,
+                    "result_preview": {
+                        "columns": result.get("columns", []),
+                        "row_count": result.get("row_count", 0),
+                        "truncated": result.get("truncated", False),
+                        "error": result.get("error"),
+                    }
+                })
+
+                tool_results.append({
+                    "toolResult": {
+                        "toolUseId": tool_use["toolUseId"],
+                        "content": [{"json": result}],
+                    }
+                })
+            else:
+                tool_results.append({
+                    "toolResult": {
+                        "toolUseId": tool_use["toolUseId"],
+                        "content": [{"text": json.dumps(
+                            {"error": f"Unknown tool: {tool_use['name']}"}
+                        )}],
+                    }
+                })
+
+        # Tool results are sent as a user message in Bedrock
+        messages.append({"role": "user", "content": tool_results})
+
+    # Exhausted tool rounds — final answer without tools
+    response = bedrock.converse(
+        modelId=model,
+        messages=messages,
+        system=[{"text": system_prompt}],
+        inferenceConfig={"maxTokens": 2000, "temperature": 0.4},
+    )
+    text_parts = [
+        block["text"] for block in response["output"]["message"]["content"]
+        if "text" in block
+    ]
+    return {
+        "content": "\n".join(text_parts),
+        "model": model,
+        "queries": sql_queries_run,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Unified chat handler
+# ---------------------------------------------------------------------------
+
+def handle_chat(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """
+    Lambda handler for AI chat — multi-provider support.
+
+    Accepts `provider` (openai | openrouter | bedrock) and `model` in the
+    request body. Routes to the appropriate AI backend while sharing the same
+    DuckDB database and system prompt.
+
+    Request body:
+      - message (str, required): User's question
+      - conversationHistory (list): Prior messages [{role, content}, ...]
+      - provider (str, default "openai"): AI provider
+      - model (str, default "gpt-4o"): Model identifier for the chosen provider
+    """
+    # Parse API Gateway / Function URL event
+    body = event.get("body", "{}")
+    if isinstance(body, str):
+        body = json.loads(body)
+
+    message = body.get("message", "").strip()
+    conversation_history = body.get("conversationHistory", [])
+    provider = body.get("provider", "openai")
+    model = body.get("model", "gpt-4o")
+
+    if not message:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": "message is required"}),
+        }
+
+    try:
+        db_con = _ensure_db_ready(event)
+    except Exception as e:
+        logger.exception("Chat setup failed")
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": str(e)}),
+        }
+
+    # Build system prompt with live findings from DuckDB
+    findings = _build_chat_findings(db_con)
+    system_prompt = _LAMBDA_SYSTEM_PROMPT.format(findings_context=findings)
+
+    try:
+        if provider == "bedrock":
+            result = _chat_bedrock(
+                model, system_prompt, conversation_history, message, db_con,
+            )
+        else:
+            # OpenAI-compatible path (openai, openrouter)
+            if provider not in _PROVIDER_CONFIG:
+                provider = "openai"  # fallback
+            messages = [
+                {"role": "system", "content": system_prompt},
+                *[{"role": m["role"], "content": m["content"]}
+                  for m in conversation_history],
+                {"role": "user", "content": message},
+            ]
+            result = _chat_openai_compatible(provider, model, messages, db_con)
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(result),
+        }
+
+    except Exception as e:
+        logger.exception(f"Chat API error (provider={provider}, model={model})")
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": f"Chat failed ({provider}/{model}): {str(e)}"}),
+        }

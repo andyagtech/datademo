@@ -15,6 +15,10 @@ Parameters:
     Type: String
     Default: cms-claims-pipeline
     Description: S3 bucket name suffix (prefixed with account ID)
+  ExistingDataBucket:
+    Type: String
+    Default: andy-barr-cmsdata-assessment
+    Description: Existing S3 bucket with pipeline data and DuckDB snapshots
 
 Globals:
   Function:
@@ -261,6 +265,81 @@ Resources:
       DockerContext: ../
       Dockerfile: cloud/Dockerfile
 
+  # ---------------------------------------------------------------------------
+  # AI Chat — Lambda for DuckDB report assistant
+  # Uses Lambda Function URL (created via CLI) to bypass API Gateway 29s timeout.
+  # Function URL: see ChatFunctionUrl output
+  # ---------------------------------------------------------------------------
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cms-pipeline-chat-${Environment}"
+      PackageType: Image
+      ImageConfig:
+        Command: ["cloud.handlers.handle_chat"]
+      MemorySize: 4096
+      Timeout: 120
+      EphemeralStorage:
+        Size: 10240
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ExistingDataBucket
+        - SSMParameterReadPolicy:
+            ParameterName: "cms-pipeline/openai-api-key"
+        - SSMParameterReadPolicy:
+            ParameterName: "cms-pipeline/openrouter-api-key"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "arn:aws:bedrock:*::foundation-model/amazon.nova-*"
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref ExistingDataBucket
+          OPENAI_API_KEY_SSM: "/cms-pipeline/openai-api-key"
+          OPENROUTER_API_KEY_SSM: "/cms-pipeline/openrouter-api-key"
+          PARQUET_S3_PREFIX: "runs/latest/parquet"
+      Events:
+        ChatPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PipelineApi
+            Path: /api/chat
+            Method: POST
+        ChatOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PipelineApi
+            Path: /api/chat
+            Method: OPTIONS
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../
+      Dockerfile: cloud/Dockerfile
+
+  # Lambda Function URL — bypasses API Gateway 29s timeout for AI chat
+  ChatFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref ChatFunction
+      AuthType: NONE
+      Cors:
+        AllowCredentials: false
+        AllowHeaders:
+          - content-type
+        AllowMethods:
+          - POST
+        AllowOrigins:
+          - "*"
+
+  ChatFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ChatFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
 # ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
@@ -284,3 +363,7 @@ Outputs:
   DocsSiteBucketName:
     Description: S3 bucket for the static documentation site
     Value: !Ref DocsSiteBucket
+
+  ChatFunctionUrl:
+    Description: Lambda Function URL for the AI chat assistant
+    Value: !GetAtt ChatFunctionUrl.FunctionUrl

@@ -72,6 +72,41 @@
     border-top: 1px solid var(--border); margin-top: 40px;
   }
   .footer a { color: var(--accent); text-decoration: none; }
+
+  /* -- Sidebar for Design Documentation -- */
+  .design-sidebar {
+    position: fixed; top: 0; right: 0; width: 260px; height: 100vh;
+    background: var(--surface); border-left: 1px solid var(--border);
+    overflow-y: auto; padding: 20px 14px; font-size: 0.75rem; z-index: 100;
+  }
+  .design-sidebar::-webkit-scrollbar { width: 4px; }
+  .design-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .design-sidebar .sb-title {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px;
+  }
+  .design-sidebar .sb-group {
+    margin-bottom: 14px;
+  }
+  .design-sidebar .sb-group-title {
+    font-size: 0.72rem; font-weight: 600; color: var(--accent);
+    margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+  }
+  .design-sidebar .sb-group-title a {
+    color: var(--accent); text-decoration: none;
+  }
+  .design-sidebar .sb-group-title a:hover { text-decoration: underline; }
+  .design-sidebar .sb-link {
+    display: block; padding: 2px 8px 2px 16px; margin: 1px 0; border-radius: 4px;
+    color: var(--muted); text-decoration: none; transition: all 0.15s;
+    font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .design-sidebar .sb-link:hover { color: var(--text); background: rgba(56,189,248,0.06); }
+  .content { margin-right: 270px; }
+  @media (max-width: 900px) {
+    .design-sidebar { display: none; }
+    .content { margin-right: 0; }
+  }
 </style>
 </head>
 <body>
@@ -135,6 +170,12 @@
       <div class="card-title">Assessment Feedback</div>
       <div class="card-desc">Approach rationale, skills demonstrated, design trade-offs, and reflections on the assessment.</div>
     </a>
+    <a class="card card-primary" href="requirements_traceability.html">
+      <span class="card-icon">&#9989;</span>
+      <span class="card-badge badge-html">HTML</span>
+      <div class="card-title">Requirements Traceability</div>
+      <div class="card-desc">Maps each assessment requirement to its implementation with evidence and file locations.</div>
+    </a>
   </div>
 
   <div class="section-label">Design Documentation</div>
@@ -149,19 +190,13 @@
       <span class="card-icon">&#9881;</span>
       <span class="card-badge badge-html">HTML</span>
       <div class="card-title">Pipeline Reference</div>
-      <div class="card-desc">Complete pipeline reference: all 6 steps, data model, 57 validation and comparison checks, output artifacts.</div>
+      <div class="card-desc">Complete pipeline reference: all 6 steps, data model, 129 validation and comparison checks, output artifacts.</div>
     </a>
     <a class="card card-primary" href="data_dictionary.html">
       <span class="card-icon">&#128218;</span>
       <span class="card-badge badge-html">HTML</span>
       <div class="card-title">Data Dictionary</div>
       <div class="card-desc">Dataset overview, column definitions for all tables, old/new system schemas, and codebook reference.</div>
-    </a>
-    <a class="card card-primary" href="requirements_traceability.html">
-      <span class="card-icon">&#9989;</span>
-      <span class="card-badge badge-html">HTML</span>
-      <div class="card-title">Requirements Traceability</div>
-      <div class="card-desc">Maps each assessment requirement to its implementation with evidence and file locations.</div>
     </a>
   </div>
 
@@ -193,5 +228,57 @@
   CMS Claims Data Comparison Pipeline &mdash; <a href="../README.md">README</a> &middot; <a href="../FEEDBACK.md">FEEDBACK</a>
 </div>
 
+<nav class="design-sidebar">
+  <div class="sb-title">Design Documentation</div>
+
+  <div class="sb-group">
+    <div class="sb-group-title">&#128736; <a href="solution.html">Solution Design</a></div>
+    <a class="sb-link" href="solution.html#design-decisions">Design Decisions</a>
+    <a class="sb-link" href="solution.html#why-duckdb">Why DuckDB</a>
+    <a class="sb-link" href="solution.html#why-a-6-step-pipeline">Why 6-Step Pipeline</a>
+    <a class="sb-link" href="solution.html#match-validate-strategy">Match &amp; Validate Strategy</a>
+    <a class="sb-link" href="solution.html#deployment-strategy">Deployment Strategy</a>
+    <a class="sb-link" href="solution.html#analysis-findings">Analysis Findings</a>
+  </div>
+
+  <div class="sb-group">
+    <div class="sb-group-title">&#9881; <a href="pipeline.html">Pipeline Reference</a></div>
+    <a class="sb-link" href="pipeline.html#step-1-receive-verify">Step 1: Receive &amp; Verify</a>
+    <a class="sb-link" href="pipeline.html#step-2-schema-validate">Step 2: Schema Validate</a>
+    <a class="sb-link" href="pipeline.html#step-3-ingest-profile">Step 3: Ingest &amp; Profile</a>
+    <a class="sb-link" href="pipeline.html#step-4-match-validate">Step 4: Match &amp; Validate</a>
+    <a class="sb-link" href="pipeline.html#step-5-compare-analyze">Step 5: Compare &amp; Analyze</a>
+    <a class="sb-link" href="pipeline.html#step-6-report">Step 6: Report</a>
+    <a class="sb-link" href="pipeline.html#data-model">Data Model</a>
+    <a class="sb-link" href="pipeline.html#comparison-checks-reference">Comparison Checks (110)</a>
+    <a class="sb-link" href="pipeline.html#output-artifacts">Output Artifacts</a>
+  </div>
+
+  <div class="sb-group">
+    <div class="sb-group-title">&#128218; <a href="data_dictionary.html">Data Dictionary</a></div>
+    <a class="sb-link" href="data_dictionary.html#about-the-dataset">About the Dataset</a>
+    <a class="sb-link" href="data_dictionary.html#new-system-under-test">New System (Under Test)</a>
+    <a class="sb-link" href="data_dictionary.html#beneficiary-summary-table">Beneficiary Summary Table</a>
+    <a class="sb-link" href="data_dictionary.html#chronic-condition-flags">Chronic Condition Flags</a>
+    <a class="sb-link" href="data_dictionary.html#financial-summary-columns">Financial Summary Columns</a>
+    <a class="sb-link" href="data_dictionary.html#carrier-claims-table">Carrier Claims Table</a>
+    <a class="sb-link" href="data_dictionary.html#schema-comparison-old-vs-new">Schema Comparison</a>
+    <a class="sb-link" href="data_dictionary.html#derived-internal-tables">Derived / Internal Tables</a>
+    <a class="sb-link" href="data_dictionary.html#codebook-reference">Codebook Reference</a>
+  </div>
+
+  <div class="sb-group">
+    <div class="sb-group-title">&#9989; <a href="requirements_traceability.html">Requirements</a></div>
+    <a class="sb-link" href="requirements_traceability.html#req-1-build-a-data-comparison-and-validation-tool">REQ-1: Comparison Tool</a>
+    <a class="sb-link" href="requirements_traceability.html#req-2-surface-issues-and-inconsistencies">REQ-2: Surface Issues</a>
+    <a class="sb-link" href="requirements_traceability.html#req-3-quantify-their-impact">REQ-3: Quantify Impact</a>
+    <a class="sb-link" href="requirements_traceability.html#req-7-provide-a-way-to-review-results">REQ-7: Review Results</a>
+    <a class="sb-link" href="requirements_traceability.html#req-14-generate-a-report">REQ-14: Generate Report</a>
+    <a class="sb-link" href="requirements_traceability.html#summary-of-gaps">Summary of Gaps</a>
+  </div>
+</nav>
+
+<script src="cached-answers.js"></script>
+<script src="chat-widget.js"></script>
 </body>
 </html>

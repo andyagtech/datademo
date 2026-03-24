@@ -187,7 +187,7 @@ Results are stored in DuckDB tables `_match_beneficiary` and `_match_claims`.
 
 ### Internal Validation (`src/validate.py`)
 
-Runs 11 checks organized into 4 categories against the **old system data** to establish a quality baseline. Each check is a standalone function that runs a SQL query, counts violations, and returns a `ValidationResult`.
+Runs 19 checks organized into 6 categories against the **old system data** to establish a quality baseline. Each check is a standalone function that runs a SQL query, counts violations, and returns a `ValidationResult`.
 
 > **See [Validation Checks Reference](#validation-checks-reference) below for the complete check-by-check breakdown.**
 
@@ -199,7 +199,7 @@ Runs 11 checks organized into 4 categories against the **old system data** to es
 
 **Purpose:** For every matched record pair, compare each field value between old and new systems. Quantify discrepancies by column, category, and financial impact.
 
-Runs 46 checks organized into 4 categories against two table pairs. Each check returns a `ComparisonResult`.
+Runs 110 checks organized into 4 categories against two table pairs. Each check returns a `ComparisonResult`.
 
 > **See [Comparison Checks Reference](#comparison-checks-reference) below for the complete check-by-check breakdown.**
 
@@ -210,9 +210,12 @@ TABLE_PAIRS = [
     {
         "old": "beneficiary_summary",
         "new": "new_beneficiary_summary",
-        "key": "DESYNPUF_ID",
+        "key": ["DESYNPUF_ID", "summary_year"],
         "compare_cols": [
             "BENE_BIRTH_DT", "BENE_DEATH_DT", "BENE_SEX_IDENT_CD", "BENE_RACE_CD",
+            "BENE_ESRD_IND", "SP_STATE_CODE", "BENE_COUNTY_CD",
+            "BENE_HI_CVRAGE_TOT_MONS", "BENE_SMI_CVRAGE_TOT_MONS",
+            "BENE_HMO_CVRAGE_TOT_MONS", "PLAN_CVRG_MOS_NUM",
             "SP_ALZHDMTA", "SP_CHF", "SP_CHRNKIDN", "SP_CNCR", "SP_COPD",
             "SP_DEPRESSN", "SP_DIABETES", "SP_ISCHMCHT", "SP_OSTEOPRS", "SP_RA_OA",
             "SP_STRKETIA",
@@ -226,15 +229,23 @@ TABLE_PAIRS = [
     {
         "old": "carrier_claims",
         "new": "new_carrier_claims",
-        "key": "CLM_ID",
+        "key": ["CLM_ID"],
         "compare_cols": [
             "DESYNPUF_ID", "CLM_FROM_DT", "CLM_THRU_DT",
-            "ICD9_DGNS_CD_1", "ICD9_DGNS_CD_2", "HCPCS_CD_1",
-        ],
+            "ICD9_DGNS_CD_1", ..., "ICD9_DGNS_CD_8",       # 8 diagnosis codes
+            "HCPCS_CD_1", ..., "HCPCS_CD_13",               # 13 procedure codes
+            "PRF_PHYSN_NPI_1", ..., "PRF_PHYSN_NPI_5",       # 5 provider NPIs
+            "TAX_NUM_1", ..., "TAX_NUM_5",                   # 5 tax numbers
+            "LINE_PRCSG_IND_CD_1", ..., "_5",                # 5 processing indicators
+            "LINE_ICD9_DGNS_CD_1", ..., "_5",                # 5 line diagnosis codes
+        ],                                                    # 44 columns total
         "numeric_cols": [
-            "LINE_NCH_PMT_AMT_1", "LINE_BENE_PTB_DDCTBL_AMT_1",
-            "LINE_COINSRNC_AMT_1", "LINE_ALOWD_CHRG_AMT_1",
-        ],
+            "LINE_NCH_PMT_AMT_1", ..., "_5",                 # 5 payment amounts
+            "LINE_BENE_PTB_DDCTBL_AMT_1", ..., "_5",         # 5 deductibles
+            "LINE_BENE_PRMRY_PYR_PD_AMT_1", ..., "_3",       # 3 primary payer
+            "LINE_COINSRNC_AMT_1", ..., "_5",                 # 5 coinsurance
+            "LINE_ALOWD_CHRG_AMT_1", ..., "_5",               # 5 allowed charges
+        ],                                                    # 23 columns total
     },
 ]
 ```
@@ -292,77 +303,9 @@ build_report_data()  →  report_data.json     ← canonical data artifact
 
 ---
 
-## Validation Checks Reference
-
-These 11 checks run against **old system data** in Step 4 to establish a quality baseline. Each is a standalone function in `src/validate.py` that executes a SQL query and returns a `ValidationResult`.
-
-### Identity Checks (`check_key_integrity`)
-
-| # | Check Name | SQL Logic | What It Catches |
-|---|-----------|-----------|-----------------|
-| 1 | `orphan_claims_beneficiaries` | `LEFT JOIN carrier_claims → beneficiary_summary WHERE bs.DESYNPUF_ID IS NULL` | Claim records referencing beneficiary IDs that don't exist in any summary file |
-| 2 | `beneficiaries_without_claims` | `LEFT JOIN beneficiary_summary → carrier_claims WHERE cc.DESYNPUF_ID IS NULL` | Beneficiaries who appear in summary files but have zero carrier claims |
-| 3 | `duplicate_claim_ids` | `GROUP BY CLM_ID HAVING COUNT(*) > 1` | Claim IDs that appear more than once (should be unique) |
-
-### Temporal Checks (`check_temporal_consistency`)
-
-| # | Check Name | SQL Logic | What It Catches |
-|---|-----------|-----------|-----------------|
-| 4 | `claims_after_death` | `JOIN on DESYNPUF_ID WHERE CLM_FROM_DT > BENE_DEATH_DT` | Claims filed after the beneficiary's recorded death date |
-| 5 | `claim_date_inversion` | `WHERE CLM_FROM_DT > CLM_THRU_DT` | Claims where the start date is after the end date (impossible) |
-
-### Demographic Checks (`check_demographic_consistency`)
-
-| # | Check Name | SQL Logic | What It Catches |
-|---|-----------|-----------|-----------------|
-| 6 | `sex_change_across_years` | `GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_SEX_IDENT_CD) > 1` | Sex code changes between summary years (should be immutable) |
-| 7 | `race_change_across_years` | `GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_RACE_CD) > 1` | Race code changes between summary years (should be immutable) |
-| 8 | `dob_change_across_years` | `GROUP BY DESYNPUF_ID HAVING COUNT(DISTINCT BENE_BIRTH_DT) > 1` | Date of birth changes between summary years (should be immutable) |
-
-### Financial Checks (`check_financial_reconciliation`)
-
-These checks verify that the **summary-level financial totals** on each beneficiary record match what you get when you **recompute them from the individual claim line items**. This is the most complex validation — it unpivots the 13 claim lines per claim, applies the CMS codebook filter (`LINE_PRCSG_IND_CD = 'A'` or approved overrides), and aggregates per beneficiary per year.
-
-| # | Check Name | Formula Verified | What It Catches |
-|---|-----------|-----------------|-----------------|
-| 9 | `financial_recon_pppymt_car` | `PPPYMT_CAR = SUM(LINE_BENE_PRMRY_PYR_PD_AMT)` | Primary payer amount: summary vs claim-line aggregate |
-| 10 | `financial_recon_medreimb_car` | `MEDREIMB_CAR = SUM(LINE_NCH_PMT_AMT)` | Medicare reimbursement: summary vs claim-line aggregate |
-| 11 | `financial_recon_benres_car` | `BENRES_CAR = SUM(LINE_BENE_PTB_DDCTBL_AMT + LINE_COINSRNC_AMT)` | Beneficiary responsibility: summary vs claim-line aggregate |
-
-**Pass/fail rule:** A check passes if `issues_found == 0`. No thresholds — any discrepancy >$0.01 is counted as an issue.
-
-### Result Dataclass
-
-```python
-@dataclass
-class ValidationResult:
-    check_name: str        # e.g. "claims_after_death"
-    category: str          # identity | temporal | demographic | financial
-    description: str       # human-readable explanation
-    total_checked: int     # denominator (records examined)
-    issues_found: int      # numerator (records that violated the rule)
-    issue_pct: float       # issues_found / total_checked × 100
-    details: list[dict]    # optional extra context
-
-    @property
-    def passed(self) -> bool:
-        return self.issues_found == 0
-```
-
----
-
 ## Comparison Checks Reference
 
-These 46 checks run in Step 5 when new system data is available. They compare **old vs new** across two table pairs. Each is a function in `src/compare.py` that returns a `ComparisonResult`.
-
-### Check Categories
-
-| Category | Function | Checks Per Pair | What It Does |
-|----------|----------|----------------|--------------|
-| **schema** | `compare_schemas()` | 3 | Compares column names and data types between old and new tables |
-| **row_level** | `compare_row_counts()` | 3 | Counts total rows, keys missing in new, keys extra in new |
-| **field_level** | `compare_field_values()` | 15 (bene) + 6 (claims) | For each configured column, counts value mismatches on matched rows |
-| **aggregate** | `compare_aggregates()` | 9 (bene) + 4 (claims) | Compares SUM and AVG of numeric columns between systems |
+These 110 checks run in Step 5 when new system data is available. They compare **old vs new** across two table pairs. Each is a function in `src/compare.py` that returns a `ComparisonResult`.
 
 ### Schema Checks (3 per table pair × 2 pairs = 6)
 
@@ -380,7 +323,7 @@ These 46 checks run in Step 5 when new system data is available. They compare **
 | `keys_missing_in_new` | Distinct key values in old but not in new (data loss) |
 | `keys_extra_in_new` | Distinct key values in new but not in old (phantom records) |
 
-### Field-Level Checks (15 beneficiary + 6 claims = 21)
+### Field-Level Checks (22 beneficiary + 44 claims = 66)
 
 For each column listed in `compare_cols`, runs:
 ```sql
@@ -390,10 +333,17 @@ SELECT COUNT(*) AS matched_rows,
 FROM old_table INNER JOIN new_table ON key = key
 ```
 
-**Beneficiary columns compared (15):**
+**Beneficiary columns compared (22):**
 
 | Column | Category | What It Represents |
 |--------|----------|--------------------|
+| `BENE_ESRD_IND` | Clinical | End-stage renal disease indicator |
+| `SP_STATE_CODE` | Geographic | State SSA code |
+| `BENE_COUNTY_CD` | Geographic | County SSA code |
+| `BENE_HI_CVRAGE_TOT_MONS` | Coverage | Part A coverage months |
+| `BENE_SMI_CVRAGE_TOT_MONS` | Coverage | Part B coverage months |
+| `BENE_HMO_CVRAGE_TOT_MONS` | Coverage | HMO coverage months |
+| `PLAN_CVRG_MOS_NUM` | Coverage | Part D coverage months |
 | `BENE_BIRTH_DT` | Demographic | Date of birth |
 | `BENE_DEATH_DT` | Demographic | Date of death |
 | `BENE_SEX_IDENT_CD` | Demographic | Sex code |
@@ -410,18 +360,21 @@ FROM old_table INNER JOIN new_table ON key = key
 | `SP_RA_OA` | Clinical | Rheumatoid arthritis / osteoarthritis flag |
 | `SP_STRKETIA` | Clinical | Stroke / TIA flag |
 
-**Carrier claims columns compared (6):**
+**Carrier claims columns compared (44):**
 
 | Column | Category | What It Represents |
 |--------|----------|--------------------|
 | `DESYNPUF_ID` | Identity | Beneficiary identifier |
 | `CLM_FROM_DT` | Temporal | Claim start date |
 | `CLM_THRU_DT` | Temporal | Claim end date |
-| `ICD9_DGNS_CD_1` | Clinical | Primary diagnosis code |
-| `ICD9_DGNS_CD_2` | Clinical | Secondary diagnosis code |
-| `HCPCS_CD_1` | Clinical | Primary procedure code |
+| `ICD9_DGNS_CD_1`–`_8` | Clinical | 8 diagnosis codes per claim |
+| `HCPCS_CD_1`–`_13` | Clinical | 13 procedure codes per claim line |
+| `PRF_PHYSN_NPI_1`–`_5` | Provider | 5 performing physician NPIs |
+| `TAX_NUM_1`–`_5` | Provider | 5 provider tax numbers |
+| `LINE_PRCSG_IND_CD_1`–`_5` | Processing | 5 line processing indicators |
+| `LINE_ICD9_DGNS_CD_1`–`_5` | Clinical | 5 line-level diagnosis codes |
 
-### Aggregate Checks (9 beneficiary + 4 claims = 13)
+### Aggregate Checks (9 beneficiary + 23 claims = 32)
 
 For each column listed in `numeric_cols`, compares `SUM()` and `AVG()` between old and new tables. The `metric_value` is the absolute difference in sums.
 
@@ -439,14 +392,15 @@ For each column listed in `numeric_cols`, compares `SUM()` and `AVG()` between o
 | `BENRES_CAR` | Beneficiary responsibility — carrier |
 | `PPPYMT_CAR` | Primary payer payment — carrier |
 
-**Carrier claims numeric columns (4):**
+**Carrier claims numeric columns (23):**
 
 | Column | What It Represents |
 |--------|--------------------|
-| `LINE_NCH_PMT_AMT_1` | Line 1 payment amount |
-| `LINE_BENE_PTB_DDCTBL_AMT_1` | Line 1 beneficiary deductible |
-| `LINE_COINSRNC_AMT_1` | Line 1 coinsurance amount |
-| `LINE_ALOWD_CHRG_AMT_1` | Line 1 allowed charge amount |
+| `LINE_NCH_PMT_AMT_1`–`_5` | Payment amounts for lines 1–5 |
+| `LINE_BENE_PTB_DDCTBL_AMT_1`–`_5` | Beneficiary deductibles for lines 1–5 |
+| `LINE_BENE_PRMRY_PYR_PD_AMT_1`–`_3` | Primary payer payments for lines 1–3 |
+| `LINE_COINSRNC_AMT_1`–`_5` | Coinsurance amounts for lines 1–5 |
+| `LINE_ALOWD_CHRG_AMT_1`–`_5` | Allowed charges for lines 1–5 |
 
 ### Result Dataclass
 

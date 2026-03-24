@@ -173,9 +173,9 @@ After fixes, re-run this pipeline to verify the discrepancy rate drops to zero o
 
 ## Testing
 
-87 tests covering:
+95 tests covering:
 
-- **54 unit/integration tests** using synthetic data (in-memory DuckDB + temp files) — no real data needed, run in ~3 seconds
+- **62 unit/integration tests** using synthetic data (in-memory DuckDB + temp files) — no real data needed, run in ~3 seconds
 - **33 real-data validation tests** — verify actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.
 - **Unit tests** for each core module (profile, validate, compare, report)
 - **Pipeline step tests** for receive, schema validate, and record matching

@@ -157,6 +157,7 @@
   <span class="nav-sep">|</span>
   <a href="../reports/comparison_report.html">Report</a>
   <a href="architecture.html">Architecture</a>
+  <a href="solution.html">Design Docs</a>
   <a href="schema_explorer.html">Schema</a>
   <a href="parquet_viewer.html">Parquet</a>
   <a href="sql_explorer.html">SQL</a>
@@ -186,6 +187,12 @@
   <a href="#trend-analysis" class="depth-3">Trend Analysis</a>
   <a href="#recommendation" class="depth-3">Recommendation</a>
   <a href="#testing" class="depth-2">Testing</a>
+  <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border)">
+  <div class="toc-title" style="margin-bottom:8px">Design Docs</div>
+  <a href="solution.html" style="color:var(--accent);font-weight:600">Solution Design</a>
+  <a href="pipeline.html">Pipeline Reference</a>
+  <a href="data_dictionary.html">Data Dictionary</a>
+</div>
 </nav>
 
 <div class="content">
@@ -337,9 +344,9 @@ Step Functions state machine (infra/statemachine.asl.json)
 </ol>
 <p>After fixes, re-run this pipeline to verify the discrepancy rate drops to zero or near-zero.</p>
 <h2 id="testing">Testing</h2>
-<p>87 tests covering:</p>
+<p>95 tests covering:</p>
 <ul>
-<li><strong>54 unit/integration tests</strong> using synthetic data (in-memory DuckDB + temp files) — no real data needed, run in ~3 seconds</li>
+<li><strong>62 unit/integration tests</strong> using synthetic data (in-memory DuckDB + temp files) — no real data needed, run in ~3 seconds</li>
 <li><strong>33 real-data validation tests</strong> — verify actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.</li>
 <li><strong>Unit tests</strong> for each core module (profile, validate, compare, report)</li>
 <li><strong>Pipeline step tests</strong> for receive, schema validate, and record matching</li>
@@ -349,5 +356,7 @@ Step Functions state machine (infra/statemachine.asl.json)
 </code></pre>
 </div>
 
+<script src="cached-answers.js"></script>
+<script src="chat-widget.js"></script>
 </body>
 </html>

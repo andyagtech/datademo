@@ -15,8 +15,8 @@
 | Component | Where | What It Does |
 |---|---|---|
 | 6-step pipeline | `src/pipeline/step1_receive.py` → `step6_report.py` | Orchestrated by `src/pipeline/runner.py` with gate logic — halts early on bad input |
-| Validation engine | `src/validate.py` | 17 internal consistency checks (identity, temporal, demographic, financial) |
-| Comparison engine | `src/compare.py` | 46 cross-system checks (schema, row-level, field-level, aggregate) |
+| Validation engine | `src/validate.py` | 19 internal consistency checks (identity, temporal, demographic, coverage, clinical, financial) |
+| Comparison engine | `src/compare.py` | 110 cross-system checks (schema, row-level, field-level, aggregate) |
 | Record matching | `src/pipeline/step4_match.py` | FULL OUTER JOIN on composite keys to align old/new records |
 
 ### REQ-2: Surface issues and inconsistencies
@@ -118,7 +118,7 @@ Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (require
 | Document | Content |
 |---|---|
 | `docs/SOLUTION.md` | Architecture decisions, design rationale for DuckDB/pipeline/Docker/report, analysis findings, deployment strategy, testing approach |
-| `docs/PIPELINE.md` | 492-line reference documenting all 6 pipeline steps, data model, 57 validation/comparison checks, output artifacts |
+| `docs/PIPELINE.md` | 469-line reference documenting all 6 pipeline steps, data model, 129 validation/comparison checks, output artifacts |
 | `docs/DATA_DICTIONARY.md` | Dataset overview, column definitions for all tables, codebook reference |
 | `docs/architecture.html` | Interactive Mermaid.js architecture diagrams |
 | Inline code | Docstrings, type hints, clear module separation |
@@ -133,7 +133,7 @@ Alternatives considered and rejected: SQLite (row-oriented), PostgreSQL (require
 |---|---|
 | **Depth** | 6 named findings with root cause hypotheses, financial breakdown by service type, geographic distribution analysis, trend stability assessment, risk quantification ($35K on $1.24B) |
 | **Strategy** | Old system as ground truth → FULL OUTER JOIN matching → field-level diff flags → aggregate analysis → interpretive narrative. Documented in `SOLUTION.md` and `PIPELINE.md` |
-| **Documentation** | 5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 87 automated tests. |
+| **Documentation** | 5 docs: README.md, SOLUTION.md, PIPELINE.md, DATA_DICTIONARY.md, FEEDBACK.md. Architecture diagrams. 95 automated tests. |
 
 ---
 
@@ -194,12 +194,12 @@ See REQ-2 (surface), REQ-3 (quantify), and REQ-4 (trends) above.
 The HTML report (`reports/comparison_report.html`) includes:
 - **Sidebar navigation** with active section highlighting
 - **Data Context** — what's being compared (file inventories, match results)
-- **Executive Summary** — 4 KPI cards, failed checks highlighted
+- **Executive Summary** — 8 KPI cards, failed checks highlighted
 - **Discrepancy Dashboard** — 4 KPI cards, 4 interactive charts, Key Findings narrative with accuracy assessment
-- **Validation Results** — 17-check table + bar chart
+- **Validation Results** — 19-check table + bar chart
 - **Year-over-Year Trends** — beneficiary count, claims count charts
 - **Financial Analysis** — reimbursement trends, payment distribution, chronic condition prevalence
-- **System Comparison** — 46-check collapsible table
+- **System Comparison** — 110-check collapsible table
 - **Data Profiles** — collapsible column-level quality profiles for all tables
 
 ---
@@ -229,18 +229,24 @@ All source code in `src/`, `web/`, `cloud/`, `infra/`, `viewer/`, `tests/`. Git 
 
 > "Screenshots of your report, output or UI."
 
-**Status: ⚠️ GAP — screenshots directory is empty (placeholder README only)**
+**Status: FULFILLED**
 
-The `screenshots/` directory contains only a `README.md` with instructions. **Actual screenshots need to be captured and added before submission.**
+The `screenshots/` directory contains 12 screenshots captured via `scripts/capture_screenshots.py` (Playwright):
 
-Required screenshots:
-1. Executive Summary (top of report)
-2. Discrepancy Dashboard with Key Findings
-3. Year-over-Year Trends charts
-4. Financial Analysis charts
-5. System Comparison (collapsible)
-6. Data Profiles (expanded)
-7. Web UI upload interface (optional but impressive)
+| File | Content |
+|------|--------|
+| `screenshot_1.png` | Pipeline run — all 6 steps completing |
+| `screenshot_2.png` | Test suite — 95 passed |
+| `screenshot_3.png` | Executive Summary with KPIs |
+| `screenshot_4.png` | Key Findings narrative |
+| `screenshot_5.png` | Validation Results — Issues by Check bar chart |
+| `screenshot_6.png` | Financial Reconciliation (MEDREIMB/BENRES/PPPYMT rows) |
+| `screenshot_7.png` | System Comparison — 110 checks table |
+| `screenshot_8.png` | Year-over-Year Trends — Plotly charts |
+| `screenshot_9.png` | Documentation Hub landing page |
+| `screenshot_10.png` | Schema Explorer ERD |
+| `screenshot_11.png` | SQL Explorer with query results |
+| `screenshot_12.png` | Parquet Viewer with data preview |
 
 ### REQ-18: README.md
 
@@ -279,6 +285,6 @@ Required screenshots:
 
 ## Summary of Gaps
 
-| # | Gap | Severity | Action Required |
+| # | Gap | Severity | Status |
 |---|---|---|---|
-| 1 | **Screenshots pending** | MEDIUM | Capture screenshots of report sections and docs hub, add to `screenshots/` (stubs created in `screenshots/README.md`) |
+| — | No open gaps | — | All requirements fulfilled ✅ |

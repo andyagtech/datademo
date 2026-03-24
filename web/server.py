@@ -18,11 +18,25 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.chat_prompt import (
+    SYSTEM_PROMPT as _CMS_SYSTEM_PROMPT,
+    QUERY_DATABASE_TOOL as _TOOL_QUERY_DATABASE,
+    MAX_ROWS as _MAX_ROWS,
+    MAX_TOOL_ROUNDS as _MAX_TOOL_ROUNDS,
+)
+
 # ── App setup ──────────────────────────────────────────────────────
 app = FastAPI(title="CMS Claims Comparison Pipeline", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 logger = logging.getLogger("web")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
@@ -123,8 +137,8 @@ async def run_pipeline(run_id: str, request: Request):
             if project_root not in sys.path:
                 sys.path.insert(0, project_root)
 
-            from src.pipeline.context import PipelineContext
-            from src.runner import run_pipeline as _run_pipeline
+            from src.pipeline import PipelineContext
+            from src.pipeline.runner import run_pipeline as _run_pipeline
 
             # Determine data paths
             old_data_dir = str(workspace / "data" / "raw")
@@ -226,6 +240,235 @@ async def delete_run(run_id: str):
         shutil.rmtree(workspace)
     del _runs[run_id]
     return {"deleted": run_id}
+
+
+# ── AI Chat endpoint ──────────────────────────────────────────────
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_DB_PATH = _PROJECT_ROOT / "data" / "database" / "cms_claims.duckdb"
+
+# System prompt, tool definition, and constants imported from shared module
+# (see src/chat_prompt.py — single source of truth for Report Pal identity)
+
+
+def _execute_duckdb_query(sql: str) -> dict:
+    """Execute a read-only SQL query against the CMS DuckDB database.
+
+    Returns {"columns": [...], "rows": [[...], ...], "row_count": N, "truncated": bool}
+    or {"error": "message"} on failure.
+    """
+    import duckdb
+
+    if not _DB_PATH.exists():
+        return {"error": f"Database not found at {_DB_PATH}. Run the pipeline first."}
+
+    # Safety: reject non-SELECT statements
+    sql_stripped = sql.strip().rstrip(";").strip()
+    first_word = sql_stripped.split()[0].upper() if sql_stripped else ""
+    if first_word not in ("SELECT", "WITH", "EXPLAIN", "DESCRIBE", "SHOW", "PRAGMA"):
+        return {"error": f"Only SELECT/WITH/EXPLAIN/DESCRIBE queries are allowed. Got: {first_word}"}
+
+    try:
+        con = duckdb.connect(str(_DB_PATH), read_only=True)
+        try:
+            result = con.execute(sql_stripped)
+            columns = [desc[0] for desc in result.description]
+            rows = result.fetchmany(_MAX_ROWS + 1)
+            truncated = len(rows) > _MAX_ROWS
+            if truncated:
+                rows = rows[:_MAX_ROWS]
+            # Convert to JSON-safe types
+            clean_rows = []
+            for row in rows:
+                clean_row = []
+                for val in row:
+                    if val is None:
+                        clean_row.append(None)
+                    elif isinstance(val, (int, float, bool, str)):
+                        clean_row.append(val)
+                    else:
+                        clean_row.append(str(val))
+                clean_rows.append(clean_row)
+            return {
+                "columns": columns,
+                "rows": clean_rows,
+                "row_count": len(clean_rows),
+                "truncated": truncated,
+            }
+        finally:
+            con.close()
+    except duckdb.Error as e:
+        return {"error": f"SQL error: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Query failed: {str(e)}"}
+
+
+def _build_findings_context() -> str:
+    """Load report_data.json and build a condensed findings summary for the system prompt."""
+    report_json = _PROJECT_ROOT / "reports" / "report_data.json"
+    if not report_json.exists():
+        return "No report data available yet. The pipeline has not been run."
+
+    try:
+        data = json.loads(report_json.read_text())
+    except Exception:
+        return "Report data could not be loaded."
+
+    lines = []
+    s = data.get("summary", {})
+    lines.append(f"- Total beneficiaries: {s.get('total_beneficiaries', 'N/A')}")
+    lines.append(f"- Total carrier claims: {s.get('total_claims', 'N/A')}")
+    lines.append(f"- Validation checks: {s.get('passed_checks', '?')}/{s.get('total_checks', '?')} passed")
+    lines.append(f"- Claims payment discrepancy: {s.get('total_claims_pmt_divergence', 'N/A')}")
+    lines.append(f"- Claims with payment changes: {s.get('claims_with_pmt_changes', 'N/A')}")
+    lines.append(f"- Beneficiaries affected: {s.get('benes_with_any_change', 'N/A')}")
+
+    # Summarize non-zero comparison checks
+    comparisons = data.get("comparisons", [])
+    nonzero = [c for c in comparisons if c.get("metric_value") not in (0, "0", None)]
+    lines.append(f"- Total comparison checks: {len(comparisons)} ({len(nonzero)} with findings)")
+
+    # Group by category
+    by_cat: dict[str, list] = {}
+    for c in nonzero:
+        cat = c.get("category", "unknown")
+        by_cat.setdefault(cat, []).append(c)
+
+    for cat, checks in by_cat.items():
+        lines.append(f"\n### {cat.replace('_', ' ').title()} Checks")
+        for c in checks[:15]:  # cap to avoid prompt explosion
+            name = c.get("check_name", "")
+            val = c.get("metric_value", "")
+            impact = c.get("impact", "")[:120]
+            lines.append(f"  - {name}: {val} — {impact}")
+        if len(checks) > 15:
+            lines.append(f"  ... and {len(checks) - 15} more {cat} checks")
+
+    # Failed validations
+    failed = [v for v in data.get("validations", []) if not v.get("passed")]
+    if failed:
+        lines.append("\n### Failed Validation Checks")
+        for v in failed:
+            lines.append(f"  - {v.get('check_name', '')}: {v.get('issues_found', '')} issues — {v.get('description', '')}")
+
+    return "\n".join(lines)
+
+
+@app.post("/api/chat")
+async def chat(request: Request):
+    """AI chat endpoint with function calling for DuckDB queries."""
+    try:
+        import openai as openai_mod
+    except ImportError:
+        raise HTTPException(500, "openai package not installed. Run: pip install openai")
+
+    import os
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(500, "OPENAI_API_KEY environment variable not set")
+
+    body = await request.json()
+    message = body.get("message", "").strip()
+    conversation_history = body.get("conversationHistory", [])
+    model = body.get("model", "gpt-4o")
+
+    if not message:
+        raise HTTPException(400, "message is required")
+
+    # Build system prompt with live report data
+    findings = _build_findings_context()
+    system_prompt = _CMS_SYSTEM_PROMPT.format(findings_context=findings)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *[{"role": m["role"], "content": m["content"]} for m in conversation_history],
+        {"role": "user", "content": message},
+    ]
+
+    try:
+        client = openai_mod.OpenAI(api_key=api_key)
+        tools = [_TOOL_QUERY_DATABASE]
+        sql_queries_run = []  # track for the response
+
+        # Tool-calling loop: let the model call query_database up to N times
+        for _round in range(_MAX_TOOL_ROUNDS):
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                max_tokens=2000,
+                temperature=0.4,
+            )
+
+            choice = response.choices[0]
+
+            # If no tool calls, we have the final answer
+            if choice.finish_reason != "tool_calls" or not choice.message.tool_calls:
+                content = choice.message.content or ""
+                return {
+                    "content": content,
+                    "model": response.model or model,
+                    "queries": sql_queries_run,
+                }
+
+            # Process tool calls
+            messages.append(choice.message)  # add assistant message with tool_calls
+
+            for tool_call in choice.message.tool_calls:
+                if tool_call.function.name == "query_database":
+                    try:
+                        args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {"sql": ""}
+
+                    sql = args.get("sql", "")
+                    explanation = args.get("explanation", "")
+                    logger.info(f"[chat] query_database: {explanation} | SQL: {sql[:200]}")
+
+                    # Execute the query
+                    result = _execute_duckdb_query(sql)
+                    sql_queries_run.append({
+                        "sql": sql,
+                        "explanation": explanation,
+                        "result_preview": {
+                            "columns": result.get("columns", []),
+                            "row_count": result.get("row_count", 0),
+                            "truncated": result.get("truncated", False),
+                            "error": result.get("error"),
+                        }
+                    })
+
+                    # Send result back to the model
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result, default=str),
+                    })
+                else:
+                    # Unknown tool
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps({"error": f"Unknown tool: {tool_call.function.name}"}),
+                    })
+
+        # If we exhausted tool rounds, get final answer without tools
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=2000,
+            temperature=0.4,
+        )
+        content = response.choices[0].message.content or ""
+        return {
+            "content": content,
+            "model": response.model or model,
+            "queries": sql_queries_run,
+        }
+    except Exception as e:
+        logger.exception("Chat API error")
+        raise HTTPException(500, f"Chat failed: {str(e)}")
 
 
 # ── Frontend HTML ──────────────────────────────────────────────────
