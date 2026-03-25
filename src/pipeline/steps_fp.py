@@ -201,7 +201,43 @@ def step3_functional(
             if high:
                 warnings.append(f"{len(high)} high-severity anomalies detected")
 
-        # 5. Claim line utilization (effectful boundary)
+        # 5. Statistical column profiling (optional — set enable_column_profiling=False to skip)
+        column_profiles: dict = {}
+        if state.config.enable_column_profiling:
+            from src.column_profile import profile_tables
+            from src.functional import is_ok as _is_ok
+            cp_results = profile_tables(con)
+            for tbl, cp_result in cp_results.items():
+                if _is_ok(cp_result):
+                    cp = cp_result.unwrap()
+                    column_profiles[tbl] = cp
+                    outliers = cp.outlier_summary
+                    if outliers:
+                        top3 = outliers[:3]
+                        for o in top3:
+                            warnings.append(
+                                f"{o['column']}: {o['iqr_outliers']} IQR outliers "
+                                f"({o['iqr_pct']}% of {o['total']:,} values)"
+                            )
+                    for td in cp.temporal_dists:
+                        if td.cv_pct > 50:
+                            warnings.append(
+                                f"High temporal variation in {td.column}: "
+                                f"CV={td.cv_pct}% across {len(td.buckets)} quarters"
+                            )
+                else:
+                    logger.warning(f"Column profiling failed for {tbl}: {cp_result.failure()}")
+            ctx.results["column_profiles"] = column_profiles
+
+            # Generate standalone HTML report
+            if column_profiles:
+                from src.column_profile_report import generate_column_profile_report
+                try:
+                    generate_column_profile_report(column_profiles)
+                except Exception as e:
+                    logger.warning(f"Column profile report generation failed: {e}")
+
+        # 6. Claim line utilization (effectful boundary)
         from src.pipeline.step3_ingest import _claim_line_utilization
         line_util = _claim_line_utilization(con)
         ctx.results["claim_line_utilization"] = line_util
@@ -227,6 +263,15 @@ def step3_functional(
             "anomalies": anomalies,
             "tables_profiled": len(profiles),
             "claim_line_utilization": line_util,
+            "column_profiling": {
+                tbl: {
+                    "numeric_cols": len(cp.numeric_stats),
+                    "histograms": len(cp.histograms),
+                    "temporal_dists": len(cp.temporal_dists),
+                    "outlier_cols": len(cp.outlier_summary),
+                }
+                for tbl, cp in column_profiles.items()
+            } if column_profiles else {},
             "ingest_plan": {
                 "operations": len(plan.operations),
                 "tables": list(plan.table_names),

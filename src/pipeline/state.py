@@ -83,7 +83,8 @@ class PipelineConfig:
     db_path: Maybe[Path] = Nothing
     skip_ingest: bool = False
     mode: str = "local"  # "local" or "cloud"
-    
+    enable_column_profiling: bool = False  # Statistical profiling + anomaly detection (~60s on real data)
+
     # Validation thresholds
     expected_beneficiary_files: int = 3
     expected_carrier_files: int = 2

@@ -255,6 +255,144 @@
   <!-- ============================================================ -->
   <div class="section" id="summary">
     <h2 id="executive-summary-heading">Executive Summary</h2>
+
+    {% if summary.has_new_system %}
+    <div class="card" style="border-left: 3px solid var(--accent); margin-bottom: 1rem; line-height: 1.8; font-size: 0.9rem;">
+      <p style="margin-bottom: 0.5rem;">
+        This report compares the <strong style="color: var(--accent);">legacy CMS DE-SynPUF system</strong>
+        ({{ summary.total_beneficiaries }} beneficiary records, {{ summary.total_claims }} carrier claims across {{ summary.summary_years }} years)
+        against a <strong style="color: var(--yellow);">replacement system</strong> to assess migration readiness.
+      </p>
+    </div>
+
+    <!-- Spec-required metrics: Beneficiaries with mismatches + Claims with payment mismatches -->
+    <div class="grid" style="margin-bottom: 1rem;">
+      <div class="card card-red" style="text-align: center;">
+        <div class="card-label" style="font-size: 0.7rem;">Total Beneficiaries Whose Data Does Not Match</div>
+        <div class="card-value fail" style="font-size: 2rem;">{{ summary.benes_any_mismatch }}</div>
+        <div class="card-sub">of {{ summary.bene_matched }} matched beneficiary-year records</div>
+      </div>
+      <div class="card card-red" style="text-align: center;">
+        <div class="card-label" style="font-size: 0.7rem;">Total Claims Whose Payments Don't Match</div>
+        <div class="card-value fail" style="font-size: 2rem;">{{ summary.claims_pmt_mismatch }}</div>
+        <div class="card-sub">of {{ summary.claims_matched }} matched carrier claims</div>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom: 0.75rem; font-size: 1rem;">Key Differences Between Systems</h3>
+    <ul style="list-style: none; padding: 0; margin: 0 0 1rem 0;">
+      <li style="margin-bottom: 0.75rem; padding: 0.75rem 1rem; background: rgba(248,113,113,0.06); border-radius: 8px; border-left: 3px solid var(--red);">
+        <strong style="font-size: 0.95rem;">Beneficiaries Removed &amp; Replaced</strong>
+        <span style="font-size:0.65rem; color:var(--accent); opacity:0.6; margin-left:6px;">Z-set diff (Step 4)</span><br>
+        <strong style="color: var(--red); font-size: 1.1rem;">{{ summary.bene_old_only }}</strong> real beneficiaries were
+        <strong>deleted</strong> from the new system.
+        In their place, <strong style="color: var(--red); font-size: 1.1rem;">{{ summary.bene_new_only }}</strong> new records were <strong>inserted</strong>
+        {% if summary.zz_benes != "0" %}
+        — all with IDs prefixed <code style="background:rgba(251,146,60,0.15);padding:1px 5px;border-radius:3px;color:var(--yellow);">ZZ</code>,
+        indicating <strong style="color: var(--yellow);">fabricated test records</strong>, not real Medicare enrollees.
+        {% endif %}
+        <br><span style="color: var(--muted); font-size: 0.82rem;">{{ summary.bene_matched }} of {{ summary.total_beneficiaries }} beneficiary records matched between systems.</span>
+      </li>
+
+      <li style="margin-bottom: 0.75rem; padding: 0.75rem 1rem; background: rgba(251,146,60,0.06); border-radius: 8px; border-left: 3px solid var(--orange);">
+        <strong style="font-size: 0.95rem;">Claims Injected</strong>
+        <span style="font-size:0.65rem; color:var(--accent); opacity:0.6; margin-left:6px;">Z-set diff (Step 4) + ZZ-prefix detection</span><br>
+        <strong style="color: var(--orange); font-size: 1.1rem;">{{ summary.claims_new_only }}</strong> new carrier claims were injected into the new system
+        {% if summary.zz_claims != "0" %}
+        (<strong>{{ summary.zz_claims }}</strong> belong to fabricated ZZ beneficiaries).
+        {% endif %}
+        {% if summary.claims_old_only != "0" %}<strong style="color: var(--red);">{{ summary.claims_old_only }}</strong> original claims were removed.{% endif %}
+        <br><span style="color: var(--muted); font-size: 0.82rem;">{{ summary.claims_matched }} of {{ summary.total_claims }} carrier claims matched exactly by CLM_ID.</span>
+      </li>
+
+      <li style="margin-bottom: 0.75rem; padding: 0.75rem 1rem; background: rgba(56,189,248,0.06); border-radius: 8px; border-left: 3px solid var(--accent);">
+        <strong style="font-size: 0.95rem;">Financial Discrepancies on Matched Records</strong>
+        <span style="font-size:0.65rem; color:var(--accent); opacity:0.6; margin-left:6px;">Z-set field deltas (Step 5) + _discrepancy_detail</span><br>
+        Among the {{ summary.bene_matched }} matched beneficiaries,
+        <strong style="color: var(--yellow); font-size: 1.1rem;">{{ summary.bene_fin_affected }}</strong> have reimbursement amounts that differ between systems,
+        totaling <strong style="color: var(--red); font-size: 1.1rem;">{{ summary.total_fin_delta }}</strong> in absolute divergence
+        across inpatient, outpatient, and carrier columns.
+        <br><span style="color: var(--green); font-size: 0.82rem;">The remaining matched records are financially identical between systems.</span>
+      </li>
+
+      {% if summary.has_ratio_09 %}
+      <li style="margin-bottom: 0; padding: 0.75rem 1rem; background: rgba(251,146,60,0.08); border-radius: 8px; border-left: 3px solid var(--yellow);">
+        <strong style="font-size: 0.95rem;">Trend: Systematic 10% Payment Reduction</strong>
+        <span style="font-size:0.65rem; color:var(--accent); opacity:0.6; margin-left:6px;">Report-time ratio analysis (new/old payment)</span><br>
+        <strong style="color: var(--orange); font-size: 1.1rem;">{{ summary.ratio_09_claims }}</strong> matched claims have
+        LINE_NCH_PMT_AMT_1 reduced to exactly <strong>0.9&times;</strong> the original amount — a uniform 10% haircut
+        totaling <strong style="color: var(--red);">{{ summary.ratio_09_dollars }}</strong>.
+        This is not random noise; it is a <strong style="color: var(--yellow);">systematic, deterministic modification</strong>
+        applied to a specific subset of claims, suggesting a deliberate rule change or calculation error in the new system's payment logic.
+        <br><span style="color: var(--muted); font-size: 0.82rem;">This is the dominant payment discrepancy pattern and accounts for the majority of claims with mismatched payments.</span>
+      </li>
+      {% endif %}
+    </ul>
+
+    {% if summary.additional_diffs %}
+    <h3 style="margin: 1.25rem 0 0.5rem; font-size: 1rem;">Additional Differences <span style="font-size:0.78rem; color:var(--muted); font-weight:400;">({{ summary.additional_diffs|length }} findings — click to expand)</span></h3>
+      {% for diff in summary.additional_diffs %}
+      <details style="margin: 2px 0;">
+        <summary style="font-size: 0.88rem; font-weight: 500; padding: 0.5rem 0.75rem;">{{ diff.title }}</summary>
+        <div style="padding: 0.5rem 1rem 0.75rem 2rem; font-size: 0.82rem; line-height: 1.7; color: var(--muted); border-bottom: 1px solid var(--border);">
+          {{ diff.detail }}
+          {% if diff.method %}
+          <br><span style="font-size: 0.72rem; color: var(--accent); opacity: 0.7;">Discovered by: {{ diff.method }}</span>
+          {% endif %}
+        </div>
+      </details>
+      {% endfor %}
+    {% endif %}
+
+    {% if summary.has_new_system %}
+    <details style="margin: 1rem 0 0.5rem;">
+      <summary style="font-size: 0.95rem; font-weight: 600; padding: 0.6rem 0.75rem;">How These Differences Were Found</summary>
+      <div style="padding: 0.75rem 1rem 0.75rem 2rem; font-size: 0.82rem; line-height: 1.8; color: var(--muted); border-bottom: 1px solid var(--border);">
+        <p style="margin-bottom: 0.6rem;">The pipeline uses three complementary analysis methods to ensure no differences are missed:</p>
+        <p style="margin-bottom: 0.6rem;">
+          <strong style="color: var(--accent);">1. Z-Set Algebra (Functional Pipeline — Steps 4 &amp; 5)</strong><br>
+          Row-level matching via <code>FULL OUTER JOIN</code> with integer weights (+1 = inserted, −1 = deleted, 0 = matched).
+          Field-level deltas computed on matched rows using <code>IS DISTINCT FROM</code> for categorical columns
+          and <code>ABS(old − new)</code> for numeric columns. This produces the <code>_match_beneficiary</code>,
+          <code>_match_claims</code>, <code>_zset_beneficiary</code>, <code>_zset_claims</code>, and
+          <code>_discrepancy_detail</code> tables. Source: <code>src/zset.py</code>, <code>src/pipeline/steps_fp.py</code>.
+        </p>
+        <p style="margin-bottom: 0.6rem;">
+          <strong style="color: var(--accent);">2. Imperative Comparison Engine (Step 5)</strong><br>
+          Schema comparison (missing/extra columns, type mismatches), row-count diffs, per-field value comparisons
+          on configured column lists, and aggregate divergence (sum/mean) on numeric columns.
+          Runs 110 checks across both table pairs.
+          Source: <code>src/compare.py</code> with column lists in <code>TABLE_PAIRS</code>.
+        </p>
+        <p style="margin-bottom: 0.6rem;">
+          <strong style="color: var(--accent);">3. Report-Time Analysis (Step 6)</strong><br>
+          Deep-dive queries run during report generation to surface patterns not visible in aggregate statistics:
+          ZZ-prefix detection on inserted records, payment ratio analysis revealing the 0.9× systematic reduction,
+          impossible date detection (20231332), diagnosis/NPI nullification patterns, coverage month reductions,
+          and exhaustive column-by-column sweeps of all 175 columns across both tables.
+          Source: <code>src/report.py</code> summary computation.
+        </p>
+        <p style="margin-bottom: 0;">
+          <strong style="color: var(--accent);">4. Internal Validation (Step 4)</strong><br>
+          19 checks on the old system alone: key integrity, financial reconciliation (carrier reimbursement
+          vs claim-line aggregates per CMS Codebook), temporal consistency, demographic drift,
+          coverage period validation, ESRD regression, ICD-9 format, and NPI format.
+          These detect errors in the source data independent of the new system.
+          Source: <code>src/validate.py</code>.
+        </p>
+      </div>
+    </details>
+    {% endif %}
+    {% else %}
+    <div class="card" style="border-left: 3px solid var(--accent); margin-bottom: 1.5rem; line-height: 1.9; font-size: 0.9rem;">
+      <p>
+        This report profiles the <strong style="color: var(--accent);">legacy CMS DE-SynPUF system</strong>
+        ({{ summary.total_beneficiaries }} beneficiary records, {{ summary.total_claims }} carrier claims across {{ summary.summary_years }} years)
+        and validates internal data consistency. No new system data has been loaded for comparison yet.
+      </p>
+    </div>
+    {% endif %}
+
     <div class="grid">
       <div class="card card-accent" id="total-beneficiaries">
         <div class="card-label">Total Beneficiaries</div>
@@ -302,6 +440,16 @@
 
     {% if failed_validations %}
     <h3 id="issues-requiring-attention" style="color: var(--red); margin-top: 1.5rem;">Issues Requiring Attention</h3>
+    <div class="card" style="border-left: 3px solid var(--yellow); margin-bottom: 1rem; font-size: 0.84rem; line-height: 1.7; color: var(--muted);">
+      <strong style="color: var(--text);">Errors vs. Discrepancies:</strong>
+      The checks below are <strong style="color: var(--text);">internal validation errors</strong> found in the
+      <em>old system alone</em> — problems like orphan claims, impossible clinical regressions, and
+      financial reconciliation mismatches that exist <em>regardless of the new system</em>.
+      These are data quality issues in the source data itself.
+      In contrast, the <strong style="color: var(--text);">discrepancies</strong> shown in the Discrepancy Dashboard below
+      are <em>differences between the two systems</em> — the new system may be correct where
+      the old one had a bug, or vice versa. An error is always wrong; a discrepancy needs investigation.
+    </div>
     <div class="grid" style="grid-template-columns: 1fr;">
       {% for v in failed_validations %}
       <div class="card card-red">

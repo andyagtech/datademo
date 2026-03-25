@@ -4,11 +4,14 @@ A data comparison and validation tool that compares outcomes from two healthcare
 
 Built for the USDS Data Engineering Take-Home Assessment.
 
+> **Reviewers:** Start with the **[Reviewer Walkthrough (REVIEWER_README.md)](REVIEWER_README.md)** — a guided tour with screenshots showing what to look at, in what order, and why. Or skip straight to the **[live report](https://usds-data.andy-barr.com/reports/comparison_report.html)** — no setup required.
+
 | | |
 |---|---|
 | **Repository** | [github.com/andyagtech/cmsdata-assessment](https://github.com/andyagtech/cmsdata-assessment) |
-| **Hosted Report** | [Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html) — interactive report with AI Assistant |
-| **Hosted Docs** | [Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html) — interactive tools, design docs, architecture diagrams |
+| **Live Site** | [usds-data.andy-barr.com](https://usds-data.andy-barr.com/docs/index.html) — documentation hub, interactive tools, AI assistant |
+| **Hosted Report** | [Comparison Report](https://usds-data.andy-barr.com/reports/comparison_report.html) — interactive report with AI Assistant |
+| **Hosted Docs** | [Documentation Hub](https://usds-data.andy-barr.com/docs/index.html) — interactive tools, design docs, architecture diagrams |
 | **AI Assistant Bundle** | [cmsdata-assessment_ai-assistant.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_ai-assistant.zip) — code, docs, report (no data) |
 | **Full Bundle Download** | [cmsdata-assessment_full.zip](https://andy-barr-cmsdata-assessment.s3.us-west-2.amazonaws.com/downloads/cmsdata-assessment_full.zip) — code, docs, report + data |
 
@@ -18,8 +21,8 @@ Built for the USDS Data Engineering Take-Home Assessment.
 
 | Approach | What you need |
 |----------|---------------|
-| **Docker (recommended)** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) — nothing else required |
-| **Local Python** | Python 3.14+ and `pip install -r requirements.txt` |
+| **Local Python (recommended)** | Python 3.14+ and `pip install -r requirements.txt` |
+| **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) — nothing else required |
 
 All Python libraries (DuckDB, Pandas, Plotly, Jinja2, pytest) are listed in `requirements.txt` — there are **no system-level dependencies** beyond Python itself.
 
@@ -27,7 +30,44 @@ All Python libraries (DuckDB, Pandas, Plotly, Jinja2, pytest) are listed in `req
 
 ## Quick Start
 
-### Option A: Docker (recommended)
+### Option A: Local Python (recommended)
+
+```bash
+# Requires Python 3.14+
+# Create and activate a virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Download and place data (see "Data Setup" below)
+
+# Run the pipeline
+python -m src.main
+
+# With new system data
+python -m src.main --new-data data/new_system/
+
+# Skip ingest on re-runs
+python -m src.main --skip-ingest
+
+# Run tests
+pytest tests/ -v
+```
+
+<details>
+<summary><strong>Alternative: using <code>uv</code> (faster)</strong></summary>
+
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager. If you have it installed:
+
+```bash
+uv venv --python 3.14
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+</details>
+
+### Option B: Docker
 
 Docker is the simplest way to run the pipeline on any machine. No Python install required.
 
@@ -84,43 +124,6 @@ docker run --rm -p 8888:8888 \
 
 </details>
 
-### Option B: Local Python
-
-```bash
-# Requires Python 3.14+
-# Create and activate a virtual environment (recommended)
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# Download and place data (see "Data Setup" below)
-
-# Run the pipeline
-python -m src.main
-
-# With new system data
-python -m src.main --new-data data/new_system/
-
-# Skip ingest on re-runs
-python -m src.main --skip-ingest
-
-# Run tests
-pytest tests/ -v
-```
-
-<details>
-<summary><strong>Alternative: using <code>uv</code> (faster)</strong></summary>
-
-[uv](https://docs.astral.sh/uv/) is a fast Python package manager. If you have it installed:
-
-```bash
-uv venv --python 3.14
-source .venv/bin/activate
-uv pip install -r requirements.txt
-```
-
-</details>
-
 ### Viewing Reports & Documentation
 
 The interactive report, documentation hub, and browser tools (Schema Explorer, SQL Explorer, Parquet Viewer) require an HTTP server — they will not fully work over `file://` due to browser security restrictions.
@@ -148,11 +151,13 @@ Upload old system CSVs → optionally upload new system CSVs → run pipeline �
 
 ### Data Setup
 
-The pipeline needs **5 old system CSV files** (required) and optionally **new system CSV files** for comparison. You can provide them as ZIP archives or pre-extracted CSVs.
+The pipeline needs **5 old system CSV files** (required) and optionally **new system CSV files** for comparison.
 
-#### Old System Data (required)
+> **Don't want to download data?** The [live report](https://usds-data.andy-barr.com/reports/comparison_report.html) and all outputs are already hosted — you can review everything without running the pipeline locally.
 
-Download **Sample 1** from [CMS DE-SynPUF](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf/de10-sample-1):
+#### Step 1: Old System Data (required)
+
+Download **Sample 1** from [CMS DE-SynPUF](https://www.cms.gov/data-research/statistics-trends-and-reports/medicare-claims-synthetic-public-use-files/cms-2008-2010-data-entrepreneurs-synthetic-public-use-file-de-synpuf/de10-sample-1) — 5 ZIP files:
 
 | Download link on CMS site | Extracted CSV filename |
 |---------------------------|----------------------|
@@ -162,21 +167,18 @@ Download **Sample 1** from [CMS DE-SynPUF](https://www.cms.gov/data-research/sta
 | DE1.0 Sample 1 Carrier Claims A | `DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv` |
 | DE1.0 Sample 1 Carrier Claims B | `DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv` |
 
-**Option 1 — Place ZIP archives (auto-extracted):**
-```bash
-mv *.zip data/original_downloads/
-```
-The pipeline **automatically extracts** ZIPs into `data/old_system/` during Step 1. No manual unzipping required.
+Place the files using **one** of these two options:
 
-**Option 2 — Place pre-extracted CSVs directly:**
 ```bash
+# Option A: Place ZIP archives (auto-extracted by Step 1)
+mv *.zip data/original_downloads/
+
+# Option B: Place pre-extracted CSVs directly
 mv *.csv data/old_system/
 ```
-If CSVs are already in `data/old_system/`, the pipeline skips extraction and uses them directly.
 
-#### New System Data (optional — for comparison)
+#### Step 2: New System Data (optional — for comparison)
 
-Place the new system CSVs into `data/new_system/`:
 ```bash
 # If you have a ZIP:
 unzip "New Claims System Outputs.zip" -d data/new_system/
@@ -184,28 +186,27 @@ unzip "New Claims System Outputs.zip" -d data/new_system/
 # Or if you have CSVs:
 mv *_NEWSYSTEM.csv data/new_system/
 ```
-The entrypoint **auto-detects** CSVs in `data/new_system/` — no extra flags needed. New system files are matched by header content (files containing `Beneficiary` or `Carrier` column patterns), not by filename.
+The entrypoint **auto-detects** CSVs in `data/new_system/` — no extra flags needed. Files are matched by header content (column patterns), not by filename.
 
-#### Expected folder structure after setup
+#### Where files go
 
 ```
 data/
-├── original_downloads/      # Option 1: place ZIPs here (auto-extracted)
-│   ├── README.md             # Detailed file listing (tracked in git)
+├── original_downloads/      # Put ZIPs here → auto-extracted to old_system/
 │   └── *.zip
-├── old_system/               # CSVs end up here (5 files)
+├── old_system/              # OR put CSVs directly here (5 files)
 │   ├── DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv
 │   ├── DE1_0_2009_Beneficiary_Summary_File_Sample_1.csv
 │   ├── DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv
 │   ├── DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv
 │   └── DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv
-├── new_system/               # Optional: new system CSVs for comparison
+├── new_system/              # Optional: new system CSVs for comparison
 │   └── *.csv
-└── database/                 # Auto-generated by pipeline
+└── database/                # Auto-generated by pipeline (do not create manually)
     └── cms_claims.duckdb
 ```
 
-**Data lineage:**
+**Data flow:**
 ```
 data/original_downloads/*.zip  →  Step 1: auto-extract  →  data/old_system/*.csv
                                                                     ↓
@@ -336,6 +337,18 @@ See [Data Setup](#data-setup) above for download links and step-by-step instruct
 | **Field-level** | Value mismatches | Per-field diffs on matched records |
 | **Aggregate** | Sum/mean divergence | Aggregate financial metrics comparison |
 | **Trend** | By-year breakdown | Mismatch rates and dollar impact per year |
+
+### Cool Features
+
+- **AI Chat Assistant (Report Pal)** — ask questions about the data in natural language via text or voice; powered by GPT-4o with live DuckDB access, plus 8 swappable models (Claude, Gemini, Llama, Nova)
+- **Voice Mode** — full-duplex WebRTC voice conversations via OpenAI Realtime API with server-side VAD and Whisper transcription
+- **In-Browser SQL Explorer** — run SQL queries against Parquet files directly in the browser (no server) using Squirreling + hyparquet
+- **Parquet Viewer** — drag-and-drop any `.parquet` file to inspect schema and data in the browser
+- **Schema Explorer** — interactive drag-and-drop ERD for all 8 DuckDB tables with column details and zoom/pan
+- **Interactive Architecture Diagrams** — Mermaid.js diagrams showing the 6-step pipeline, cloud deployment, and data flow
+- **92 Pre-Cached Q&A Pairs** — instant AI-quality answers without API calls, generated from pipeline results with real data interpolated into AI-authored templates
+- **Zero-Config DuckDB** — embedded analytical database handles millions of rows with no server setup
+- **Functional Programming Branch** — complete Railway-Oriented Programming refactor with Z-sets, algebraic types, and property-based testing
 
 ---
 
@@ -725,6 +738,72 @@ Pipeline run (src/main.py or Step Functions)
 
 ---
 
+## Functional Data Pipeline
+
+The `functional_approach` branch contains a complete functional programming refactor of the pipeline. The same 6-step pipeline logic is re-implemented using Railway-Oriented Programming, Z-sets for incremental comparison, algebraic types (`Result`, `Maybe`), and pattern matching — while sharing the same DuckDB core and producing identical outputs.
+
+### Architecture
+
+The functional pipeline separates **pure descriptions** (what to do) from **effectful interpreters** (how to do it):
+
+```
+Pure layer (no I/O)                    Effectful boundary
+─────────────────────                  ───────────────────
+query_algebra.py  →  IngestPlan,       steps_fp.py  →  executes plans
+                     AnomalyCheck,                      against DuckDB
+                     ExportOp
+receive_pure.py   →  ReceiveResult     runner_fp.py →  orchestrates steps
+schema_validate_pure.py                                 via Result chaining
+zset.py           →  ZSetView,         zset.py      →  execute_diff()
+                     TableRef                           (interpreter)
+functional.py     →  Result, Maybe,
+                     pipe, compose
+state.py          →  PipelineState     (immutable, threaded as value)
+```
+
+### Source Files
+
+| File | Purpose |
+|------|---------|
+| `src/functional.py` | Core FP primitives — `Result`, `Maybe`, `pipe`, `compose`, `catch_as_result`, `lazy` (wraps [dry-python/returns](https://github.com/dry-python/returns)) |
+| `src/zset.py` | Z-set algebra — `TableRef`, `ZSetView`, `execute_diff` for incremental diffing via DuckDB SQL (based on DBSP theory) |
+| `src/pipeline/query_algebra.py` | Pure operation descriptions — `IngestOp`, `IngestPlan`, `AnomalyCheck`, `ExportOp` (Interpreter Pattern) |
+| `src/pipeline/state.py` | Immutable pipeline state — `PipelineConfig`, `PipelineState`, `StepOutcome` (replaces mutable `PipelineContext`) |
+| `src/pipeline/steps_fp.py` | Functional steps 3-6 — plan/interpret/summarize for each step |
+| `src/pipeline/runner_fp.py` | Functional pipeline runner — chains steps via `Result` (replaces `runner.py`) |
+| `src/pipeline/receive_pure.py` | Pure file discovery and validation for Step 1 |
+| `src/pipeline/schema_validate_pure.py` | Pure schema validation for Step 2 |
+
+### Tests (169 functional tests)
+
+| File | What it tests |
+|------|--------------|
+| `tests/test_functional.py` | FP primitives (`Result`, `Maybe`, `pipe`, `compose`) and pipeline step integration |
+| `tests/test_pattern_matching.py` | Python 3.10+ structural pattern matching on `Result`/`Maybe`/`PipelineError` |
+| `tests/test_property_based.py` | Hypothesis property-based tests — algebraic laws (monad, functor, monoid), Z-set invariants |
+| `tests/test_zset.py` | Z-set algebra — diff, merge, idempotence, commutativity, real DuckDB execution |
+
+### Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Functional Analysis](docs/functional_programming/FUNCTIONAL_ANALYSIS.md) | Executive summary of the refactor — architecture, design decisions, and outcomes |
+| [Functional Concepts](docs/functional_programming/FUNCTIONAL_CONCEPTS.md) | Catalog of every FP concept with exact code locations and examples |
+| [Imperative vs Functional](docs/functional_programming/IMPERATIVE_VS_FUNCTIONAL.md) | Honest side-by-side comparison of both approaches — where FP helps and where it doesn't |
+| [Z-Set Usage](docs/functional_programming/Z-SET_USAGE.md) | End-to-end walkthrough of one Z-set calculation with real data |
+
+### Key Concepts
+
+- **Railway-Oriented Programming** — every step returns `Result[T, PipelineError]`. Success flows forward; failure short-circuits with full context. No try/except in business logic.
+- **Interpreter Pattern** — operations are described as frozen dataclasses (`IngestPlan`, `AnomalyCheck`), then executed by a separate interpreter. Pure descriptions are testable without a database.
+- **Z-Set Algebra** — system comparison uses Z-sets (multisets with integer weights from DBSP theory). `old_table - new_table` produces +1 for deletions, -1 for insertions. All diffing is a single DuckDB SQL query.
+- **Immutable State** — `PipelineState` is a frozen dataclass threaded through steps via `dataclasses.replace()`. No mutation, no shared mutable state.
+- **Property-Based Testing** — Hypothesis verifies algebraic laws (Result is a monad, Z-set diff is commutative) across thousands of random inputs.
+
+> **Note:** The hosted deployment at [usds-data.andy-barr.com](https://usds-data.andy-barr.com) serves the `main` branch (imperative pipeline + AI chat). The functional refactor is available on the `functional_approach` branch.
+
+---
+
 ## Known Limitations & Future Improvements
 
 ### CDN Dependencies for Interactive Tools
@@ -772,6 +851,8 @@ Three of the documentation tools load JavaScript libraries from CDN at runtime:
 │   ├── validate.py           # Internal consistency checks
 │   ├── compare.py            # Old vs New comparison engine
 │   ├── report.py             # HTML report + Plotly charts
+│   ├── functional.py         # FP primitives: Result, Maybe, pipe, compose (wraps dry-python/returns)
+│   ├── zset.py               # Z-set algebra for incremental diffing (DBSP theory)
 │   ├── chat_prompt.py        # Shared Report Pal system prompt & tool definitions
 │   ├── chat_answers.py       # Pre-cached Q&A pairs for instant responses
 │   ├── db_utils.py           # Shared DuckDB utilities
@@ -783,7 +864,13 @@ Three of the documentation tools load JavaScript libraries from CDN at runtime:
 │   │   └── aws.py            # S3 storage adapter
 │   └── pipeline/
 │       ├── __init__.py       # PipelineContext, StepResult
-│       ├── runner.py         # Local 6-step orchestrator with gate logic
+│       ├── runner.py         # Imperative 6-step orchestrator with gate logic
+│       ├── runner_fp.py      # Functional runner — Result-chained step execution
+│       ├── state.py          # Immutable PipelineState, StepOutcome, PipelineConfig
+│       ├── query_algebra.py  # Pure operation descriptions (Interpreter Pattern)
+│       ├── steps_fp.py       # Functional steps 3-6: plan → interpret → summarize
+│       ├── receive_pure.py   # Pure file discovery + validation (Step 1)
+│       ├── schema_validate_pure.py  # Pure schema validation (Step 2)
 │       ├── step1_receive.py
 │       ├── step2_schema_validate.py
 │       ├── step3_ingest.py
@@ -804,14 +891,18 @@ Three of the documentation tools load JavaScript libraries from CDN at runtime:
 ├── web/                      # FastAPI web UI (drag-and-drop uploads)
 │   └── server.py             # Self-contained server + frontend
 │
-├── tests/                    # 95 tests (pytest)
+├── tests/                    # 264 tests (pytest)
 │   ├── conftest.py           # Shared fixtures (in-memory DuckDB + sample data)
 │   ├── test_compare.py
+│   ├── test_functional.py    # Functional primitives + pipeline step tests
+│   ├── test_pattern_matching.py  # Structural pattern matching tests
 │   ├── test_pipeline.py      # Pipeline step tests
 │   ├── test_profile.py
+│   ├── test_property_based.py    # Hypothesis property-based tests
 │   ├── test_real_data.py     # Real CMS data validation (auto-skipped if data not present)
 │   ├── test_report.py
-│   └── test_validate.py
+│   ├── test_validate.py
+│   └── test_zset.py          # Z-set algebra + incremental comparison tests
 │
 ├── scripts/                  # Utility scripts
 │   ├── bundle.sh             # Create submission ZIP archive
@@ -833,6 +924,11 @@ Three of the documentation tools load JavaScript libraries from CDN at runtime:
 │   ├── DATA_DICTIONARY.md    # Dataset overview, column definitions, codebook ref
 │   ├── PIPELINE.md           # Detailed pipeline reference (all checks documented)
 │   ├── *.html (6 rendered)   # HTML versions of .md docs (generated by render_md_docs.py)
+│   ├── functional_programming/        # Functional refactor documentation
+│   │   ├── FUNCTIONAL_ANALYSIS.md     # Architecture and design decisions
+│   │   ├── FUNCTIONAL_CONCEPTS.md     # FP concept catalog with code locations
+│   │   ├── IMPERATIVE_VS_FUNCTIONAL.md  # Side-by-side comparison
+│   │   └── Z-SET_USAGE.md            # Z-set walkthrough with real data
 │   ├── exports → ../reports/exports   # Symlink for web serving
 │   └── reports → ../reports           # Symlink for web serving
 │

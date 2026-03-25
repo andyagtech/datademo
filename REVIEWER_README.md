@@ -4,13 +4,18 @@ A guided tour of the CMS Claims Comparison Pipeline — what to look at, in what
 
 ---
 
-## Hosted Version
+## Fastest Way to Review (No Setup Required)
 
-A live, read-only version of the reports and documentation is available — no setup required:
+Everything is live at **[usds-data.andy-barr.com](https://usds-data.andy-barr.com/docs/index.html)**. You can review all reports, outputs, and interactive tools without installing anything:
 
-- **[Comparison Report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)** — the primary deliverable with KPIs, charts, findings, and **AI Assistant**
-- **[Documentation Hub](https://ddmmvtx76d1f8.cloudfront.net/docs/index.html)** — interactive tools, design docs, architecture diagrams, and **AI Assistant**
-- **[Reviewer Walkthrough](https://ddmmvtx76d1f8.cloudfront.net/docs/reviewer_readme.html)** — this page, hosted online with all screenshots
+| What to look at | Link | Time |
+|----------------|------|------|
+| **Comparison Report** | [usds-data.andy-barr.com/reports/comparison_report.html](https://usds-data.andy-barr.com/reports/comparison_report.html) | 5 min — KPIs, findings, charts, financial reconciliation |
+| **Ask the AI Assistant** | Click the chat bubble (bottom-right) on any page | 2 min — try "What validation checks failed?" or use voice mode |
+| **Documentation Hub** | [usds-data.andy-barr.com/docs/index.html](https://usds-data.andy-barr.com/docs/index.html) | 3 min — design docs, interactive tools, architecture diagrams |
+| **This Walkthrough (hosted)** | [usds-data.andy-barr.com/docs/reviewer_readme.html](https://usds-data.andy-barr.com/docs/reviewer_readme.html) | — this page with all screenshots rendered |
+
+The report is the primary deliverable. Open it, scroll through the executive summary and key findings, then use the AI assistant to ask questions about the data.
 
 ### Downloads
 
@@ -65,9 +70,9 @@ All 6 pipeline steps execute in sequence with gate logic — Steps 1-2 halt earl
 
 ## 2. Test Suite
 
-The project has **95 tests** across two categories:
+The project has **264 tests** across two categories:
 
-- **62 unit/integration tests** — use synthetic data (in-memory DuckDB + temp files). No real data needed. Run in ~3 seconds.
+- **231 unit/integration tests** — use synthetic data (in-memory DuckDB + temp files). No real data needed. Includes functional programming, property-based, and pattern matching tests.
 - **33 real-data tests** — validate the actual CMS files (row counts, schemas, data quality, cross-system consistency). Auto-skipped if data is not present.
 
 ```bash
@@ -142,6 +147,23 @@ Interactive Plotly charts show how metrics change across 2008–2010. The assess
 
 ![Year-over-Year Trends](screenshots/screenshot_8.png)
 
+### How to Analyze the Reports & Outputs
+
+The pipeline generates several output artifacts. Here's how to explore them:
+
+| Output | How to access | What you'll find |
+|--------|--------------|-----------------|
+| **HTML Report** | [Live](https://usds-data.andy-barr.com/reports/comparison_report.html) or `reports/comparison_report.html` | Self-contained report — open in any browser. Executive summary, interactive Plotly charts, sortable tables, financial reconciliation. |
+| **JSON Data** | `reports/report_data.json` | All pipeline metrics as structured JSON — the canonical data artifact behind the report. |
+| **CSV Exports** | `reports/exports/*.csv` | Raw analysis tables (discrepancy details, financial recon, match results). Open in Excel or any spreadsheet tool. |
+| **Parquet Exports** | `reports/exports/*.parquet` | Same tables in compressed columnar format. Drag into the [Parquet Viewer](https://usds-data.andy-barr.com/docs/parquet_viewer.html) or query with the [SQL Explorer](https://usds-data.andy-barr.com/docs/sql_explorer.html). |
+| **DuckDB Database** | `data/database/cms_claims.duckdb` | Persistent analytical database with all tables. Query directly: `duckdb data/database/cms_claims.duckdb "SELECT * FROM beneficiary_summary LIMIT 10"` |
+
+**Fastest path to understanding the data:**
+1. Open the [live report](https://usds-data.andy-barr.com/reports/comparison_report.html) — read the executive summary and key findings (2 min)
+2. Click the **chat bubble** (bottom-right) and ask: *"What are the main discrepancies between the old and new systems?"*
+3. For deeper exploration, open the [SQL Explorer](https://usds-data.andy-barr.com/docs/sql_explorer.html) and run queries against the exported Parquet files directly in the browser
+
 ---
 
 ## 4. Documentation Hub
@@ -191,7 +213,7 @@ Every page in the hosted report includes **Report Pal** — an AI assistant that
 
 ### How to Try It
 
-1. Open the [hosted report](https://ddmmvtx76d1f8.cloudfront.net/reports/comparison_report.html)
+1. Open the [hosted report](https://usds-data.andy-barr.com/reports/comparison_report.html)
 2. Click the chat bubble in the bottom-right corner
 3. Choose **Text** (type questions) or **Voice** (speak naturally via WebRTC)
 
@@ -325,6 +347,6 @@ For reviewers who want to understand the code:
 
 4. **Docker for portability** — `docker build && docker run` runs everything on any machine.
 
-5. **95 tests** — 62 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step and core module.
+5. **264 tests** — 231 synthetic (no data needed) + 33 real-data validation. Tests cover every pipeline step, core module, functional primitives, and property-based invariants.
 
 6. **Flexible file discovery** — the pipeline discovers CSVs by column headers, not filenames. Works with any of the 20 CMS DE-SynPUF samples without code changes.

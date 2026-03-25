@@ -3,7 +3,35 @@ Shared test fixtures — creates small in-memory DuckDB tables
 that mirror the real schema for isolated, fast testing.
 """
 
+import sys
+from pathlib import Path
+
 import pytest
+
+# Check that tests are running inside the project virtualenv
+_venv_dir = Path(__file__).resolve().parent.parent / ".venv314"
+_wrong_venv = _venv_dir.exists() and not any("venv314" in p for p in sys.path)
+
+
+def pytest_report_header():
+    if _wrong_venv:
+        return [
+            "",
+            "=" * 70,
+            "  WARNING: Wrong Python environment!",
+            "",
+            f"  Running:  {sys.executable} (Python {sys.version.split()[0]})",
+            f"  Expected: {_venv_dir / 'bin' / 'python'}",
+            "",
+            "  Missing packages (returns, hypothesis, …) will cause errors.",
+            "  Fix with:",
+            "",
+            "    source .venv314/bin/activate && pytest",
+            "    # or",
+            "    .venv314/bin/python -m pytest",
+            "=" * 70,
+            "",
+        ]
 import duckdb
 
 
